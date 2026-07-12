@@ -1,4 +1,48 @@
-// Intentionally empty by default.
-// Add Drizzle tables here when the site actually needs a database.
-// See examples/d1/db/schema.ts for an opt-in example.
-export {};
+import { sql } from "drizzle-orm";
+import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+export const storeSettings = sqliteTable("store_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const categories = sqliteTable("categories", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  nameTr: text("name_tr").notNull(),
+  nameEn: text("name_en").notNull().default(""),
+  slug: text("slug").notNull().unique(),
+  imageUrl: text("image_url").notNull().default(""),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+});
+
+export const products = sqliteTable("products", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  nameTr: text("name_tr").notNull(),
+  nameEn: text("name_en").notNull().default(""),
+  slug: text("slug").notNull().unique(),
+  descriptionTr: text("description_tr").notNull().default(""),
+  descriptionEn: text("description_en").notNull().default(""),
+  categoryId: integer("category_id").references(() => categories.id),
+  imageUrl: text("image_url").notNull().default(""),
+  priceTr: real("price_tr").notNull().default(0),
+  priceGlobal: real("price_global").notNull().default(0),
+  currencyGlobal: text("currency_global").notNull().default("EUR"),
+  stock: integer("stock").notNull().default(0),
+  marketTr: integer("market_tr", { mode: "boolean" }).notNull().default(true),
+  marketGlobal: integer("market_global", { mode: "boolean" }).notNull().default(false),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const productVariants = sqliteTable("product_variants", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  sku: text("sku").notNull().unique(),
+  optionName: text("option_name").notNull().default(""),
+  optionValue: text("option_value").notNull().default(""),
+  stock: integer("stock").notNull().default(0),
+  priceAdjustment: real("price_adjustment").notNull().default(0),
+});
