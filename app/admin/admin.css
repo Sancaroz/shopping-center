@@ -13,3 +13,12 @@
 .stock-controls { display: inline-flex; align-items: center; gap: 8px; margin-top: 9px; border: 1px solid #c9c3b8; }
 .stock-controls button { text-decoration: none !important; width: 25px; height: 24px; }
 .stock-controls b { font-size: 10px; font-weight: 400; }
+.variants-card { margin-top: 25px; }
+.variant-form { grid-template-columns: repeat(3, 1fr); }
+.variant-list { margin-top: 30px; }
+.variant-list article { display: grid; grid-template-columns: 1fr auto auto; gap: 25px; align-items: center; padding: 14px 0; border-top: 1px solid rgba(28,36,29,.2); }
+.variant-list b,.variant-list span { display: block; }
+.variant-list b { font-family: Georgia,serif; font-weight: 400; }
+.variant-list span,.variant-list code { margin-top: 5px; font-size: 10px; color: #687066; }
+.variant-list button { border: 0; background: none; text-decoration: underline; font-size: 10px; cursor: pointer; }
+@media(max-width:800px){.variant-form{grid-template-columns:1fr 1fr}}
