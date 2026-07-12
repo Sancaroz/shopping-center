@@ -7,3 +7,9 @@
 
 .admin-form select:focus { border-color: var(--ink); }
 .category-list .sub-category { padding-left: 22px; background: rgba(201, 192, 174, .12); }
+.product-list .product-inactive { opacity: .52; }
+.product-list .product-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.product-list .product-actions button:first-child { text-decoration: none; border: 1px solid #b9b2a6; padding: 6px 8px; }
+.stock-controls { display: inline-flex; align-items: center; gap: 8px; margin-top: 9px; border: 1px solid #c9c3b8; }
+.stock-controls button { text-decoration: none !important; width: 25px; height: 24px; }
+.stock-controls b { font-size: 10px; font-weight: 400; }
