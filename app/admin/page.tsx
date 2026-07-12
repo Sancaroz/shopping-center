@@ -1,5 +1,6 @@
 import { requireChatGPTUser } from "../chatgpt-auth";
 import AdminPanel from "./panel";
+import "./admin.css";
 
 export const dynamic = "force-dynamic";
 

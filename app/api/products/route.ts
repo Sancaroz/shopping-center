@@ -24,6 +24,7 @@ export async function POST(request: Request) {
   const [product] = await db.insert(products).values({
     nameTr, slug,
     descriptionTr: String(body.descriptionTr ?? ""),
+    categoryId: Number(body.categoryId) || null,
     imageUrl: String(body.imageUrl ?? ""),
     priceTr: Number(body.priceTr ?? 0),
     priceGlobal: Number(body.priceGlobal ?? 0),

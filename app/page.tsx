@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { categories, products as sampleProducts, type Market } from "./content";
+import { categories as sampleCategories, products as sampleProducts, type Market } from "./content";
 
 type StoreProduct = (typeof sampleProducts)[number] & { id?: number; active?: boolean };
 type DatabaseProduct = {
@@ -16,6 +16,7 @@ type DatabaseProduct = {
   active: boolean;
 };
 type StoreSettings = { brandName:string; brandSuffix:string; announcementTr:string; announcementGlobal:string; heroEyebrow:string };
+type StoreCategory = { id?:number; name:string; image:string; alt:string; parentId?:number|null };
 const defaultSettings:StoreSettings = { brandName:"MYSA", brandSuffix:"OBJETS", announcementTr:"1.500 TL üzeri ücretsiz gönderim", announcementGlobal:"Complimentary shipping over €150", heroEyebrow:"Yavaş yaşam için seçilmiş parçalar" };
 
 const Arrow = () => <span aria-hidden="true">&#8599;</span>;
@@ -28,6 +29,7 @@ export default function Home() {
   const [catalogProducts, setCatalogProducts] = useState<StoreProduct[]>(sampleProducts);
   const [catalogSource, setCatalogSource] = useState<"sample" | "live">("sample");
   const [settings, setSettings] = useState<StoreSettings>(defaultSettings);
+  const [storeCategories, setStoreCategories] = useState<StoreCategory[]>(sampleCategories);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +59,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => { fetch("/api/settings").then(response => response.json()).then(data => data.settings && setSettings(data.settings)).catch(() => undefined); }, []);
+  useEffect(() => { fetch("/api/categories").then(response => response.json()).then(data => { const rows = (data.categories ?? []).filter((category:{parentId:number|null}) => !category.parentId); if (rows.length) setStoreCategories(rows.slice(0,3).map((category:{id:number;nameTr:string;imageUrl:string;parentId:number|null},index:number) => ({ id:category.id, name:category.nameTr, image:category.imageUrl || sampleCategories[index % sampleCategories.length].image, alt:`${category.nameTr} kategorisi`, parentId:category.parentId }))); }).catch(() => undefined); }, []);
 
   const visibleProducts = useMemo(
     () => catalogProducts.filter((product) => product.markets.includes(market)),
@@ -120,8 +123,8 @@ export default function Home() {
       </section>
 
       <section className="category-grid" id="categories">
-        {categories.map((category, index) => (
-          <article className={`category-card category-${index + 1}`} key={category.name}>
+        {storeCategories.map((category, index) => (
+          <article className={`category-card category-${index + 1}`} key={category.id ?? category.name}>
             <img src={category.image} alt={category.alt} />
             <div className="category-info">
               <span>0{index + 1}</span>

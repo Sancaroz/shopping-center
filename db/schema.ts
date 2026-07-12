@@ -12,6 +12,7 @@ export const categories = sqliteTable("categories", {
   nameTr: text("name_tr").notNull(),
   nameEn: text("name_en").notNull().default(""),
   slug: text("slug").notNull().unique(),
+  parentId: integer("parent_id"),
   imageUrl: text("image_url").notNull().default(""),
   sortOrder: integer("sort_order").notNull().default(0),
   active: integer("active", { mode: "boolean" }).notNull().default(true),

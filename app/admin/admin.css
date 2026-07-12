@@ -1,0 +1,9 @@
+.admin-form select {
+  border: 1px solid #c9c3b8;
+  background: white;
+  padding: 12px;
+  outline: none;
+}
+
+.admin-form select:focus { border-color: var(--ink); }
+.category-list .sub-category { padding-left: 22px; background: rgba(201, 192, 174, .12); }
