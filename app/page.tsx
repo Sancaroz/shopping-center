@@ -1,7 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { categories, products, type Market } from "./content";
+import { useEffect, useMemo, useState } from "react";
+import { categories, products as sampleProducts, type Market } from "./content";
+
+type StoreProduct = (typeof sampleProducts)[number] & { id?: number; active?: boolean };
+type DatabaseProduct = {
+  id: number;
+  nameTr: string;
+  descriptionTr: string;
+  imageUrl: string;
+  priceTr: number;
+  priceGlobal: number;
+  marketTr: boolean;
+  marketGlobal: boolean;
+  active: boolean;
+};
 
 const Arrow = () => <span aria-hidden="true">&#8599;</span>;
 
@@ -10,10 +23,39 @@ export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
   const [notice, setNotice] = useState("");
+  const [catalogProducts, setCatalogProducts] = useState<StoreProduct[]>(sampleProducts);
+  const [catalogSource, setCatalogSource] = useState<"sample" | "live">("sample");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/products")
+      .then(async (response) => response.ok ? response.json() : Promise.reject())
+      .then((data: { products?: DatabaseProduct[] }) => {
+        if (cancelled || !data.products?.length) return;
+        const liveProducts: StoreProduct[] = data.products
+          .filter((product) => product.active)
+          .map((product) => ({
+            id: product.id,
+            name: product.nameTr,
+            description: product.descriptionTr,
+            priceTR: product.priceTr,
+            priceGlobal: product.priceGlobal,
+            markets: [product.marketTr ? "TR" : null, product.marketGlobal ? "GLOBAL" : null].filter(Boolean) as Market[],
+            image: product.imageUrl || "https://images.unsplash.com/photo-1616627547584-bf28cee262db?auto=format&fit=crop&w=900&q=88",
+            alt: product.nameTr,
+            badge: "YENİ",
+            active: product.active,
+          }));
+        setCatalogProducts(liveProducts);
+        setCatalogSource("live");
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
 
   const visibleProducts = useMemo(
-    () => products.filter((product) => product.markets.includes(market)),
-    [market],
+    () => catalogProducts.filter((product) => product.markets.includes(market)),
+    [catalogProducts, market],
   );
 
   const changeMarket = (next: Market) => {
@@ -88,7 +130,7 @@ export default function Home() {
       <section className="products" id="shop">
         <div className="section-heading">
           <div>
-            <p className="section-label">Yeni gelenler · {market === "TR" ? "Türkiye" : "Global"}</p>
+            <p className="section-label">Yeni gelenler · {market === "TR" ? "Türkiye" : "Global"}{catalogSource === "live" ? " · Güncel katalog" : ""}</p>
             <h2>Şimdi keşfedin</h2>
           </div>
           <div className="market-switch" aria-label="Mağaza bölgesi">
@@ -98,7 +140,7 @@ export default function Home() {
         </div>
         <div className="product-grid">
           {visibleProducts.map((product) => (
-            <article className="product-card" key={product.name}>
+            <article className="product-card" key={product.id ?? product.name}>
               <div className="product-image">
                 <img src={product.image} alt={product.alt} />
                 {product.badge && <span>{product.badge}</span>}

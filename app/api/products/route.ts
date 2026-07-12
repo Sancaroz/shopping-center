@@ -6,8 +6,12 @@ import { getChatGPTUser } from "../../chatgpt-auth";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const db = getDb();
-  return Response.json({ products: await db.select().from(products).orderBy(desc(products.id)) });
+  try {
+    const db = getDb();
+    return Response.json({ products: await db.select().from(products).orderBy(desc(products.id)) });
+  } catch {
+    return Response.json({ products: [], status: "catalog_initializing" });
+  }
 }
 
 export async function POST(request: Request) {
