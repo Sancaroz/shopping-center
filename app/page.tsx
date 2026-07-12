@@ -15,6 +15,8 @@ type DatabaseProduct = {
   marketGlobal: boolean;
   active: boolean;
 };
+type StoreSettings = { brandName:string; brandSuffix:string; announcementTr:string; announcementGlobal:string; heroEyebrow:string };
+const defaultSettings:StoreSettings = { brandName:"MYSA", brandSuffix:"OBJETS", announcementTr:"1.500 TL üzeri ücretsiz gönderim", announcementGlobal:"Complimentary shipping over €150", heroEyebrow:"Yavaş yaşam için seçilmiş parçalar" };
 
 const Arrow = () => <span aria-hidden="true">&#8599;</span>;
 
@@ -25,6 +27,7 @@ export default function Home() {
   const [notice, setNotice] = useState("");
   const [catalogProducts, setCatalogProducts] = useState<StoreProduct[]>(sampleProducts);
   const [catalogSource, setCatalogSource] = useState<"sample" | "live">("sample");
+  const [settings, setSettings] = useState<StoreSettings>(defaultSettings);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,6 +56,8 @@ export default function Home() {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => { fetch("/api/settings").then(response => response.json()).then(data => data.settings && setSettings(data.settings)).catch(() => undefined); }, []);
+
   const visibleProducts = useMemo(
     () => catalogProducts.filter((product) => product.markets.includes(market)),
     [catalogProducts, market],
@@ -73,7 +78,7 @@ export default function Home() {
   return (
     <main>
       <div className="announcement">
-        <p>{market === "TR" ? "1.500 TL üzeri ücretsiz gönderim" : "Complimentary shipping over €150"}</p>
+        <p>{market === "TR" ? settings.announcementTr : settings.announcementGlobal}</p>
         <button onClick={() => changeMarket(market === "TR" ? "GLOBAL" : "TR")}>
           {market === "TR" ? "TR / TRY" : "GLOBAL / EUR"} <span>⌄</span>
         </button>
@@ -83,7 +88,7 @@ export default function Home() {
         <button className="menu-button" aria-label="Menüyü aç" onClick={() => setMenuOpen(!menuOpen)}>
           <i></i><i></i>
         </button>
-        <a className="wordmark" href="#top" aria-label="Mysa ana sayfa">MYSA<span>OBJETS</span></a>
+        <a className="wordmark" href="#top" aria-label={`${settings.brandName} ana sayfa`}>{settings.brandName}<span>{settings.brandSuffix}</span></a>
         <nav className={menuOpen ? "nav open" : "nav"} aria-label="Ana menü">
           <a href="#shop" onClick={() => setMenuOpen(false)}>Mağaza</a>
           <a href="#categories" onClick={() => setMenuOpen(false)}>Koleksiyonlar</a>
@@ -98,7 +103,7 @@ export default function Home() {
 
       <section className="hero" id="top">
         <div className="hero-content">
-          <p className="eyebrow">Yavaş yaşam için seçilmiş parçalar</p>
+          <p className="eyebrow">{settings.heroEyebrow}</p>
           <h1>Gündelik olanı<br/><em>olağanüstü</em> kılın.</h1>
           <p className="hero-copy">Eviniz, gardırobunuz ve en yakın dostlarınız için; dokusu, işçiliği ve hikâyesi olan zamansız objeler.</p>
           <a className="text-link light" href="#shop">Yeni seçkiyi keşfet <Arrow /></a>
@@ -156,7 +161,7 @@ export default function Home() {
       </section>
 
       <section className="manifesto">
-        <p className="eyebrow">MYSA STANDARDI</p>
+        <p className="eyebrow">{settings.brandName} STANDARDI</p>
         <blockquote>“İyi tasarım yalnızca nasıl göründüğü değil,<br/>hayatınıza <em>nasıl hissettirdiğidir.</em>”</blockquote>
         <div className="principles">
           <span>Doğal malzemeler</span><span>Sorumlu üretim</span><span>Uzun ömürlü tasarım</span>
@@ -175,12 +180,12 @@ export default function Home() {
 
       <footer>
         <div className="footer-top">
-          <div><a className="wordmark footer-logo" href="#top">MYSA<span>OBJETS</span></a><p>Beautiful things for considered living.</p></div>
+          <div><a className="wordmark footer-logo" href="#top">{settings.brandName}<span>{settings.brandSuffix}</span></a><p>Beautiful things for considered living.</p></div>
           <div><h4>Keşfet</h4><a href="#shop">Yeni gelenler</a><a href="#categories">Koleksiyonlar</a><a href="#journal">Journal</a></div>
           <div><h4>Yardım</h4><a href="#top">Teslimat & İade</a><a href="#top">Bize ulaşın</a><a href="#top">Sıkça sorulanlar</a></div>
           <div className="newsletter"><h4>Mektuplarımıza katılın</h4><p>Yeni seçkiler ve ilham veren hikâyeler.</p><label><span className="sr-only">E-posta adresi</span><input type="email" placeholder="E-posta adresiniz"/><button aria-label="Kaydol">→</button></label></div>
         </div>
-        <div className="footer-bottom"><span>© 2026 MYSA OBJETS</span><span>İstanbul · Dünya</span><span>Instagram &nbsp; Pinterest</span></div>
+        <div className="footer-bottom"><span>© 2026 {settings.brandName} {settings.brandSuffix}</span><span>İstanbul · Dünya</span><span>Instagram &nbsp; Pinterest</span></div>
       </footer>
 
       {notice && <div className="toast" role="status">{notice}</div>}
