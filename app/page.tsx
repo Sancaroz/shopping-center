@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { categories as sampleCategories, products as sampleProducts, type Market } from "./content";
 
-type StoreProduct = (typeof sampleProducts)[number] & { id?: number; active?: boolean };
+type StoreProduct = (typeof sampleProducts)[number] & { id?: number; active?: boolean; slug?:string };
 type DatabaseProduct = {
   id: number;
+  slug: string;
   nameTr: string;
   descriptionTr: string;
   imageUrl: string;
@@ -41,6 +42,7 @@ export default function Home() {
           .filter((product) => product.active)
           .map((product) => ({
             id: product.id,
+            slug: product.slug,
             name: product.nameTr,
             description: product.descriptionTr,
             priceTR: product.priceTr,
@@ -150,12 +152,13 @@ export default function Home() {
           {visibleProducts.map((product) => (
             <article className="product-card" key={product.id ?? product.name}>
               <div className="product-image">
+                {product.slug && <a className="product-detail-link" href={`/urun/${encodeURIComponent(product.slug)}`} aria-label={`${product.name} detaylarını aç`}></a>}
                 <img src={product.image} alt={product.alt} />
                 {product.badge && <span>{product.badge}</span>}
                 <button onClick={() => addToCart(product.name)} aria-label={`${product.name} ürününü çantaya ekle`}>+</button>
               </div>
               <div className="product-meta">
-                <div><h3>{product.name}</h3><p>{product.description}</p></div>
+                <div><h3>{product.slug?<a href={`/urun/${encodeURIComponent(product.slug)}`}>{product.name}</a>:product.name}</h3><p>{product.description}</p></div>
                 <strong>{market === "TR" ? `${product.priceTR.toLocaleString("tr-TR")} TL` : `€${product.priceGlobal}`}</strong>
               </div>
             </article>
