@@ -1,6 +1,6 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { products } from "../../../db/schema";
+import { productImages, products, productVariants } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +17,26 @@ export async function GET() {
 export async function POST(request: Request) {
   if (!(await getChatGPTUser())) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
   const body = await request.json() as Record<string, unknown>;
+  const duplicateId = Number(body.duplicateId);
+  if (duplicateId) {
+    const db = getDb();
+    const [source] = await db.select().from(products).where(eq(products.id, duplicateId)).limit(1);
+    if (!source) return Response.json({ error: "Kopyalanacak ürün bulunamadı." }, { status: 404 });
+    const suffix = Date.now().toString(36);
+    const [product] = await db.insert(products).values({
+      nameTr: `${source.nameTr} (Kopya)`, nameEn: source.nameEn ? `${source.nameEn} (Copy)` : "", slug: `${source.slug}-kopya-${suffix}`,
+      descriptionTr: source.descriptionTr, descriptionEn: source.descriptionEn, categoryId: source.categoryId, imageUrl: source.imageUrl,
+      priceTr: source.priceTr, priceGlobal: source.priceGlobal, currencyGlobal: source.currencyGlobal, stock: 0,
+      marketTr: source.marketTr, marketGlobal: source.marketGlobal, active: false,
+    }).returning();
+    const [images, variants] = await Promise.all([
+      db.select().from(productImages).where(eq(productImages.productId, duplicateId)),
+      db.select().from(productVariants).where(eq(productVariants.productId, duplicateId)),
+    ]);
+    if (images.length) await db.insert(productImages).values(images.map(image => ({ productId: product.id, imageUrl: image.imageUrl, altText: image.altText, sortOrder: image.sortOrder })));
+    if (variants.length) await db.insert(productVariants).values(variants.map(variant => ({ productId: product.id, sku: `${variant.sku}-COPY-${suffix}`, optionName: variant.optionName, optionValue: variant.optionValue, optionNameEn: variant.optionNameEn, optionValueEn: variant.optionValueEn, stock: 0, priceAdjustment: variant.priceAdjustment })));
+    return Response.json({ product, copiedImages: images.length, copiedVariants: variants.length }, { status: 201 });
+  }
   const nameTr = String(body.nameTr ?? "").trim();
   const slug = String(body.slug ?? "").trim();
   if (!nameTr || !slug) return Response.json({ error: "Ürün adı ve kodu zorunludur." }, { status: 400 });

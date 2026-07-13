@@ -37,6 +37,6 @@ export async function DELETE(request:Request) {
   const db=getDb();const[image]=await db.select().from(productImages).where(and(eq(productImages.id,id),eq(productImages.productId,productId))).limit(1);if(!image)return Response.json({error:"Görsel bulunamadı"},{status:404});
   await db.delete(productImages).where(eq(productImages.id,id));
   const[product]=await db.select().from(products).where(eq(products.id,productId)).limit(1);if(product?.imageUrl===image.imageUrl)await db.update(products).set({imageUrl:"",updatedAt:new Date().toISOString()}).where(eq(products.id,productId));
-  if(image.imageUrl.startsWith("/api/media/")){const key=decodeURIComponent(image.imageUrl.slice("/api/media/".length));const bucket=(env as unknown as {MEDIA?:MediaBucket}).MEDIA;await bucket?.delete(key);}
+  if(image.imageUrl.startsWith("/api/media/")){const[galleryReference]=await db.select({id:productImages.id}).from(productImages).where(eq(productImages.imageUrl,image.imageUrl)).limit(1);const[coverReference]=await db.select({id:products.id}).from(products).where(eq(products.imageUrl,image.imageUrl)).limit(1);if(!galleryReference&&!coverReference){const key=decodeURIComponent(image.imageUrl.slice("/api/media/".length));const bucket=(env as unknown as {MEDIA?:MediaBucket}).MEDIA;await bucket?.delete(key);}}
   return Response.json({ok:true});
 }
