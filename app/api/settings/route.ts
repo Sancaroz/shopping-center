@@ -6,6 +6,8 @@ export const dynamic = "force-dynamic";
 const defaults = {
   brandName: "MYSA",
   brandSuffix: "OBJETS",
+  brandLogoUrl: "",
+  faviconUrl: "/favicon.svg",
   announcementTr: "1.500 TL üzeri ücretsiz gönderim",
   announcementGlobal: "Complimentary shipping over €150",
   nav1Label: "Mağaza",

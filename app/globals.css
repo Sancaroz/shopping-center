@@ -15,6 +15,7 @@ img { display:block; width:100%; }
 .header { height:84px; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; padding:0 4vw; border-bottom:1px solid var(--line); position:absolute; top:34px; left:0; right:0; z-index:10; color:white; }
 .wordmark { font-family:Georgia, serif; font-size:26px; letter-spacing:.02em; text-align:center; line-height:.72; }
 .wordmark span { display:block; font-family:Arial,sans-serif; font-size:7px; letter-spacing:.5em; margin:8px 0 0 .5em; }
+.image-wordmark img { display:block; width:auto; height:42px; max-width:190px; object-fit:contain; }
 .nav { display:flex; gap:28px; font-size:11px; letter-spacing:.12em; text-transform:uppercase; }
 .nav a, .header-actions button, .header-actions a { transition:opacity .2s; }
 .nav a:hover, .header-actions button:hover, .header-actions a:hover { opacity:.55; }
@@ -78,6 +79,7 @@ img { display:block; width:100%; }
 footer { background:#c9c0ae; padding:90px 4vw 25px; }
 .footer-top { display:grid; grid-template-columns:2fr 1fr 1fr 1.6fr; gap:55px; padding-bottom:90px; }
 .footer-logo { display:inline-block; text-align:left; font-size:35px; }
+.footer-logo.image-wordmark img { height:58px; max-width:230px; }
 .footer-top>div:first-child p { font-family:Georgia,serif; color:#60685e; font-size:15px; margin-top:30px; }
 .footer-top h4 { font-size:9px; text-transform:uppercase; letter-spacing:.2em; font-weight:400; margin:0 0 23px; }
 .footer-top>div:not(:first-child) { display:flex; flex-direction:column; gap:13px; }
