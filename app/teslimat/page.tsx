@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import "./teslimat.css";
 
 type Line = { id:number; quantity:number; name:string; optionValue:string|null; priceTr:number; priceGlobal:number; priceAdjustment:number|null };
-type Result = { orderNumber:string; subtotal:number; market:"TR"|"GLOBAL" };
+type Result = { orderNumber:string; subtotal:number; shippingAmount:number; total:number; market:"TR"|"GLOBAL" };
 
 export default function CheckoutPage() {
   const [items,setItems] = useState<Line[]>([]);
@@ -12,10 +12,13 @@ export default function CheckoutPage() {
   const [busy,setBusy] = useState(false);
   const [message,setMessage] = useState("");
   const [result,setResult] = useState<Result|null>(null);
+  const [shippingSettings,setShippingSettings]=useState({shippingTr:99,freeShippingTr:1500,shippingGlobal:15,freeShippingGlobal:150});
 
   useEffect(() => { fetch("/api/cart").then(response => response.json()).then(data => { setItems(data.items ?? []); setMarket(data.market === "GLOBAL" ? "GLOBAL" : "TR"); }).catch(() => setMessage("Çantanız yüklenemedi.")); }, []);
+  useEffect(()=>{fetch("/api/settings").then(response=>response.json()).then(data=>{const s=data.settings??{};setShippingSettings({shippingTr:Number(s.shippingTr??99),freeShippingTr:Number(s.freeShippingTr??1500),shippingGlobal:Number(s.shippingGlobal??15),freeShippingGlobal:Number(s.freeShippingGlobal??150)});}).catch(()=>undefined);},[]);
   const total = useMemo(() => items.reduce((sum,item) => sum + ((market === "TR" ? item.priceTr : item.priceGlobal) + Number(item.priceAdjustment ?? 0)) * item.quantity, 0), [items,market]);
   const money = (value:number) => market === "TR" ? `${value.toLocaleString("tr-TR")} TL` : `€${value.toLocaleString("en-US")}`;
+  const shippingFee=market==="TR"?shippingSettings.shippingTr:shippingSettings.shippingGlobal;const freeLimit=market==="TR"?shippingSettings.freeShippingTr:shippingSettings.freeShippingGlobal;const shipping=total>=freeLimit?0:shippingFee;const grandTotal=total+shipping;
 
   async function submit(event:FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage("");
@@ -46,7 +49,7 @@ export default function CheckoutPage() {
           {message && <p className="checkout-error wide" role="alert">{message}</p>}
           <button className="wide" disabled={busy}>{busy ? "Kaydediliyor…" : "Sipariş talebini oluştur"}</button>
         </form>
-        <aside className="checkout-summary"><p>SEÇİMİNİZ</p>{items.map(item => <div className="checkout-line" key={item.id}><span>{item.name}{item.optionValue ? ` · ${item.optionValue}` : ""}<small>{item.quantity} adet</small></span><strong>{money(((market === "TR" ? item.priceTr : item.priceGlobal) + Number(item.priceAdjustment ?? 0)) * item.quantity)}</strong></div>)}<hr/><div className="checkout-total"><span>Ara toplam</span><strong>{money(total)}</strong></div><small>Ödeme ve kargo ücreti bu sürümde aktif değildir.</small></aside>
+        <aside className="checkout-summary"><p>SEÇİMİNİZ</p>{items.map(item => <div className="checkout-line" key={item.id}><span>{item.name}{item.optionValue ? ` · ${item.optionValue}` : ""}<small>{item.quantity} adet</small></span><strong>{money(((market === "TR" ? item.priceTr : item.priceGlobal) + Number(item.priceAdjustment ?? 0)) * item.quantity)}</strong></div>)}<hr/><div className="checkout-total"><span>Ara toplam</span><strong>{money(total)}</strong></div><div className="checkout-total"><span>Teslimat</span><strong>{shipping===0?"Ücretsiz":money(shipping)}</strong></div><hr/><div className="checkout-total"><span>Genel toplam</span><strong>{money(grandTotal)}</strong></div><small>Bu aşamada ödeme alınmaz; sipariş talebi toplam tutarıyla kaydedilir.</small></aside>
       </div>}
     </section>
   </main>;

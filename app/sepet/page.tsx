@@ -23,6 +23,7 @@ export default function CartPage() {
   const [items, setItems] = useState<CartItem[]>([]);
   const [market, setMarket] = useState<"TR" | "GLOBAL">("TR");
   const [loading, setLoading] = useState(true);
+  const [shippingSettings,setShippingSettings]=useState({shippingTr:99,freeShippingTr:1500,shippingGlobal:15,freeShippingGlobal:150});
 
   const load = () => fetch("/api/cart").then(response => response.json()).then(data => {
     setItems(data.items ?? []);
@@ -31,6 +32,7 @@ export default function CartPage() {
   }).catch(() => setLoading(false));
 
   useEffect(() => { load(); }, []);
+  useEffect(()=>{fetch("/api/settings").then(response=>response.json()).then(data=>{const s=data.settings??{};setShippingSettings({shippingTr:Number(s.shippingTr??99),freeShippingTr:Number(s.freeShippingTr??1500),shippingGlobal:Number(s.shippingGlobal??15),freeShippingGlobal:Number(s.freeShippingGlobal??150)});}).catch(()=>undefined);},[]);
 
   const total = useMemo(() => items.reduce((sum, item) => {
     const price = (market === "TR" ? item.priceTr : item.priceGlobal) + (item.priceAdjustment ?? 0);
@@ -52,6 +54,7 @@ export default function CartPage() {
   }
 
   const money = (value: number) => market === "TR" ? `${value.toLocaleString("tr-TR")} TL` : `€${value.toLocaleString("en-US")}`;
+  const shippingFee=market==="TR"?shippingSettings.shippingTr:shippingSettings.shippingGlobal;const freeLimit=market==="TR"?shippingSettings.freeShippingTr:shippingSettings.freeShippingGlobal;const shipping=total>=freeLimit?0:shippingFee;const grandTotal=total+shipping;
 
   return <main className="cart-page">
     <header className="cart-header"><a className="cart-brand" href="/">MYSA <span>OBJETS</span></a><a href="/">Alışverişe devam ↗</a></header>
@@ -66,7 +69,7 @@ export default function CartPage() {
             <strong>{money(unit * item.quantity)}</strong>
           </article>;
         })}</div>
-        <aside className="cart-summary"><p>SİPARİŞ ÖZETİ</p><div><span>Ara toplam</span><strong>{money(total)}</strong></div><div><span>Teslimat</span><span>Sonraki adımda</span></div><hr/><div className="cart-total"><span>Toplam</span><strong>{money(total)}</strong></div><a className="cart-checkout" href="/teslimat">Teslimat bilgilerine geç</a><small>Bu aşamada ödeme alınmaz. Ön sipariş talebiniz kaydedildikten sonra ödeme sistemi ayrıca bağlanacaktır.</small></aside>
+        <aside className="cart-summary"><p>SİPARİŞ ÖZETİ</p><div><span>Ara toplam</span><strong>{money(total)}</strong></div><div><span>Teslimat</span><span>{shipping===0?"Ücretsiz":money(shipping)}</span></div>{shipping>0&&<small>{money(Math.max(0,freeLimit-total))} daha ekleyin, ücretsiz teslimattan yararlanın.</small>}<hr/><div className="cart-total"><span>Toplam</span><strong>{money(grandTotal)}</strong></div><a className="cart-checkout" href="/teslimat">Teslimat bilgilerine geç</a><small>Bu aşamada ödeme alınmaz. Ön sipariş talebiniz kaydedildikten sonra ödeme sistemi ayrıca bağlanacaktır.</small></aside>
       </div>}
     </section>
   </main>;

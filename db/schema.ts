@@ -88,6 +88,8 @@ export const orders = sqliteTable("orders", {
   country: text("country").notNull().default("Türkiye"),
   note: text("note").notNull().default(""),
   subtotal: real("subtotal").notNull(),
+  shippingAmount: real("shipping_amount").notNull().default(0),
+  total: real("total").notNull().default(0),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

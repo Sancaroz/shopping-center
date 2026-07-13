@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { cartItems, carts, orderItems, orders, products, productVariants } from "../../../db/schema";
+import { cartItems, carts, orderItems, orders, products, productVariants, storeSettings } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
 
 const COOKIE = "store_cart";
@@ -46,18 +46,19 @@ export async function POST(request:Request) {
 
   const priced = lines.map(line => ({ ...line, unitPrice:(cart.market === "GLOBAL" ? line.priceGlobal : line.priceTr) + Number(line.priceAdjustment ?? 0) }));
   const subtotal = priced.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+  const settingRows=await db.select().from(storeSettings);const settings=Object.fromEntries(settingRows.map(row=>[row.key,row.value]));const shippingFee=Number(cart.market==="GLOBAL"?(settings.shippingGlobal??15):(settings.shippingTr??99));const freeLimit=Number(cart.market==="GLOBAL"?(settings.freeShippingGlobal??150):(settings.freeShippingTr??1500));const shippingAmount=subtotal>=freeLimit?0:shippingFee;const total=subtotal+shippingAmount;
   const orderNumber = `MS-${new Date().toISOString().slice(0,10).replaceAll("-","")}-${crypto.randomUUID().slice(0,6).toUpperCase()}`;
   const [order] = await db.insert(orders).values({
     orderNumber, market:cart.market, customerName, email, phone, address, city,
     postalCode:String(body.postalCode ?? "").trim(), country:String(body.country ?? "Türkiye").trim() || "Türkiye",
-    note:String(body.note ?? "").trim(), subtotal,
+    note:String(body.note ?? "").trim(), subtotal, shippingAmount, total,
   }).returning();
   await db.insert(orderItems).values(priced.map(line => ({
     orderId:order.id, productId:line.productId, variantId:line.variantId, productName:line.productName,
     variantLabel:line.optionValue ? `${line.optionName}: ${line.optionValue}` : "", quantity:line.quantity, unitPrice:line.unitPrice,
   })));
   await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));
-  return Response.json({ orderNumber, subtotal, market:cart.market }, { status:201 });
+  return Response.json({ orderNumber, subtotal, shippingAmount, total, market:cart.market }, { status:201 });
 }
 
 export async function PATCH(request:Request) {
