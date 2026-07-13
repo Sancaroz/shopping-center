@@ -20,6 +20,11 @@ const defaults = {
   freeShippingTr:"1500",
   shippingGlobal:"15",
   freeShippingGlobal:"150",
+  shippingPolicyTr:"Sipariş talepleri onaylandıktan sonra hazırlanır. Teslimat süresi ürün ve teslimat adresine göre paylaşılır. Kargo ücreti sipariş özetinde ayrıca gösterilir.",
+  returnsPolicyTr:"İade veya değişim talebiniz için sipariş numaranızla iletişim formundan bize ulaşın. Ürünün kullanılmamış ve yeniden satışa uygun durumda olması beklenir.",
+  shippingPolicyGlobal:"Global order requests are reviewed before preparation. Delivery timing and available destinations are confirmed according to the products and destination country.",
+  returnsPolicyGlobal:"For a return or exchange request, contact us with your order number. Products should be unused and suitable for resale.",
+  privacyPolicy:"Sipariş ve iletişim formlarında paylaştığınız bilgiler; talebinizi işlemek, teslimat sürecini yürütmek ve sizinle iletişim kurmak amacıyla kaydedilir. Ödeme veya kart bilgisi bu aşamada alınmaz. Kişisel bilgilerinizi mesaj alanlarına gereğinden fazla yazmayın.",
 };
 export async function GET() { try { const rows = await getDb().select().from(storeSettings); return Response.json({ settings: { ...defaults, ...Object.fromEntries(rows.map(row => [row.key, row.value])) } }); } catch { return Response.json({ settings: defaults }); } }
 export async function PUT(request: Request) { if (!(await getChatGPTUser())) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 }); const body = await request.json() as Record<string, unknown>; const db = getDb(); const allowed = Object.keys(defaults) as (keyof typeof defaults)[]; const rows=await db.select().from(storeSettings);const current=Object.fromEntries(rows.map(row=>[row.key,row.value]));const values=Object.fromEntries(allowed.map(key=>[key,String(body[key]??current[key]??defaults[key])]));await db.batch(allowed.map(key => db.insert(storeSettings).values({ key, value: values[key], updatedAt: new Date().toISOString() }).onConflictDoUpdate({ target: storeSettings.key, set: { value: values[key], updatedAt: new Date().toISOString() } }))); return Response.json({ settings: values }); }

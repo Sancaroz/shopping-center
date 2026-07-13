@@ -1,0 +1,4 @@
+.policy-editor { margin-top: 25px; }
+.policy-editor .list-title > a { height: max-content; border-bottom: 1px solid; padding-bottom: 4px; font-size: 9px; }
+.policy-editor .settings-note { max-width: 760px; margin-top: 18px; }
+.policy-form textarea { resize: vertical; line-height: 1.55; }

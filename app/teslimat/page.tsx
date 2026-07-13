@@ -46,7 +46,7 @@ export default function CheckoutPage() {
           <label>Şehir<input name="city" autoComplete="address-level2" required/></label>
           <label>Posta kodu<input name="postalCode" autoComplete="postal-code"/></label>
           <label className="wide">Sipariş notu <small>İsteğe bağlı</small><textarea name="note" rows={3}/></label>
-          <label className="checkout-consent wide"><input type="checkbox" required/> Bilgilerimin bu sipariş talebinin işlenmesi için kaydedilmesini kabul ediyorum.</label>
+          <label className="checkout-consent wide"><input type="checkbox" required/> <span>Bilgilerimin bu sipariş talebinin işlenmesi için kaydedilmesini kabul ediyorum. <a href="/politikalar#gizlilik" target="_blank">Gizlilik açıklaması ↗</a></span></label>
           {message && <p className="checkout-error wide" role="alert">{message}</p>}
           <button className="wide" disabled={busy}>{busy ? "Kaydediliyor…" : "Sipariş talebini oluştur"}</button>
         </form>
