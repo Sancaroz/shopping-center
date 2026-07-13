@@ -1,0 +1,1 @@
+import{requireChatGPTUser}from"../../chatgpt-auth";import BlocksEditor from"./blocks-editor";import"../admin.css";export const dynamic="force-dynamic";export default async function BlocksPage(){await requireChatGPTUser("/admin/bloklar");return <BlocksEditor/>}

@@ -77,6 +77,7 @@ img { display:block; width:100%; }
 .journal-copy { padding:9vw; display:flex; flex-direction:column; justify-content:center; }
 .journal-copy p:not(.section-label) { font-family:Georgia,serif; font-size:17px; line-height:1.7; max-width:470px; color:#657064; margin:0 0 35px; }
 .journal-copy .text-link { align-self:flex-start; }
+.custom-blocks article{display:grid;grid-template-columns:1fr 1fr;min-height:560px}.custom-blocks article>img{height:100%;min-height:560px;object-fit:cover}.custom-blocks article>div{display:flex;flex-direction:column;justify-content:center;padding:8vw;background:#e8e2d7}.custom-blocks article.image-right>img{order:2}.custom-blocks h2{font:400 clamp(38px,5vw,68px)/1 Georgia,serif;letter-spacing:-.04em;margin:22px 0}.custom-blocks article>div>p:not(.section-label){max-width:520px;font:15px/1.7 Georgia,serif;color:#5f675d}.custom-blocks .text-link{margin-top:28px;width:max-content}@media(max-width:700px){.custom-blocks article{grid-template-columns:1fr;min-height:0}.custom-blocks article>img{min-height:360px;height:60vw}.custom-blocks article.image-right>img{order:0}.custom-blocks article>div{padding:65px 7vw}}
 footer { background:#c9c0ae; padding:90px 4vw 25px; }
 .footer-top { display:grid; grid-template-columns:2fr 1fr 1fr 1.6fr; gap:55px; padding-bottom:90px; }
 .footer-logo { display:inline-block; text-align:left; font-size:35px; }

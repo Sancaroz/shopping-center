@@ -23,6 +23,7 @@ type DatabaseProduct = {
 type GlobalContent = { nav1LabelGlobal:string; nav2LabelGlobal:string; nav3LabelGlobal:string; nav4LabelGlobal:string; heroEyebrowGlobal:string; heroTitleGlobal:string; heroTitleAccentGlobal:string; heroCopyGlobal:string; heroButtonGlobal:string; introTitleGlobal:string; introCopyGlobal:string; productsEyebrowGlobal:string; productsTitleGlobal:string; manifestoEyebrowGlobal:string; manifestoQuoteGlobal:string; manifestoPrinciple1Global:string; manifestoPrinciple2Global:string; manifestoPrinciple3Global:string; journalEyebrowGlobal:string; journalTitleGlobal:string; journalCopyGlobal:string; journalButtonGlobal:string; footerTaglineGlobal:string; newsletterTitleGlobal:string; newsletterCopyGlobal:string; footerLocationGlobal:string };
 type StoreSettings = { brandName:string; brandSuffix:string; brandLogoUrl?:string; faviconUrl?:string; announcementTr:string; announcementGlobal:string; showAnnouncement?:string; announcementUrlTr?:string; announcementUrlGlobal?:string; nav1Label?:string; nav1Url?:string; nav2Label?:string; nav2Url?:string; nav3Label?:string; nav3Url?:string; nav4Label?:string; nav4Url?:string; heroEyebrow:string; heroTitle:string; heroTitleAccent:string; heroCopy:string; heroButton:string; heroImageUrl:string; introTitle:string; introCopy:string; showCategories:string; showProducts:string; showJournal:string; showManifesto?:string; homepageSectionOrder?:string; manifestoEyebrow?:string; manifestoQuote?:string; manifestoPrinciple1?:string; manifestoPrinciple2?:string; manifestoPrinciple3?:string; journalEyebrow?:string; journalTitle?:string; journalCopy?:string; journalButton?:string; journalImageUrl?:string; footerTagline?:string; footerLocation?:string; newsletterTitle?:string; newsletterCopy?:string; instagramUrl?:string; pinterestUrl?:string } & Partial<GlobalContent>;
 type StoreCategory = { id?:number; name:string; nameGlobal?:string; image:string; alt:string; parentId?:number|null };
+type HomepageBlock={id:number;eyebrowTr:string;eyebrowEn:string;titleTr:string;titleEn:string;copyTr:string;copyEn:string;buttonTr:string;buttonEn:string;buttonUrl:string;imageUrl:string;imagePosition:string;active:boolean};
 const defaultSettings:StoreSettings = { brandName:"MYSA", brandSuffix:"OBJETS", announcementTr:"1.500 TL üzeri ücretsiz gönderim", announcementGlobal:"Complimentary shipping over €150", heroEyebrow:"Yavaş yaşam için seçilmiş parçalar", heroTitle:"Gündelik olanı", heroTitleAccent:"olağanüstü kılın.", heroCopy:"Eviniz, gardırobunuz ve en yakın dostlarınız için; dokusu, işçiliği ve hikâyesi olan zamansız objeler.", heroButton:"Yeni seçkiyi keşfet", heroImageUrl:"https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&w=2000&q=90", introTitle:"Daha az, ama daha iyi.", introCopy:"Dokunmak isteyeceğiniz tekstillerden bilinçli üretilmiş aksesuarlara ve dostlarımız için özenle seçilmiş ürünlere uzanan modern bir yaşam koleksiyonu.", showCategories:"true", showProducts:"true", showJournal:"true" };
 
 const Arrow = () => <span aria-hidden="true">&#8599;</span>;
@@ -38,6 +39,7 @@ export default function Home() {
   const [storeCategories, setStoreCategories] = useState<StoreCategory[]>(sampleCategories);
   const [newsletterEmail,setNewsletterEmail]=useState("");
   const [newsletterMessage,setNewsletterMessage]=useState("");
+  const[homepageBlocks,setHomepageBlocks]=useState<HomepageBlock[]>([]);
 
   useEffect(()=>{setMarket(getPreferredMarket());},[]);
 
@@ -75,6 +77,7 @@ export default function Home() {
   useEffect(() => { fetch("/api/settings").then(response => response.json()).then(data => data.settings && setSettings(data.settings)).catch(() => undefined); }, []);
   useEffect(() => { fetch("/api/categories").then(response => response.json()).then(data => { const rows = (data.categories ?? []).filter((category:{parentId:number|null;active:boolean}) => !category.parentId && category.active !== false); if (rows.length) setStoreCategories(rows.slice(0,3).map((category:{id:number;nameTr:string;nameEn:string;imageUrl:string;parentId:number|null},index:number) => ({ id:category.id, name:category.nameTr, nameGlobal:category.nameEn||category.nameTr, image:category.imageUrl || sampleCategories[index % sampleCategories.length].image, alt:`${category.nameTr} kategorisi`, parentId:category.parentId }))); }).catch(() => undefined); }, []);
   useEffect(() => { fetch("/api/cart").then(response => response.json()).then(data => setCartCount((data.items ?? []).reduce((sum:number,item:{quantity:number}) => sum + item.quantity, 0))).catch(() => undefined); }, []);
+  useEffect(()=>{fetch("/api/homepage-blocks").then(r=>r.json()).then(data=>setHomepageBlocks((data.blocks??[]).filter((block:HomepageBlock)=>block.active))).catch(()=>undefined)},[]);
   useEffect(()=>{setPreferredMarket(market);},[market]);
 
   const visibleProducts = useMemo(() => {
@@ -104,7 +107,8 @@ export default function Home() {
   const isGlobal=market==="GLOBAL";
   const globalText=(key:keyof GlobalContent,fallback:string)=>isGlobal?(settings[key]||fallback):fallback;
   const badgeText=(badge:string)=>!isGlobal?badge:({"YENİ":"NEW","ÇOK SEVİLEN":"BESTSELLER"}[badge]||badge);
-  const sectionOrder=(settings.homepageSectionOrder||"categories,products,manifesto,journal").split(",");
+  const savedSectionOrder=(settings.homepageSectionOrder||"categories,products,custom,manifesto,journal").split(",");
+  const sectionOrder=[...savedSectionOrder,...["categories","products","custom","manifesto","journal"].filter(key=>!savedSectionOrder.includes(key))];
   const sectionPosition=(key:string)=>Math.max(1,sectionOrder.indexOf(key)+1);
 
   return (
@@ -192,6 +196,8 @@ export default function Home() {
           ))}
         </div>
       </section>}
+
+      {homepageBlocks.length>0&&<section className="custom-blocks" style={{order:sectionPosition("custom")}}>{homepageBlocks.map(block=><article className={block.imagePosition==="right"?"image-right":""} key={block.id}><img src={block.imageUrl} alt={isGlobal?(block.titleEn||block.titleTr):block.titleTr}/><div><p className="section-label">{isGlobal?(block.eyebrowEn||block.eyebrowTr):block.eyebrowTr}</p><h2>{isGlobal?(block.titleEn||block.titleTr):block.titleTr}</h2><p>{isGlobal?(block.copyEn||block.copyTr):block.copyTr}</p><a className="text-link" href={block.buttonUrl}>{isGlobal?(block.buttonEn||block.buttonTr):block.buttonTr} <Arrow/></a></div></article>)}</section>}
 
       {(settings.showManifesto??"true")==="true"&&<section className="manifesto" style={{order:sectionPosition("manifesto")}}>
         <p className="eyebrow">{isGlobal?settings.manifestoEyebrowGlobal||"Brand standard":settings.manifestoEyebrow||`${settings.brandName} STANDARDI`}</p>

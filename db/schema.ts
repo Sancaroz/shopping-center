@@ -129,3 +129,14 @@ export const newsletterSubscribers = sqliteTable("newsletter_subscribers", {
   consentAt: text("consent_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const homepageBlocks = sqliteTable("homepage_blocks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  eyebrowTr: text("eyebrow_tr").notNull().default(""), eyebrowEn: text("eyebrow_en").notNull().default(""),
+  titleTr: text("title_tr").notNull(), titleEn: text("title_en").notNull().default(""),
+  copyTr: text("copy_tr").notNull().default(""), copyEn: text("copy_en").notNull().default(""),
+  buttonTr: text("button_tr").notNull().default("Keşfet"), buttonEn: text("button_en").notNull().default("Explore"),
+  buttonUrl: text("button_url").notNull().default("/magaza"), imageUrl: text("image_url").notNull().default(""),
+  imagePosition: text("image_position").notNull().default("left"), sortOrder: integer("sort_order").notNull().default(0),
+  active: integer("active", { mode: "boolean" }).notNull().default(true), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
