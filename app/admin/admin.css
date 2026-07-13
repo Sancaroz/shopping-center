@@ -7,6 +7,7 @@
 
 .admin-form select:focus { border-color: var(--ink); }
 .category-list .sub-category { padding-left: 22px; background: rgba(201, 192, 174, .12); }
+.category-list input { display:block; width:190px; margin-top:8px; border:1px solid #c9c3b8; background:white; padding:7px; font-size:10px; }
 .product-list .product-inactive { opacity: .52; }
 .product-list .product-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .product-list .product-actions a { font-size: 10px; border-bottom: 1px solid; padding-bottom: 3px; }

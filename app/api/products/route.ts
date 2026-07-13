@@ -23,7 +23,9 @@ export async function POST(request: Request) {
   const db = getDb();
   const [product] = await db.insert(products).values({
     nameTr, slug,
+    nameEn: String(body.nameEn ?? "").trim(),
     descriptionTr: String(body.descriptionTr ?? ""),
+    descriptionEn: String(body.descriptionEn ?? ""),
     categoryId: Number(body.categoryId) || null,
     imageUrl: String(body.imageUrl ?? ""),
     priceTr: Number(body.priceTr ?? 0),
@@ -43,8 +45,10 @@ export async function PATCH(request: Request) {
   const db = getDb();
   const updates: Partial<typeof products.$inferInsert> = { updatedAt: new Date().toISOString() };
   if (body.nameTr !== undefined) updates.nameTr = String(body.nameTr).trim();
+  if (body.nameEn !== undefined) updates.nameEn = String(body.nameEn).trim();
   if (body.slug !== undefined) updates.slug = String(body.slug).trim();
   if (body.descriptionTr !== undefined) updates.descriptionTr = String(body.descriptionTr);
+  if (body.descriptionEn !== undefined) updates.descriptionEn = String(body.descriptionEn);
   if (body.categoryId !== undefined) updates.categoryId = Number(body.categoryId) || null;
   if (body.imageUrl !== undefined) updates.imageUrl = String(body.imageUrl);
   if (body.priceTr !== undefined) updates.priceTr = Number(body.priceTr);

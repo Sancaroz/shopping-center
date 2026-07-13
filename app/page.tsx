@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { categories as sampleCategories, products as sampleProducts, type Market } from "./content";
 
-type StoreProduct = (typeof sampleProducts)[number] & { id?: number; active?: boolean; slug?:string };
+type StoreProduct = (typeof sampleProducts)[number] & { id?: number; active?: boolean; slug?:string; nameGlobal?:string; descriptionGlobal?:string };
 type DatabaseProduct = {
   id: number;
   slug: string;
   nameTr: string;
+  nameEn: string;
   descriptionTr: string;
+  descriptionEn: string;
   imageUrl: string;
   priceTr: number;
   priceGlobal: number;
@@ -44,7 +46,9 @@ export default function Home() {
             id: product.id,
             slug: product.slug,
             name: product.nameTr,
+            nameGlobal: product.nameEn || product.nameTr,
             description: product.descriptionTr,
+            descriptionGlobal: product.descriptionEn || product.descriptionTr,
             priceTR: product.priceTr,
             priceGlobal: product.priceGlobal,
             markets: [product.marketTr ? "TR" : null, product.marketGlobal ? "GLOBAL" : null].filter(Boolean) as Market[],
@@ -81,7 +85,7 @@ export default function Home() {
       if (!response.ok) { setNotice("Ürün eklenemedi"); return; }
     }
     setCartCount((count) => count + 1);
-    setNotice(`${product.name} çantanıza eklendi`);
+    setNotice(market === "TR" ? `${product.name} çantanıza eklendi` : `${product.nameGlobal || product.name} added to your bag`);
     window.setTimeout(() => setNotice(""), 2200);
   };
 
@@ -157,13 +161,13 @@ export default function Home() {
           {visibleProducts.map((product) => (
             <article className="product-card" key={product.id ?? product.name}>
               <div className="product-image">
-                {product.slug && <a className="product-detail-link" href={`/urun/${encodeURIComponent(product.slug)}`} aria-label={`${product.name} detaylarını aç`}></a>}
-                <img src={product.image} alt={product.alt} />
+                {product.slug && <a className="product-detail-link" href={`/urun/${encodeURIComponent(product.slug)}`} aria-label={`${market === "TR" ? product.name : product.nameGlobal || product.name} detaylarını aç`}></a>}
+                <img src={product.image} alt={market === "TR" ? product.alt : product.nameGlobal || product.alt} />
                 {product.badge && <span>{product.badge}</span>}
-                <button onClick={() => addToCart(product)} aria-label={`${product.name} ürününü çantaya ekle`}>+</button>
+                <button onClick={() => addToCart(product)} aria-label={`${market === "TR" ? product.name : product.nameGlobal || product.name} ürününü çantaya ekle`}>+</button>
               </div>
               <div className="product-meta">
-                <div><h3>{product.slug?<a href={`/urun/${encodeURIComponent(product.slug)}`}>{product.name}</a>:product.name}</h3><p>{product.description}</p></div>
+                <div><h3>{product.slug?<a href={`/urun/${encodeURIComponent(product.slug)}`}>{market === "TR" ? product.name : product.nameGlobal || product.name}</a>:market === "TR" ? product.name : product.nameGlobal || product.name}</h3><p>{market === "TR" ? product.description : product.descriptionGlobal || product.description}</p></div>
                 <strong>{market === "TR" ? `${product.priceTR.toLocaleString("tr-TR")} TL` : `€${product.priceGlobal}`}</strong>
               </div>
             </article>
