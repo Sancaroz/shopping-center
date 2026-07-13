@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       nameTr: `${source.nameTr} (Kopya)`, nameEn: source.nameEn ? `${source.nameEn} (Copy)` : "", slug: `${source.slug}-kopya-${suffix}`,
       descriptionTr: source.descriptionTr, descriptionEn: source.descriptionEn, categoryId: source.categoryId, imageUrl: source.imageUrl,
       priceTr: source.priceTr, priceGlobal: source.priceGlobal, currencyGlobal: source.currencyGlobal, stock: 0,
-      marketTr: source.marketTr, marketGlobal: source.marketGlobal, active: false,
+      marketTr: source.marketTr, marketGlobal: source.marketGlobal, featured: false, active: false,
     }).returning();
     const [images, variants] = await Promise.all([
       db.select().from(productImages).where(eq(productImages.productId, duplicateId)),
@@ -66,6 +66,7 @@ export async function PATCH(request: Request) {
     if (body.active !== undefined) bulkUpdates.active = Boolean(body.active);
     if (body.marketTr !== undefined) bulkUpdates.marketTr = Boolean(body.marketTr);
     if (body.marketGlobal !== undefined) bulkUpdates.marketGlobal = Boolean(body.marketGlobal);
+    if (body.featured !== undefined) bulkUpdates.featured = Boolean(body.featured);
     if (Object.keys(bulkUpdates).length === 1) return Response.json({ error: "Toplu işlem seçilmedi." }, { status: 400 });
     const updated = await getDb().update(products).set(bulkUpdates).where(inArray(products.id, ids)).returning({ id: products.id });
     return Response.json({ ok: true, updated: updated.length });
@@ -86,6 +87,7 @@ export async function PATCH(request: Request) {
   if (body.stock !== undefined) updates.stock = Number(body.stock);
   if (body.marketTr !== undefined) updates.marketTr = Boolean(body.marketTr);
   if (body.marketGlobal !== undefined) updates.marketGlobal = Boolean(body.marketGlobal);
+  if (body.featured !== undefined) updates.featured = Boolean(body.featured);
   if (body.active !== undefined) updates.active = Boolean(body.active);
   const [product] = await db.update(products).set(updates).where(eq(products.id, id)).returning();
   return Response.json({ product });

@@ -71,6 +71,13 @@
       "when": 1783940171790,
       "tag": "0009_legal_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1783942670022,
+      "tag": "0010_outstanding_epoch",
+      "breakpoints": true
     }
   ]
 }

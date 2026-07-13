@@ -33,6 +33,7 @@ export const products = sqliteTable("products", {
   stock: integer("stock").notNull().default(0),
   marketTr: integer("market_tr", { mode: "boolean" }).notNull().default(true),
   marketGlobal: integer("market_global", { mode: "boolean" }).notNull().default(false),
+  featured: integer("featured", { mode: "boolean" }).notNull().default(false),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),

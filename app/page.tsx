@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { categories as sampleCategories, products as sampleProducts, type Market } from "./content";
 
-type StoreProduct = (typeof sampleProducts)[number] & { id?: number; active?: boolean; slug?:string; nameGlobal?:string; descriptionGlobal?:string };
+type StoreProduct = (typeof sampleProducts)[number] & { id?: number; active?: boolean; featured?:boolean; slug?:string; nameGlobal?:string; descriptionGlobal?:string };
 type DatabaseProduct = {
   id: number;
   slug: string;
@@ -16,6 +16,7 @@ type DatabaseProduct = {
   priceGlobal: number;
   marketTr: boolean;
   marketGlobal: boolean;
+  featured: boolean;
   active: boolean;
 };
 type StoreSettings = { brandName:string; brandSuffix:string; announcementTr:string; announcementGlobal:string; heroEyebrow:string; heroTitle:string; heroTitleAccent:string; heroCopy:string; heroButton:string; heroImageUrl:string; introTitle:string; introCopy:string };
@@ -57,6 +58,7 @@ export default function Home() {
             image: product.imageUrl || "https://images.unsplash.com/photo-1616627547584-bf28cee262db?auto=format&fit=crop&w=900&q=88",
             alt: product.nameTr,
             badge: "YENİ",
+            featured: product.featured,
             active: product.active,
           }));
         setCatalogProducts(liveProducts);
@@ -70,10 +72,11 @@ export default function Home() {
   useEffect(() => { fetch("/api/categories").then(response => response.json()).then(data => { const rows = (data.categories ?? []).filter((category:{parentId:number|null;active:boolean}) => !category.parentId && category.active !== false); if (rows.length) setStoreCategories(rows.slice(0,3).map((category:{id:number;nameTr:string;imageUrl:string;parentId:number|null},index:number) => ({ id:category.id, name:category.nameTr, image:category.imageUrl || sampleCategories[index % sampleCategories.length].image, alt:`${category.nameTr} kategorisi`, parentId:category.parentId }))); }).catch(() => undefined); }, []);
   useEffect(() => { fetch("/api/cart").then(response => response.json()).then(data => setCartCount((data.items ?? []).reduce((sum:number,item:{quantity:number}) => sum + item.quantity, 0))).catch(() => undefined); }, []);
 
-  const visibleProducts = useMemo(
-    () => catalogProducts.filter((product) => product.markets.includes(market)),
-    [catalogProducts, market],
-  );
+  const visibleProducts = useMemo(() => {
+    const marketProducts=catalogProducts.filter((product) => product.markets.includes(market));
+    const featuredProducts=marketProducts.filter(product=>product.featured);
+    return (featuredProducts.length?featuredProducts:marketProducts).slice(0,8);
+  }, [catalogProducts, market]);
 
   const changeMarket = (next: Market) => {
     setMarket(next);
