@@ -19,7 +19,7 @@ type DatabaseProduct = {
   featured: boolean;
   active: boolean;
 };
-type StoreSettings = { brandName:string; brandSuffix:string; announcementTr:string; announcementGlobal:string; heroEyebrow:string; heroTitle:string; heroTitleAccent:string; heroCopy:string; heroButton:string; heroImageUrl:string; introTitle:string; introCopy:string; showCategories:string; showProducts:string; showJournal:string; journalEyebrow?:string; journalTitle?:string; journalCopy?:string; journalButton?:string; journalImageUrl?:string };
+type StoreSettings = { brandName:string; brandSuffix:string; announcementTr:string; announcementGlobal:string; heroEyebrow:string; heroTitle:string; heroTitleAccent:string; heroCopy:string; heroButton:string; heroImageUrl:string; introTitle:string; introCopy:string; showCategories:string; showProducts:string; showJournal:string; showManifesto?:string; manifestoEyebrow?:string; manifestoQuote?:string; manifestoPrinciple1?:string; manifestoPrinciple2?:string; manifestoPrinciple3?:string; journalEyebrow?:string; journalTitle?:string; journalCopy?:string; journalButton?:string; journalImageUrl?:string };
 type StoreCategory = { id?:number; name:string; image:string; alt:string; parentId?:number|null };
 const defaultSettings:StoreSettings = { brandName:"MYSA", brandSuffix:"OBJETS", announcementTr:"1.500 TL üzeri ücretsiz gönderim", announcementGlobal:"Complimentary shipping over €150", heroEyebrow:"Yavaş yaşam için seçilmiş parçalar", heroTitle:"Gündelik olanı", heroTitleAccent:"olağanüstü kılın.", heroCopy:"Eviniz, gardırobunuz ve en yakın dostlarınız için; dokusu, işçiliği ve hikâyesi olan zamansız objeler.", heroButton:"Yeni seçkiyi keşfet", heroImageUrl:"https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&w=2000&q=90", introTitle:"Daha az, ama daha iyi.", introCopy:"Dokunmak isteyeceğiniz tekstillerden bilinçli üretilmiş aksesuarlara ve dostlarımız için özenle seçilmiş ürünlere uzanan modern bir yaşam koleksiyonu.", showCategories:"true", showProducts:"true", showJournal:"true" };
 
@@ -182,13 +182,13 @@ export default function Home() {
         </div>
       </section>}
 
-      <section className="manifesto">
-        <p className="eyebrow">{settings.brandName} STANDARDI</p>
-        <blockquote>“İyi tasarım yalnızca nasıl göründüğü değil,<br/>hayatınıza <em>nasıl hissettirdiğidir.</em>”</blockquote>
+      {(settings.showManifesto??"true")==="true"&&<section className="manifesto">
+        <p className="eyebrow">{settings.manifestoEyebrow||`${settings.brandName} STANDARDI`}</p>
+        <blockquote>“{settings.manifestoQuote||"İyi tasarım yalnızca nasıl göründüğü değil, hayatınıza nasıl hissettirdiğidir."}”</blockquote>
         <div className="principles">
-          <span>Doğal malzemeler</span><span>Sorumlu üretim</span><span>Uzun ömürlü tasarım</span>
+          <span>{settings.manifestoPrinciple1||"Doğal malzemeler"}</span><span>{settings.manifestoPrinciple2||"Sorumlu üretim"}</span><span>{settings.manifestoPrinciple3||"Uzun ömürlü tasarım"}</span>
         </div>
-      </section>
+      </section>}
 
       {settings.showJournal==="true"&&<section className="journal" id="journal">
         <article className="journal-image" style={{backgroundImage:`url("${(settings.journalImageUrl||"https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1300&q=90").replaceAll('"','%22')}")`}}><span>JOURNAL · 04</span></article>
