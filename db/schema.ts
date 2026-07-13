@@ -138,5 +138,6 @@ export const homepageBlocks = sqliteTable("homepage_blocks", {
   buttonTr: text("button_tr").notNull().default("Keşfet"), buttonEn: text("button_en").notNull().default("Explore"),
   buttonUrl: text("button_url").notNull().default("/magaza"), imageUrl: text("image_url").notNull().default(""),
   imagePosition: text("image_position").notNull().default("left"), sortOrder: integer("sort_order").notNull().default(0),
+  marketTr: integer("market_tr", { mode: "boolean" }).notNull().default(true), marketGlobal: integer("market_global", { mode: "boolean" }).notNull().default(true),
   active: integer("active", { mode: "boolean" }).notNull().default(true), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

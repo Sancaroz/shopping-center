@@ -16,6 +16,8 @@ type Block = {
   imageUrl: string;
   imagePosition: string;
   sortOrder: number;
+  marketTr: boolean;
+  marketGlobal: boolean;
   active: boolean;
 };
 
@@ -33,6 +35,7 @@ function BlockFields({ block }: BlockFieldsProps) {
     <label>Button · English<input name="buttonEn" defaultValue={block?.buttonEn || "Explore"}/></label>
     <label>Buton bağlantısı<input name="buttonUrl" defaultValue={block?.buttonUrl || "/magaza"}/></label>
     <label>Görsel konumu<select name="imagePosition" defaultValue={block?.imagePosition || "left"}><option value="left">Sol</option><option value="right">Sağ</option></select></label>
+    <div className="checks wide block-markets"><p>GÖSTERİLECEK PAZARLAR</p><label><input name="marketTr" type="checkbox" defaultChecked={block?.marketTr ?? true}/> Türkiye</label><label><input name="marketGlobal" type="checkbox" defaultChecked={block?.marketGlobal ?? true}/> Global</label></div>
     <label className="wide">Görsel<input name="file" type="file" accept="image/*"/><small>{block ? "Yeni dosya seçmezseniz mevcut görsel korunur." : "veya medya bağlantısı"}</small><input name="imageUrl" defaultValue={block?.imageUrl} placeholder="/api/media/..."/></label>
   </>;
 }
@@ -55,6 +58,7 @@ function formBody(form: FormData, imageUrl: string) {
     copyTr: form.get("copyTr"), copyEn: form.get("copyEn"),
     buttonTr: form.get("buttonTr"), buttonEn: form.get("buttonEn"),
     buttonUrl: form.get("buttonUrl"), imagePosition: form.get("imagePosition"), imageUrl,
+    marketTr: form.get("marketTr")==="on", marketGlobal: form.get("marketGlobal")==="on",
   };
 }
 
@@ -113,6 +117,6 @@ export default function BlocksEditor() {
     <header className="admin-header"><div><p>MODÜLER VİTRİN</p><h1>Özel içerik blokları</h1></div><div><a href="/">Ana sayfayı gör ↗</a><a href="/admin">Panele dön ↗</a></div></header>
     {editing && <section className="admin-card block-create block-edit"><div className="list-title"><div><p className="section-kicker">DÜZENLENİYOR</p><h2>{editing.titleTr}</h2></div><button type="button" onClick={() => setEditing(null)}>Kapat ×</button></div><form key={editing.id} className="admin-form" onSubmit={save}><BlockFields block={editing}/><div className="block-form-actions"><button type="submit" disabled={busy}>{busy ? "Kaydediliyor…" : "Değişiklikleri kaydet"}</button><button type="button" onClick={() => setEditing(null)}>Vazgeç</button></div></form></section>}
     <section className="admin-card block-create"><h2>Yeni blok ekle</h2><form className="admin-form" onSubmit={add}><BlockFields/><button disabled={busy}>{busy ? "Ekleniyor…" : "Bloğu ekle"}</button></form>{message && <p className="admin-message">{message}</p>}</section>
-    <section className="admin-card block-list"><div className="list-title"><h2>Eklenen bloklar</h2><span>{blocks.length} blok</span></div>{blocks.map((block, index) => <article key={block.id} className={editing?.id === block.id ? "editing" : ""}><img src={block.imageUrl} alt=""/><span><b>{block.titleTr}</b><small>{block.titleEn || "İngilizce başlık yok"} · {block.active ? "Yayında" : "Gizli"}</small></span><div><button onClick={() => move(index, -1)} disabled={index === 0} aria-label="Yukarı taşı">↑</button><button onClick={() => move(index, 1)} disabled={index === blocks.length - 1} aria-label="Aşağı taşı">↓</button><button onClick={() => { setEditing(block); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Düzenle</button><button onClick={() => patch(block.id, { active: !block.active })}>{block.active ? "Gizle" : "Yayınla"}</button><button onClick={() => remove(block.id)}>Sil</button></div></article>)}</section>
+    <section className="admin-card block-list"><div className="list-title"><h2>Eklenen bloklar</h2><span>{blocks.length} blok</span></div>{blocks.map((block, index) => <article key={block.id} className={editing?.id === block.id ? "editing" : ""}><img src={block.imageUrl} alt=""/><span><b>{block.titleTr}</b><small>{block.titleEn || "İngilizce başlık yok"} · {block.marketTr?"TR ":""}{block.marketGlobal?"GLOBAL ":""}{!block.marketTr&&!block.marketGlobal?"Pazarsız ":""}· {block.active ? "Yayında" : "Gizli"}</small></span><div><button onClick={() => move(index, -1)} disabled={index === 0} aria-label="Yukarı taşı">↑</button><button onClick={() => move(index, 1)} disabled={index === blocks.length - 1} aria-label="Aşağı taşı">↓</button><button onClick={() => { setEditing(block); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Düzenle</button><button onClick={() => patch(block.id, { active: !block.active })}>{block.active ? "Gizle" : "Yayınla"}</button><button onClick={() => remove(block.id)}>Sil</button></div></article>)}</section>
   </main>;
 }
