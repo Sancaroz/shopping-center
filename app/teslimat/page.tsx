@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import "./teslimat.css";
+import "./success-actions.css";
 
 type Line = { id:number; quantity:number; name:string; nameEn:string; optionValue:string|null; optionValueEn:string|null; priceTr:number; priceGlobal:number; priceAdjustment:number|null };
 type Result = { orderNumber:string; subtotal:number; shippingAmount:number; total:number; market:"TR"|"GLOBAL" };
@@ -29,7 +30,7 @@ export default function CheckoutPage() {
     setBusy(false);
   }
 
-  if (result) return <main className="checkout-page"><header className="checkout-header"><a className="checkout-brand" href="/">MYSA <span>OBJETS</span></a></header><section className="order-success"><p>SİPARİŞ TALEBİ ALINDI</p><h1>Teşekkür ederiz.</h1><div><span>Sipariş numaranız</span><strong>{result.orderNumber}</strong></div><p>Talebiniz güvenli biçimde kaydedildi. Henüz ödeme alınmadı; ödeme altyapısı bağlandığında bu akış güncellenecek.</p><a href="/">Mağazaya dön →</a></section></main>;
+  if (result) return <main className="checkout-page"><header className="checkout-header"><a className="checkout-brand" href="/">MYSA <span>OBJETS</span></a></header><section className="order-success"><p>SİPARİŞ TALEBİ ALINDI</p><h1>Teşekkür ederiz.</h1><div><span>Sipariş numaranız</span><strong>{result.orderNumber}</strong></div><p>Talebiniz güvenli biçimde kaydedildi. Henüz ödeme alınmadı; ödeme altyapısı bağlandığında bu akış güncellenecek.</p><nav><a href={`/siparis-takip?order=${encodeURIComponent(result.orderNumber)}`}>Siparişi takip et →</a><a href="/">Mağazaya dön</a></nav></section></main>;
 
   return <main className="checkout-page">
     <header className="checkout-header"><a className="checkout-brand" href="/">MYSA <span>OBJETS</span></a><a href="/sepet">← Çantaya dön</a></header>

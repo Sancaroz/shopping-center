@@ -41,7 +41,7 @@ export default function CatalogPage() {
   const roots=categories.filter(item=>!item.parentId);
 
   return <main className="catalog-page">
-    <header className="catalog-header"><a className="catalog-brand" href="/">{settings.brandName}<span>{settings.brandSuffix}</span></a><nav><a href="/">Ana sayfa</a><a className="active" href="/magaza">Mağaza</a><a href="/sepet">Çanta <b>{cartCount}</b></a></nav></header>
+    <header className="catalog-header"><a className="catalog-brand" href="/">{settings.brandName}<span>{settings.brandSuffix}</span></a><nav><a href="/">Ana sayfa</a><a className="active" href="/magaza">Mağaza</a><a href="/siparis-takip">Sipariş takibi</a><a href="/sepet">Çanta <b>{cartCount}</b></a></nav></header>
     <section className="catalog-hero"><p>TÜM SEÇKİ</p><h1>Gündelik yaşam,<br/><em>özenle seçildi.</em></h1><div className="catalog-market"><button className={market==="TR"?"active":""} onClick={()=>setMarket("TR")}>Türkiye · TRY</button><button className={market==="GLOBAL"?"active":""} onClick={()=>setMarket("GLOBAL")}>Global · EUR</button></div></section>
     <section className="catalog-tools">
       <label className="catalog-search"><span>ARA</span><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Ürün adı veya açıklama…"/><b>⌕</b></label>

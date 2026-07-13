@@ -197,7 +197,7 @@ export default function Home() {
         <div className="footer-top">
           <div><a className="wordmark footer-logo" href="#top">{settings.brandName}<span>{settings.brandSuffix}</span></a><p>Beautiful things for considered living.</p></div>
           <div><h4>Keşfet</h4><a href="/magaza">Yeni gelenler</a><a href="/magaza">Koleksiyonlar</a><a href="#journal">Journal</a></div>
-          <div><h4>Yardım</h4><a href="#top">Teslimat & İade</a><a href="#top">Bize ulaşın</a><a href="#top">Sıkça sorulanlar</a></div>
+          <div><h4>Yardım</h4><a href="/siparis-takip">Sipariş takibi</a><a href="#top">Teslimat & İade</a><a href="#top">Bize ulaşın</a></div>
           <div className="newsletter"><h4>Mektuplarımıza katılın</h4><p>Yeni seçkiler ve ilham veren hikâyeler.</p><label><span className="sr-only">E-posta adresi</span><input type="email" placeholder="E-posta adresiniz"/><button aria-label="Kaydol">→</button></label></div>
         </div>
         <div className="footer-bottom"><span>© 2026 {settings.brandName} {settings.brandSuffix}</span><span>İstanbul · Dünya</span><span>Instagram &nbsp; Pinterest</span></div>
