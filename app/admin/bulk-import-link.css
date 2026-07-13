@@ -1,0 +1,2 @@
+.bulk-import-fab{position:fixed;right:24px;bottom:24px;z-index:30;background:#1c241d;color:white;padding:13px 18px;box-shadow:0 10px 28px rgba(0,0,0,.2);font-size:9px;letter-spacing:.12em;text-transform:uppercase}
+@media(max-width:520px){.bulk-import-fab{right:14px;bottom:14px}}
