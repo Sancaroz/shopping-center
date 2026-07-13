@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { products } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
@@ -40,6 +40,16 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   if (!(await getChatGPTUser())) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
   const body = await request.json() as Record<string, unknown>;
+  const ids = Array.isArray(body.ids) ? body.ids.map(Number).filter(Number.isInteger).filter(id => id > 0).slice(0, 500) : [];
+  if (ids.length) {
+    const bulkUpdates: Partial<typeof products.$inferInsert> = { updatedAt: new Date().toISOString() };
+    if (body.active !== undefined) bulkUpdates.active = Boolean(body.active);
+    if (body.marketTr !== undefined) bulkUpdates.marketTr = Boolean(body.marketTr);
+    if (body.marketGlobal !== undefined) bulkUpdates.marketGlobal = Boolean(body.marketGlobal);
+    if (Object.keys(bulkUpdates).length === 1) return Response.json({ error: "Toplu işlem seçilmedi." }, { status: 400 });
+    const updated = await getDb().update(products).set(bulkUpdates).where(inArray(products.id, ids)).returning({ id: products.id });
+    return Response.json({ ok: true, updated: updated.length });
+  }
   const id = Number(body.id);
   if (!id) return Response.json({ error: "Geçersiz ürün" }, { status: 400 });
   const db = getDb();
