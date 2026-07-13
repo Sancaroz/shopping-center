@@ -19,7 +19,7 @@ type DatabaseProduct = {
   featured: boolean;
   active: boolean;
 };
-type StoreSettings = { brandName:string; brandSuffix:string; announcementTr:string; announcementGlobal:string; heroEyebrow:string; heroTitle:string; heroTitleAccent:string; heroCopy:string; heroButton:string; heroImageUrl:string; introTitle:string; introCopy:string; showCategories:string; showProducts:string; showJournal:string; showManifesto?:string; manifestoEyebrow?:string; manifestoQuote?:string; manifestoPrinciple1?:string; manifestoPrinciple2?:string; manifestoPrinciple3?:string; journalEyebrow?:string; journalTitle?:string; journalCopy?:string; journalButton?:string; journalImageUrl?:string; footerTagline?:string; footerLocation?:string; newsletterTitle?:string; newsletterCopy?:string; instagramUrl?:string; pinterestUrl?:string };
+type StoreSettings = { brandName:string; brandSuffix:string; announcementTr:string; announcementGlobal:string; nav1Label?:string; nav1Url?:string; nav2Label?:string; nav2Url?:string; nav3Label?:string; nav3Url?:string; nav4Label?:string; nav4Url?:string; heroEyebrow:string; heroTitle:string; heroTitleAccent:string; heroCopy:string; heroButton:string; heroImageUrl:string; introTitle:string; introCopy:string; showCategories:string; showProducts:string; showJournal:string; showManifesto?:string; manifestoEyebrow?:string; manifestoQuote?:string; manifestoPrinciple1?:string; manifestoPrinciple2?:string; manifestoPrinciple3?:string; journalEyebrow?:string; journalTitle?:string; journalCopy?:string; journalButton?:string; journalImageUrl?:string; footerTagline?:string; footerLocation?:string; newsletterTitle?:string; newsletterCopy?:string; instagramUrl?:string; pinterestUrl?:string };
 type StoreCategory = { id?:number; name:string; image:string; alt:string; parentId?:number|null };
 const defaultSettings:StoreSettings = { brandName:"MYSA", brandSuffix:"OBJETS", announcementTr:"1.500 TL üzeri ücretsiz gönderim", announcementGlobal:"Complimentary shipping over €150", heroEyebrow:"Yavaş yaşam için seçilmiş parçalar", heroTitle:"Gündelik olanı", heroTitleAccent:"olağanüstü kılın.", heroCopy:"Eviniz, gardırobunuz ve en yakın dostlarınız için; dokusu, işçiliği ve hikâyesi olan zamansız objeler.", heroButton:"Yeni seçkiyi keşfet", heroImageUrl:"https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&w=2000&q=90", introTitle:"Daha az, ama daha iyi.", introCopy:"Dokunmak isteyeceğiniz tekstillerden bilinçli üretilmiş aksesuarlara ve dostlarımız için özenle seçilmiş ürünlere uzanan modern bir yaşam koleksiyonu.", showCategories:"true", showProducts:"true", showJournal:"true" };
 
@@ -111,10 +111,10 @@ export default function Home() {
         </button>
         <a className="wordmark" href="#top" aria-label={`${settings.brandName} ana sayfa`}>{settings.brandName}<span>{settings.brandSuffix}</span></a>
         <nav className={menuOpen ? "nav open" : "nav"} aria-label="Ana menü">
-          <a href="/magaza" onClick={() => setMenuOpen(false)}>Mağaza</a>
-          <a href="/magaza" onClick={() => setMenuOpen(false)}>Koleksiyonlar</a>
-          <a href="#story" onClick={() => setMenuOpen(false)}>Hikâyemiz</a>
-          <a href="#journal" onClick={() => setMenuOpen(false)}>Journal</a>
+          <a href={settings.nav1Url || "/magaza"} onClick={() => setMenuOpen(false)}>{settings.nav1Label || "Mağaza"}</a>
+          <a href={settings.nav2Url || "/magaza"} onClick={() => setMenuOpen(false)}>{settings.nav2Label || "Koleksiyonlar"}</a>
+          <a href={settings.nav3Url || "#story"} onClick={() => setMenuOpen(false)}>{settings.nav3Label || "Hikâyemiz"}</a>
+          <a href={settings.nav4Url || "#journal"} onClick={() => setMenuOpen(false)}>{settings.nav4Label || "Journal"}</a>
         </nav>
         <div className="header-actions">
           <a href="/magaza" aria-label="Ürün ara">⌕</a>
