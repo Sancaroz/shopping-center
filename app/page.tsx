@@ -65,7 +65,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => { fetch("/api/settings").then(response => response.json()).then(data => data.settings && setSettings(data.settings)).catch(() => undefined); }, []);
-  useEffect(() => { fetch("/api/categories").then(response => response.json()).then(data => { const rows = (data.categories ?? []).filter((category:{parentId:number|null}) => !category.parentId); if (rows.length) setStoreCategories(rows.slice(0,3).map((category:{id:number;nameTr:string;imageUrl:string;parentId:number|null},index:number) => ({ id:category.id, name:category.nameTr, image:category.imageUrl || sampleCategories[index % sampleCategories.length].image, alt:`${category.nameTr} kategorisi`, parentId:category.parentId }))); }).catch(() => undefined); }, []);
+  useEffect(() => { fetch("/api/categories").then(response => response.json()).then(data => { const rows = (data.categories ?? []).filter((category:{parentId:number|null;active:boolean}) => !category.parentId && category.active !== false); if (rows.length) setStoreCategories(rows.slice(0,3).map((category:{id:number;nameTr:string;imageUrl:string;parentId:number|null},index:number) => ({ id:category.id, name:category.nameTr, image:category.imageUrl || sampleCategories[index % sampleCategories.length].image, alt:`${category.nameTr} kategorisi`, parentId:category.parentId }))); }).catch(() => undefined); }, []);
   useEffect(() => { fetch("/api/cart").then(response => response.json()).then(data => setCartCount((data.items ?? []).reduce((sum:number,item:{quantity:number}) => sum + item.quantity, 0))).catch(() => undefined); }, []);
 
   const visibleProducts = useMemo(
