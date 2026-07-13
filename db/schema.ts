@@ -107,3 +107,15 @@ export const orderItems = sqliteTable("order_items", {
   quantity: integer("quantity").notNull(),
   unitPrice: real("unit_price").notNull(),
 });
+
+export const contactMessages = sqliteTable("contact_messages", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  orderNumber: text("order_number").notNull().default(""),
+  subject: text("subject").notNull(),
+  message: text("message").notNull(),
+  status: text("status").notNull().default("new"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
