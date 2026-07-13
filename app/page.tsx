@@ -19,9 +19,9 @@ type DatabaseProduct = {
   featured: boolean;
   active: boolean;
 };
-type StoreSettings = { brandName:string; brandSuffix:string; announcementTr:string; announcementGlobal:string; heroEyebrow:string; heroTitle:string; heroTitleAccent:string; heroCopy:string; heroButton:string; heroImageUrl:string; introTitle:string; introCopy:string };
+type StoreSettings = { brandName:string; brandSuffix:string; announcementTr:string; announcementGlobal:string; heroEyebrow:string; heroTitle:string; heroTitleAccent:string; heroCopy:string; heroButton:string; heroImageUrl:string; introTitle:string; introCopy:string; showCategories:string; showProducts:string; showJournal:string };
 type StoreCategory = { id?:number; name:string; image:string; alt:string; parentId?:number|null };
-const defaultSettings:StoreSettings = { brandName:"MYSA", brandSuffix:"OBJETS", announcementTr:"1.500 TL üzeri ücretsiz gönderim", announcementGlobal:"Complimentary shipping over €150", heroEyebrow:"Yavaş yaşam için seçilmiş parçalar", heroTitle:"Gündelik olanı", heroTitleAccent:"olağanüstü kılın.", heroCopy:"Eviniz, gardırobunuz ve en yakın dostlarınız için; dokusu, işçiliği ve hikâyesi olan zamansız objeler.", heroButton:"Yeni seçkiyi keşfet", heroImageUrl:"https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&w=2000&q=90", introTitle:"Daha az, ama daha iyi.", introCopy:"Dokunmak isteyeceğiniz tekstillerden bilinçli üretilmiş aksesuarlara ve dostlarımız için özenle seçilmiş ürünlere uzanan modern bir yaşam koleksiyonu." };
+const defaultSettings:StoreSettings = { brandName:"MYSA", brandSuffix:"OBJETS", announcementTr:"1.500 TL üzeri ücretsiz gönderim", announcementGlobal:"Complimentary shipping over €150", heroEyebrow:"Yavaş yaşam için seçilmiş parçalar", heroTitle:"Gündelik olanı", heroTitleAccent:"olağanüstü kılın.", heroCopy:"Eviniz, gardırobunuz ve en yakın dostlarınız için; dokusu, işçiliği ve hikâyesi olan zamansız objeler.", heroButton:"Yeni seçkiyi keşfet", heroImageUrl:"https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&w=2000&q=90", introTitle:"Daha az, ama daha iyi.", introCopy:"Dokunmak isteyeceğiniz tekstillerden bilinçli üretilmiş aksesuarlara ve dostlarımız için özenle seçilmiş ürünlere uzanan modern bir yaşam koleksiyonu.", showCategories:"true", showProducts:"true", showJournal:"true" };
 
 const Arrow = () => <span aria-hidden="true">&#8599;</span>;
 
@@ -140,7 +140,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="category-grid" id="categories">
+      {settings.showCategories==="true"&&<section className="category-grid" id="categories">
         {storeCategories.map((category, index) => (
           <article className={`category-card category-${index + 1}`} key={category.id ?? category.name}>
             <img src={category.image} alt={category.alt} />
@@ -151,9 +151,9 @@ export default function Home() {
             </div>
           </article>
         ))}
-      </section>
+      </section>}
 
-      <section className="products" id="shop">
+      {settings.showProducts==="true"&&<section className="products" id="shop">
         <div className="section-heading">
           <div>
             <p className="section-label">Yeni gelenler · {market === "TR" ? "Türkiye" : "Global"}{catalogSource === "live" ? " · Güncel katalog" : ""}</p>
@@ -180,7 +180,7 @@ export default function Home() {
             </article>
           ))}
         </div>
-      </section>
+      </section>}
 
       <section className="manifesto">
         <p className="eyebrow">{settings.brandName} STANDARDI</p>
@@ -190,7 +190,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="journal" id="journal">
+      {settings.showJournal==="true"&&<section className="journal" id="journal">
         <article className="journal-image"><span>JOURNAL · 04</span></article>
         <article className="journal-copy">
           <p className="section-label">Yaşam notları</p>
@@ -198,7 +198,7 @@ export default function Home() {
           <p>Sabahın ilk ışığından günün son fincanına; sıradan anları duyulara hitap eden sakin ritüellere dönüştürmenin yolları.</p>
           <a className="text-link" href="#top">Yazıyı oku <Arrow /></a>
         </article>
-      </section>
+      </section>}
 
       <footer>
         <div className="footer-top">
