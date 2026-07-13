@@ -86,6 +86,7 @@ footer { background:#c9c0ae; padding:90px 4vw 25px; }
 .newsletter label { display:flex; border-bottom:1px solid var(--ink); }
 .newsletter input { width:100%; border:0; background:none; padding:12px 0; outline:none; font-family:Georgia,serif; }
 .newsletter button { border:0; background:none; cursor:pointer; }
+.newsletter .newsletter-consent { margin-top:12px; border:0; align-items:flex-start; gap:8px; font:9px/1.45 Arial,sans-serif; color:#5d655b; }.newsletter-consent input{width:auto;margin:1px 0}.newsletter-consent a{border-bottom:1px solid}.newsletter-message{display:block;margin-top:10px;font:11px Georgia,serif;color:#3f553d}
 .footer-bottom { border-top:1px solid var(--line); padding-top:22px; display:flex; justify-content:space-between; font-size:8px; letter-spacing:.18em; }
 .toast { position:fixed; z-index:50; right:25px; bottom:25px; padding:15px 20px; background:var(--ink); color:white; font-size:11px; letter-spacing:.08em; box-shadow:0 12px 35px rgba(0,0,0,.2); animation:toastIn .3s ease; }
 @keyframes toastIn { from { transform:translateY(15px); opacity:0; } }

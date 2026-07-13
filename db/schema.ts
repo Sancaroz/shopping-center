@@ -119,3 +119,12 @@ export const contactMessages = sqliteTable("contact_messages", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const newsletterSubscribers = sqliteTable("newsletter_subscribers", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  email: text("email").notNull().unique(),
+  market: text("market").notNull().default("TR"),
+  status: text("status").notNull().default("active"),
+  consentAt: text("consent_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});

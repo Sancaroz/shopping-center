@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { categories as sampleCategories, products as sampleProducts, type Market } from "./content";
 
 type StoreProduct = (typeof sampleProducts)[number] & { id?: number; active?: boolean; slug?:string; nameGlobal?:string; descriptionGlobal?:string };
@@ -33,6 +33,8 @@ export default function Home() {
   const [catalogSource, setCatalogSource] = useState<"sample" | "live">("sample");
   const [settings, setSettings] = useState<StoreSettings>(defaultSettings);
   const [storeCategories, setStoreCategories] = useState<StoreCategory[]>(sampleCategories);
+  const [newsletterEmail,setNewsletterEmail]=useState("");
+  const [newsletterMessage,setNewsletterMessage]=useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +90,8 @@ export default function Home() {
     setNotice(market === "TR" ? `${product.name} çantanıza eklendi` : `${product.nameGlobal || product.name} added to your bag`);
     window.setTimeout(() => setNotice(""), 2200);
   };
+
+  const subscribe=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();setNewsletterMessage("");const response=await fetch("/api/newsletter",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:newsletterEmail,market})});const data=await response.json();if(response.ok){setNewsletterEmail("");setNewsletterMessage(market==="TR"?"Kaydınız alındı.":"You are subscribed.");}else setNewsletterMessage(data.error??"Kayıt tamamlanamadı.");};
 
   return (
     <main>
@@ -198,7 +202,7 @@ export default function Home() {
           <div><a className="wordmark footer-logo" href="#top">{settings.brandName}<span>{settings.brandSuffix}</span></a><p>Beautiful things for considered living.</p></div>
           <div><h4>Keşfet</h4><a href="/magaza">Yeni gelenler</a><a href="/magaza">Koleksiyonlar</a><a href="#journal">Journal</a></div>
           <div><h4>Yardım</h4><a href="/siparis-takip">Sipariş takibi</a><a href="/politikalar">Teslimat & İade</a><a href="/iletisim">Bize ulaşın</a></div>
-          <div className="newsletter"><h4>Mektuplarımıza katılın</h4><p>Yeni seçkiler ve ilham veren hikâyeler.</p><label><span className="sr-only">E-posta adresi</span><input type="email" placeholder="E-posta adresiniz"/><button aria-label="Kaydol">→</button></label></div>
+          <div className="newsletter"><h4>Mektuplarımıza katılın</h4><p>Yeni seçkiler ve ilham veren hikâyeler.</p><form onSubmit={subscribe}><label className="newsletter-email"><span className="sr-only">E-posta adresi</span><input type="email" value={newsletterEmail} onChange={event=>setNewsletterEmail(event.target.value)} placeholder="E-posta adresiniz" required/><button aria-label="Kaydol">→</button></label><label className="newsletter-consent"><input type="checkbox" required/><span><a href="/politikalar#gizlilik">Gizlilik açıklamasını</a> okudum; seçki ve duyuruları almak istiyorum.</span></label>{newsletterMessage&&<small className="newsletter-message" role="status">{newsletterMessage}</small>}</form></div>
         </div>
         <div className="footer-bottom"><span>© 2026 {settings.brandName} {settings.brandSuffix}</span><span>İstanbul · Dünya</span><span>Instagram &nbsp; Pinterest</span></div>
       </footer>

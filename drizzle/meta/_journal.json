@@ -64,6 +64,13 @@
       "when": 1783939058660,
       "tag": "0008_late_purple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1783940171790,
+      "tag": "0009_legal_champions",
+      "breakpoints": true
     }
   ]
 }
