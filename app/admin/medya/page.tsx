@@ -1,0 +1,1 @@
+import{requireChatGPTUser}from"../../chatgpt-auth";import MediaLibrary from"./media-library";import"../admin.css";export const dynamic="force-dynamic";export default async function MediaPage(){await requireChatGPTUser("/admin/medya");return <MediaLibrary/>}
