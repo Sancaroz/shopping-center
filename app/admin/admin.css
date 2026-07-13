@@ -10,6 +10,8 @@
 .category-list input { display:block; width:190px; margin-top:8px; border:1px solid #c9c3b8; background:white; padding:7px; font-size:10px; }
 .category-actions { display:flex; gap:12px; align-items:center; }
 .category-actions a,.category-actions button { border:0; background:none; padding:0; border-bottom:1px solid; font-size:10px; cursor:pointer; }
+.category-actions button:disabled { opacity:.25; cursor:not-allowed; }
+.category-list .category-inactive { opacity:.5; }
 .product-list .product-inactive { opacity: .52; }
 .product-list .product-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .product-list .product-actions a { font-size: 10px; border-bottom: 1px solid; padding-bottom: 3px; }
