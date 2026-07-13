@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import "./teslimat.css";
 
-type Line = { id:number; quantity:number; name:string; optionValue:string|null; priceTr:number; priceGlobal:number; priceAdjustment:number|null };
+type Line = { id:number; quantity:number; name:string; nameEn:string; optionValue:string|null; optionValueEn:string|null; priceTr:number; priceGlobal:number; priceAdjustment:number|null };
 type Result = { orderNumber:string; subtotal:number; shippingAmount:number; total:number; market:"TR"|"GLOBAL" };
 
 export default function CheckoutPage() {
@@ -49,7 +49,7 @@ export default function CheckoutPage() {
           {message && <p className="checkout-error wide" role="alert">{message}</p>}
           <button className="wide" disabled={busy}>{busy ? "Kaydediliyor…" : "Sipariş talebini oluştur"}</button>
         </form>
-        <aside className="checkout-summary"><p>SEÇİMİNİZ</p>{items.map(item => <div className="checkout-line" key={item.id}><span>{item.name}{item.optionValue ? ` · ${item.optionValue}` : ""}<small>{item.quantity} adet</small></span><strong>{money(((market === "TR" ? item.priceTr : item.priceGlobal) + Number(item.priceAdjustment ?? 0)) * item.quantity)}</strong></div>)}<hr/><div className="checkout-total"><span>Ara toplam</span><strong>{money(total)}</strong></div><div className="checkout-total"><span>Teslimat</span><strong>{shipping===0?"Ücretsiz":money(shipping)}</strong></div><hr/><div className="checkout-total"><span>Genel toplam</span><strong>{money(grandTotal)}</strong></div><small>Bu aşamada ödeme alınmaz; sipariş talebi toplam tutarıyla kaydedilir.</small></aside>
+        <aside className="checkout-summary"><p>{market==="TR"?"SEÇİMİNİZ":"YOUR SELECTION"}</p>{items.map(item => <div className="checkout-line" key={item.id}><span>{market==="GLOBAL"?(item.nameEn||item.name):item.name}{item.optionValue ? ` · ${market==="GLOBAL"?(item.optionValueEn||item.optionValue):item.optionValue}` : ""}<small>{item.quantity} {market==="TR"?"adet":"pcs"}</small></span><strong>{money(((market === "TR" ? item.priceTr : item.priceGlobal) + Number(item.priceAdjustment ?? 0)) * item.quantity)}</strong></div>)}<hr/><div className="checkout-total"><span>{market==="TR"?"Ara toplam":"Subtotal"}</span><strong>{money(total)}</strong></div><div className="checkout-total"><span>{market==="TR"?"Teslimat":"Shipping"}</span><strong>{shipping===0?(market==="TR"?"Ücretsiz":"Free"):money(shipping)}</strong></div><hr/><div className="checkout-total"><span>{market==="TR"?"Genel toplam":"Total"}</span><strong>{money(grandTotal)}</strong></div><small>{market==="TR"?"Bu aşamada ödeme alınmaz; sipariş talebi toplam tutarıyla kaydedilir.":"No payment is collected at this stage; your order request is saved with its total."}</small></aside>
       </div>}
     </section>
   </main>;

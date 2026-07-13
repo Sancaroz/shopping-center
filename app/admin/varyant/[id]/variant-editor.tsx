@@ -1,0 +1,14 @@
+"use client";
+
+import {FormEvent,useEffect,useState} from "react";
+import "./variant-editor.css";
+
+type Product={id:number;nameTr:string};type Variant={id:number;productId:number;sku:string;optionName:string;optionValue:string;optionNameEn:string;optionValueEn:string;stock:number;priceAdjustment:number};
+
+export default function VariantEditor({id}:{id:number}){
+  const[variant,setVariant]=useState<Variant|null>(null);const[products,setProducts]=useState<Product[]>([]);const[message,setMessage]=useState("Yükleniyor…");const[busy,setBusy]=useState(false);
+  useEffect(()=>{Promise.all([fetch("/api/variants").then(r=>r.json()),fetch("/api/products").then(r=>r.json())]).then(([v,p])=>{setVariant((v.variants??[]).find((item:Variant)=>item.id===id)??null);setProducts(p.products??[]);setMessage("");}).catch(()=>setMessage("Seçenek yüklenemedi."));},[id]);
+  async function save(event:FormEvent<HTMLFormElement>){event.preventDefault();const form=Object.fromEntries(new FormData(event.currentTarget));setBusy(true);const response=await fetch("/api/variants",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,...form})});const data=await response.json();setMessage(response.ok?"Ürün seçeneği güncellendi.":data.error??"Güncellenemedi.");if(response.ok)setVariant(data.variant);setBusy(false);}
+  if(!variant)return <main className="admin-shell"><a href="/admin">← Yönetim paneli</a><p>{message||"Seçenek bulunamadı."}</p></main>;
+  return <main className="admin-shell variant-editor-shell"><header className="admin-header"><div><p>ÜRÜN SEÇENEĞİ</p><h1>{variant.optionName}: {variant.optionValue}</h1></div><div><a href="/admin">Panele dön ↗</a></div></header><section className="admin-card variant-editor-card"><form onSubmit={save} className="admin-form"><label className="wide">Ürün<select name="productId" defaultValue={variant.productId}>{products.map(product=><option key={product.id} value={product.id}>{product.nameTr}</option>)}</select></label><label>Seçenek türü · Türkçe<input name="optionName" required defaultValue={variant.optionName}/></label><label>Seçenek değeri · Türkçe<input name="optionValue" required defaultValue={variant.optionValue}/></label><label>Option type · English<input name="optionNameEn" defaultValue={variant.optionNameEn}/></label><label>Option value · English<input name="optionValueEn" defaultValue={variant.optionValueEn}/></label><label>Ürün kodu · SKU<input name="sku" required defaultValue={variant.sku}/></label><label>Stok<input name="stock" type="number" min="0" defaultValue={variant.stock}/></label><label>Fiyat farkı<input name="priceAdjustment" type="number" step="0.01" defaultValue={variant.priceAdjustment}/></label><button disabled={busy}>{busy?"Kaydediliyor…":"Seçeneği kaydet"}</button></form>{message&&<p className="admin-message">{message}</p>}</section></main>;
+}

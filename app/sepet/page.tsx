@@ -8,6 +8,7 @@ type CartItem = {
   id: number;
   quantity: number;
   name: string;
+  nameEn: string;
   slug: string;
   imageUrl: string;
   priceTr: number;
@@ -16,6 +17,8 @@ type CartItem = {
   variantStock: number | null;
   optionName: string | null;
   optionValue: string | null;
+  optionNameEn: string | null;
+  optionValueEn: string | null;
   priceAdjustment: number | null;
 };
 
@@ -65,7 +68,7 @@ export default function CartPage() {
           const unit = (market === "TR" ? item.priceTr : item.priceGlobal) + (item.priceAdjustment ?? 0);
           return <article className="cart-line" key={item.id}>
             <a className="cart-image" href={`/urun/${encodeURIComponent(item.slug)}`}><img src={item.imageUrl || "https://images.unsplash.com/photo-1616627547584-bf28cee262db?auto=format&fit=crop&w=600&q=85"} alt={item.name}/></a>
-            <div className="cart-copy"><p>SEÇKİLİ ÜRÜN</p><h2><a href={`/urun/${encodeURIComponent(item.slug)}`}>{item.name}</a></h2>{item.optionValue && <span>{item.optionName}: {item.optionValue}</span>}<div className="cart-quantity"><button onClick={() => setQuantity(item, item.quantity - 1)} aria-label="Adedi azalt">−</button><span>{item.quantity}</span><button onClick={() => setQuantity(item, item.quantity + 1)} disabled={item.quantity >= (item.variantStock ?? item.stock)} aria-label="Adedi artır">+</button></div><button className="cart-remove" onClick={() => remove(item.id)}>Kaldır</button></div>
+            <div className="cart-copy"><p>{market==="TR"?"SEÇKİLİ ÜRÜN":"CURATED PRODUCT"}</p><h2><a href={`/urun/${encodeURIComponent(item.slug)}`}>{market==="GLOBAL"?(item.nameEn||item.name):item.name}</a></h2>{item.optionValue && <span>{market==="GLOBAL"?(item.optionNameEn||item.optionName):item.optionName}: {market==="GLOBAL"?(item.optionValueEn||item.optionValue):item.optionValue}</span>}<div className="cart-quantity"><button onClick={() => setQuantity(item, item.quantity - 1)} aria-label="Adedi azalt">−</button><span>{item.quantity}</span><button onClick={() => setQuantity(item, item.quantity + 1)} disabled={item.quantity >= (item.variantStock ?? item.stock)} aria-label="Adedi artır">+</button></div><button className="cart-remove" onClick={() => remove(item.id)}>{market==="TR"?"Kaldır":"Remove"}</button></div>
             <strong>{money(unit * item.quantity)}</strong>
           </article>;
         })}</div>
