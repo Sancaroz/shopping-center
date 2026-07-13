@@ -23,7 +23,8 @@ export async function POST(request:Request) {
 
 export async function PATCH(request:Request) {
   if(!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401});
-  const body=await request.json() as {id?:number;sortOrder?:number;altText?:string};
+  const body=await request.json() as {id?:number;sortOrder?:number;altText?:string;order?:number[]};
+  if(Array.isArray(body.order)&&body.order.length){const ids=body.order.map(Number).filter(Number.isInteger).filter(id=>id>0).slice(0,100);const db=getDb();for(const[sortOrder,id]of ids.entries())await db.update(productImages).set({sortOrder}).where(eq(productImages.id,id));return Response.json({ok:true,updated:ids.length});}
   if(!body.id)return Response.json({error:"Geçersiz görsel"},{status:400});
   const updates:Partial<typeof productImages.$inferInsert>={};if(body.sortOrder!==undefined)updates.sortOrder=Number(body.sortOrder);if(body.altText!==undefined)updates.altText=String(body.altText);
   const[image]=await getDb().update(productImages).set(updates).where(eq(productImages.id,Number(body.id))).returning();
