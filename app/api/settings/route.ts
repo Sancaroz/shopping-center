@@ -63,6 +63,7 @@ const defaults = {
   showProducts:"true",
   showJournal:"true",
   showManifesto:"true",
+  homepageSectionOrder:"categories,products,manifesto,journal",
   manifestoEyebrow:"Marka standardı",
   manifestoQuote:"İyi tasarım yalnızca nasıl göründüğü değil, hayatınıza nasıl hissettirdiğidir.",
   manifestoPrinciple1:"Doğal malzemeler",

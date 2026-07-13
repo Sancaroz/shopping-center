@@ -1,0 +1,1 @@
+import{requireChatGPTUser}from"../../chatgpt-auth";import SectionOrderEditor from"./section-order-editor";import"../admin.css";export const dynamic="force-dynamic";export default async function SectionOrderPage(){await requireChatGPTUser("/admin/siralama");return <SectionOrderEditor/>}

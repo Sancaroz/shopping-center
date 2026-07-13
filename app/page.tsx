@@ -21,7 +21,7 @@ type DatabaseProduct = {
   active: boolean;
 };
 type GlobalContent = { nav1LabelGlobal:string; nav2LabelGlobal:string; nav3LabelGlobal:string; nav4LabelGlobal:string; heroEyebrowGlobal:string; heroTitleGlobal:string; heroTitleAccentGlobal:string; heroCopyGlobal:string; heroButtonGlobal:string; introTitleGlobal:string; introCopyGlobal:string; productsEyebrowGlobal:string; productsTitleGlobal:string; manifestoEyebrowGlobal:string; manifestoQuoteGlobal:string; manifestoPrinciple1Global:string; manifestoPrinciple2Global:string; manifestoPrinciple3Global:string; journalEyebrowGlobal:string; journalTitleGlobal:string; journalCopyGlobal:string; journalButtonGlobal:string; footerTaglineGlobal:string; newsletterTitleGlobal:string; newsletterCopyGlobal:string; footerLocationGlobal:string };
-type StoreSettings = { brandName:string; brandSuffix:string; brandLogoUrl?:string; faviconUrl?:string; announcementTr:string; announcementGlobal:string; showAnnouncement?:string; announcementUrlTr?:string; announcementUrlGlobal?:string; nav1Label?:string; nav1Url?:string; nav2Label?:string; nav2Url?:string; nav3Label?:string; nav3Url?:string; nav4Label?:string; nav4Url?:string; heroEyebrow:string; heroTitle:string; heroTitleAccent:string; heroCopy:string; heroButton:string; heroImageUrl:string; introTitle:string; introCopy:string; showCategories:string; showProducts:string; showJournal:string; showManifesto?:string; manifestoEyebrow?:string; manifestoQuote?:string; manifestoPrinciple1?:string; manifestoPrinciple2?:string; manifestoPrinciple3?:string; journalEyebrow?:string; journalTitle?:string; journalCopy?:string; journalButton?:string; journalImageUrl?:string; footerTagline?:string; footerLocation?:string; newsletterTitle?:string; newsletterCopy?:string; instagramUrl?:string; pinterestUrl?:string } & Partial<GlobalContent>;
+type StoreSettings = { brandName:string; brandSuffix:string; brandLogoUrl?:string; faviconUrl?:string; announcementTr:string; announcementGlobal:string; showAnnouncement?:string; announcementUrlTr?:string; announcementUrlGlobal?:string; nav1Label?:string; nav1Url?:string; nav2Label?:string; nav2Url?:string; nav3Label?:string; nav3Url?:string; nav4Label?:string; nav4Url?:string; heroEyebrow:string; heroTitle:string; heroTitleAccent:string; heroCopy:string; heroButton:string; heroImageUrl:string; introTitle:string; introCopy:string; showCategories:string; showProducts:string; showJournal:string; showManifesto?:string; homepageSectionOrder?:string; manifestoEyebrow?:string; manifestoQuote?:string; manifestoPrinciple1?:string; manifestoPrinciple2?:string; manifestoPrinciple3?:string; journalEyebrow?:string; journalTitle?:string; journalCopy?:string; journalButton?:string; journalImageUrl?:string; footerTagline?:string; footerLocation?:string; newsletterTitle?:string; newsletterCopy?:string; instagramUrl?:string; pinterestUrl?:string } & Partial<GlobalContent>;
 type StoreCategory = { id?:number; name:string; nameGlobal?:string; image:string; alt:string; parentId?:number|null };
 const defaultSettings:StoreSettings = { brandName:"MYSA", brandSuffix:"OBJETS", announcementTr:"1.500 TL üzeri ücretsiz gönderim", announcementGlobal:"Complimentary shipping over €150", heroEyebrow:"Yavaş yaşam için seçilmiş parçalar", heroTitle:"Gündelik olanı", heroTitleAccent:"olağanüstü kılın.", heroCopy:"Eviniz, gardırobunuz ve en yakın dostlarınız için; dokusu, işçiliği ve hikâyesi olan zamansız objeler.", heroButton:"Yeni seçkiyi keşfet", heroImageUrl:"https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&w=2000&q=90", introTitle:"Daha az, ama daha iyi.", introCopy:"Dokunmak isteyeceğiniz tekstillerden bilinçli üretilmiş aksesuarlara ve dostlarımız için özenle seçilmiş ürünlere uzanan modern bir yaşam koleksiyonu.", showCategories:"true", showProducts:"true", showJournal:"true" };
 
@@ -104,9 +104,11 @@ export default function Home() {
   const isGlobal=market==="GLOBAL";
   const globalText=(key:keyof GlobalContent,fallback:string)=>isGlobal?(settings[key]||fallback):fallback;
   const badgeText=(badge:string)=>!isGlobal?badge:({"YENİ":"NEW","ÇOK SEVİLEN":"BESTSELLER"}[badge]||badge);
+  const sectionOrder=(settings.homepageSectionOrder||"categories,products,manifesto,journal").split(",");
+  const sectionPosition=(key:string)=>Math.max(1,sectionOrder.indexOf(key)+1);
 
   return (
-    <main>
+    <main className="storefront">
       {(settings.showAnnouncement??"true")==="true"&&<div className="announcement">
         <a href={market==="TR"?settings.announcementUrlTr||"/magaza":settings.announcementUrlGlobal||"/magaza"}>{market === "TR" ? settings.announcementTr : settings.announcementGlobal}</a>
         <button onClick={() => changeMarket(market === "TR" ? "GLOBAL" : "TR")}>
@@ -149,7 +151,7 @@ export default function Home() {
         </div>
       </section>
 
-      {settings.showCategories==="true"&&<section className="category-grid" id="categories">
+      {settings.showCategories==="true"&&<section className="category-grid" id="categories" style={{order:sectionPosition("categories")}}>
         {storeCategories.map((category, index) => (
           <article className={`category-card category-${index + 1}`} key={category.id ?? category.name}>
             <img src={category.image} alt={category.alt} />
@@ -162,7 +164,7 @@ export default function Home() {
         ))}
       </section>}
 
-      {settings.showProducts==="true"&&<section className="products" id="shop">
+      {settings.showProducts==="true"&&<section className="products" id="shop" style={{order:sectionPosition("products")}}>
         <div className="section-heading">
           <div>
             <p className="section-label">{isGlobal?settings.productsEyebrowGlobal||"New arrivals · Global":`Yeni gelenler · Türkiye${catalogSource === "live" ? " · Güncel katalog" : ""}`}</p>
@@ -191,7 +193,7 @@ export default function Home() {
         </div>
       </section>}
 
-      {(settings.showManifesto??"true")==="true"&&<section className="manifesto">
+      {(settings.showManifesto??"true")==="true"&&<section className="manifesto" style={{order:sectionPosition("manifesto")}}>
         <p className="eyebrow">{isGlobal?settings.manifestoEyebrowGlobal||"Brand standard":settings.manifestoEyebrow||`${settings.brandName} STANDARDI`}</p>
         <blockquote>“{isGlobal?settings.manifestoQuoteGlobal||"Good design is not only how it looks, but how it makes your life feel.":settings.manifestoQuote||"İyi tasarım yalnızca nasıl göründüğü değil, hayatınıza nasıl hissettirdiğidir."}”</blockquote>
         <div className="principles">
@@ -199,7 +201,7 @@ export default function Home() {
         </div>
       </section>}
 
-      {settings.showJournal==="true"&&<section className="journal" id="journal">
+      {settings.showJournal==="true"&&<section className="journal" id="journal" style={{order:sectionPosition("journal")}}>
         <article className="journal-image" style={{backgroundImage:`url("${(settings.journalImageUrl||"https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=1300&q=90").replaceAll('"','%22')}")`}}><span>JOURNAL · 04</span></article>
         <article className="journal-copy">
           <p className="section-label">{isGlobal?settings.journalEyebrowGlobal||"Living notes":settings.journalEyebrow||"Yaşam notları"}</p>
@@ -209,7 +211,7 @@ export default function Home() {
         </article>
       </section>}
 
-      <footer>
+      <footer style={{order:99}}>
         <div className="footer-top">
           <div><a className={`wordmark footer-logo${settings.brandLogoUrl?" image-wordmark":""}`} href="#top">{settings.brandLogoUrl?<img src={settings.brandLogoUrl} alt={`${settings.brandName} ${settings.brandSuffix}`}/>:<>{settings.brandName}<span>{settings.brandSuffix}</span></>}</a><p>{isGlobal?settings.footerTaglineGlobal||"Beautiful things for considered living.":settings.footerTagline||"Beautiful things for considered living."}</p></div>
           <div><h4>{isGlobal?"Explore":"Keşfet"}</h4><a href="/magaza">{isGlobal?"New arrivals":"Yeni gelenler"}</a><a href="/magaza">{isGlobal?"Collections":"Koleksiyonlar"}</a><a href="#journal">Journal</a></div>
