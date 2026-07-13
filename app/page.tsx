@@ -100,13 +100,13 @@ export default function Home() {
         </button>
         <a className="wordmark" href="#top" aria-label={`${settings.brandName} ana sayfa`}>{settings.brandName}<span>{settings.brandSuffix}</span></a>
         <nav className={menuOpen ? "nav open" : "nav"} aria-label="Ana menü">
-          <a href="#shop" onClick={() => setMenuOpen(false)}>Mağaza</a>
-          <a href="#categories" onClick={() => setMenuOpen(false)}>Koleksiyonlar</a>
+          <a href="/magaza" onClick={() => setMenuOpen(false)}>Mağaza</a>
+          <a href="/magaza" onClick={() => setMenuOpen(false)}>Koleksiyonlar</a>
           <a href="#story" onClick={() => setMenuOpen(false)}>Hikâyemiz</a>
           <a href="#journal" onClick={() => setMenuOpen(false)}>Journal</a>
         </nav>
         <div className="header-actions">
-          <button aria-label="Ara">⌕</button>
+          <a href="/magaza" aria-label="Ürün ara">⌕</a>
           <a className="cart-link" href="/sepet" aria-label={`Çanta, ${cartCount} ürün`}>Çanta <b>{cartCount}</b></a>
         </div>
       </header>
@@ -116,7 +116,7 @@ export default function Home() {
           <p className="eyebrow">{settings.heroEyebrow}</p>
           <h1>Gündelik olanı<br/><em>olağanüstü</em> kılın.</h1>
           <p className="hero-copy">Eviniz, gardırobunuz ve en yakın dostlarınız için; dokusu, işçiliği ve hikâyesi olan zamansız objeler.</p>
-          <a className="text-link light" href="#shop">Yeni seçkiyi keşfet <Arrow /></a>
+          <a className="text-link light" href="/magaza">Yeni seçkiyi keşfet <Arrow /></a>
         </div>
         <div className="hero-index">SEÇKİ · 01</div>
       </section>
@@ -136,7 +136,7 @@ export default function Home() {
             <div className="category-info">
               <span>0{index + 1}</span>
               <h3>{category.name}</h3>
-              <a href="#shop" aria-label={`${category.name} koleksiyonunu aç`}><Arrow /></a>
+              <a href="/magaza" aria-label={`${category.name} koleksiyonunu aç`}><Arrow /></a>
             </div>
           </article>
         ))}
@@ -192,7 +192,7 @@ export default function Home() {
       <footer>
         <div className="footer-top">
           <div><a className="wordmark footer-logo" href="#top">{settings.brandName}<span>{settings.brandSuffix}</span></a><p>Beautiful things for considered living.</p></div>
-          <div><h4>Keşfet</h4><a href="#shop">Yeni gelenler</a><a href="#categories">Koleksiyonlar</a><a href="#journal">Journal</a></div>
+          <div><h4>Keşfet</h4><a href="/magaza">Yeni gelenler</a><a href="/magaza">Koleksiyonlar</a><a href="#journal">Journal</a></div>
           <div><h4>Yardım</h4><a href="#top">Teslimat & İade</a><a href="#top">Bize ulaşın</a><a href="#top">Sıkça sorulanlar</a></div>
           <div className="newsletter"><h4>Mektuplarımıza katılın</h4><p>Yeni seçkiler ve ilham veren hikâyeler.</p><label><span className="sr-only">E-posta adresi</span><input type="email" placeholder="E-posta adresiniz"/><button aria-label="Kaydol">→</button></label></div>
         </div>

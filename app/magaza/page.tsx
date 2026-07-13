@@ -1,0 +1,56 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import "./magaza.css";
+
+type Market = "TR"|"GLOBAL";
+type Product = { id:number; nameTr:string; descriptionTr:string; slug:string; imageUrl:string; priceTr:number; priceGlobal:number; stock:number; categoryId:number|null; marketTr:boolean; marketGlobal:boolean; active:boolean };
+type Category = { id:number; nameTr:string; slug:string; parentId:number|null; active:boolean };
+type Settings = { brandName:string; brandSuffix:string };
+
+export default function CatalogPage() {
+  const [products,setProducts] = useState<Product[]>([]);
+  const [categories,setCategories] = useState<Category[]>([]);
+  const [settings,setSettings] = useState<Settings>({brandName:"MYSA",brandSuffix:"OBJETS"});
+  const [market,setMarket] = useState<Market>("TR");
+  const [category,setCategory] = useState<number|null>(null);
+  const [query,setQuery] = useState("");
+  const [sort,setSort] = useState("newest");
+  const [cartCount,setCartCount] = useState(0);
+  const [notice,setNotice] = useState("");
+  const [loading,setLoading] = useState(true);
+
+  useEffect(()=>{
+    Promise.all([fetch("/api/products").then(r=>r.json()),fetch("/api/categories").then(r=>r.json()),fetch("/api/settings").then(r=>r.json()),fetch("/api/cart").then(r=>r.json())]).then(([p,c,s,cart])=>{
+      const categoryRows:Category[]=(c.categories??[]).filter((item:Category)=>item.active!==false);
+      setProducts((p.products??[]).filter((item:Product)=>item.active));setCategories(categoryRows);if(s.settings)setSettings(s.settings);setCartCount((cart.items??[]).reduce((sum:number,item:{quantity:number})=>sum+item.quantity,0));
+      const slug=new URLSearchParams(window.location.search).get("kategori");if(slug)setCategory(categoryRows.find(item=>item.slug===slug)?.id??null);setLoading(false);
+    }).catch(()=>setLoading(false));
+  },[]);
+
+  const visible = useMemo(()=>{
+    const childIds=category?[category,...categories.filter(item=>item.parentId===category).map(item=>item.id)]:[];
+    const needle=query.trim().toLocaleLowerCase("tr-TR");
+    const rows=products.filter(product=>(market==="TR"?product.marketTr:product.marketGlobal)&&(!category||childIds.includes(Number(product.categoryId)))&&(!needle||`${product.nameTr} ${product.descriptionTr}`.toLocaleLowerCase("tr-TR").includes(needle)));
+    return [...rows].sort((a,b)=>sort==="price-asc"?(market==="TR"?a.priceTr-b.priceTr:a.priceGlobal-b.priceGlobal):sort==="price-desc"?(market==="TR"?b.priceTr-a.priceTr:b.priceGlobal-a.priceGlobal):b.id-a.id);
+  },[products,categories,market,category,query,sort]);
+
+  async function addToCart(product:Product){const response=await fetch("/api/cart",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({productId:product.id,quantity:1,market})});if(response.ok){setCartCount(count=>count+1);setNotice(`${product.nameTr} çantanıza eklendi`);window.setTimeout(()=>setNotice(""),2200);}else setNotice("Ürün eklenemedi");}
+  const money=(product:Product)=>market==="TR"?`${product.priceTr.toLocaleString("tr-TR")} TL`:`€${product.priceGlobal.toLocaleString("en-US")}`;
+  const roots=categories.filter(item=>!item.parentId);
+
+  return <main className="catalog-page">
+    <header className="catalog-header"><a className="catalog-brand" href="/">{settings.brandName}<span>{settings.brandSuffix}</span></a><nav><a href="/">Ana sayfa</a><a className="active" href="/magaza">Mağaza</a><a href="/sepet">Çanta <b>{cartCount}</b></a></nav></header>
+    <section className="catalog-hero"><p>TÜM SEÇKİ</p><h1>Gündelik yaşam,<br/><em>özenle seçildi.</em></h1><div className="catalog-market"><button className={market==="TR"?"active":""} onClick={()=>setMarket("TR")}>Türkiye · TRY</button><button className={market==="GLOBAL"?"active":""} onClick={()=>setMarket("GLOBAL")}>Global · EUR</button></div></section>
+    <section className="catalog-tools">
+      <label className="catalog-search"><span>ARA</span><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Ürün adı veya açıklama…"/><b>⌕</b></label>
+      <label><span>SIRALA</span><select value={sort} onChange={event=>setSort(event.target.value)}><option value="newest">En yeniler</option><option value="price-asc">Fiyat: düşükten yükseğe</option><option value="price-desc">Fiyat: yüksekten düşüğe</option></select></label>
+    </section>
+    <div className="catalog-body">
+      <aside className="catalog-filters"><p>KATEGORİLER</p><button className={category===null?"active":""} onClick={()=>setCategory(null)}>Tüm ürünler <span>{products.filter(p=>market==="TR"?p.marketTr:p.marketGlobal).length}</span></button>{roots.map(root=><div key={root.id}><button className={category===root.id?"active":""} onClick={()=>setCategory(root.id)}>{root.nameTr}</button>{categories.filter(item=>item.parentId===root.id).map(child=><button className={`sub ${category===child.id?"active":""}`} key={child.id} onClick={()=>setCategory(child.id)}>— {child.nameTr}</button>)}</div>)}</aside>
+      <section className="catalog-results"><div className="catalog-count"><span>{visible.length} ürün</span>{category&&<button onClick={()=>setCategory(null)}>Filtreyi temizle ×</button>}</div>{loading?<p className="catalog-empty">Katalog yükleniyor…</p>:visible.length===0?<div className="catalog-empty"><h2>Bu seçime uygun ürün bulunamadı.</h2><button onClick={()=>{setCategory(null);setQuery("");}}>Tüm ürünleri göster →</button></div>:<div className="catalog-grid">{visible.map(product=><article key={product.id}><div className="catalog-image"><a href={`/urun/${encodeURIComponent(product.slug)}`} aria-label={`${product.nameTr} detaylarını aç`}></a><img src={product.imageUrl||"https://images.unsplash.com/photo-1616627547584-bf28cee262db?auto=format&fit=crop&w=900&q=88"} alt={product.nameTr}/>{product.stock>0?<button onClick={()=>addToCart(product)} aria-label={`${product.nameTr} ürününü çantaya ekle`}>+</button>:<span>TÜKENDİ</span>}</div><div className="catalog-meta"><div><h2><a href={`/urun/${encodeURIComponent(product.slug)}`}>{product.nameTr}</a></h2><p>{product.descriptionTr}</p></div><strong>{money(product)}</strong></div></article>)}</div>}</section>
+    </div>
+    <footer className="catalog-footer"><a className="catalog-brand" href="/">{settings.brandName}<span>{settings.brandSuffix}</span></a><p>Türkiye’den dünyaya, özenle seçilmiş ürünler.</p><a href="/admin">Yönetim ↗</a></footer>
+    {notice&&<div className="catalog-toast" role="status">{notice}</div>}
+  </main>;
+}
