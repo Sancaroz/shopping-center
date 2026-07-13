@@ -6,9 +6,16 @@ import { getChatGPTUser } from "../../chatgpt-auth";
 const COOKIE = "store_cart";
 const tokenFrom = (request:Request) => request.headers.get("cookie")?.split(";").map(value => value.trim()).find(value => value.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1) ?? null;
 
-export async function GET() {
+export async function GET(request:Request) {
   if (!(await getChatGPTUser())) return Response.json({ error:"Yetkisiz erişim" }, { status:401 });
   const db = getDb();
+  const id = Number(new URL(request.url).searchParams.get("id"));
+  if (id) {
+    const [order] = await db.select().from(orders).where(eq(orders.id,id)).limit(1);
+    if (!order) return Response.json({ error:"Sipariş bulunamadı" }, { status:404 });
+    const items = await db.select().from(orderItems).where(eq(orderItems.orderId,id));
+    return Response.json({ order, items });
+  }
   const rows = await db.select().from(orders).orderBy(desc(orders.id));
   return Response.json({ orders:rows });
 }

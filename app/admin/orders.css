@@ -3,6 +3,7 @@
 .orders-list article { display: grid; grid-template-columns: 1fr 1.5fr auto 140px; gap: 25px; align-items: center; padding: 18px 0; border-top: 1px solid rgba(28,36,29,.18); }
 .orders-list article b,.orders-list article strong,.orders-list article span,.orders-list article small { display: block; }
 .orders-list article b,.orders-list article strong { font-family: Georgia,serif; font-weight: 400; }
+.orders-list .order-number { font-family: Georgia,serif; border-bottom: 1px solid currentColor; padding-bottom: 3px; }
 .orders-list article span,.orders-list article small { margin-top: 5px; font-size: 9px; color: #687066; }
 .orders-list select { border: 1px solid #c9c3b8; background: white; padding: 10px; font-size: 10px; }
 @media(max-width:800px){.orders-list article{grid-template-columns:1fr 1fr}.orders-list select{width:100%}}
