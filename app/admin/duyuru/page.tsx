@@ -1,0 +1,1 @@
+import{requireChatGPTUser}from"../../chatgpt-auth";import AnnouncementEditor from"./announcement-editor";import"../admin.css";export const dynamic="force-dynamic";export default async function AnnouncementPage(){await requireChatGPTUser("/admin/duyuru");return <AnnouncementEditor/>}
