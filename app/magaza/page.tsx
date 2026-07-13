@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import "./magaza.css";
+import {getPreferredMarket,setPreferredMarket} from "../market-preference";
 
 type Market = "TR"|"GLOBAL";
 type Product = { id:number; nameTr:string; nameEn:string; descriptionTr:string; descriptionEn:string; slug:string; imageUrl:string; priceTr:number; priceGlobal:number; stock:number; categoryId:number|null; marketTr:boolean; marketGlobal:boolean; active:boolean };
@@ -21,6 +22,7 @@ export default function CatalogPage() {
   const [loading,setLoading] = useState(true);
 
   useEffect(()=>{
+    const preferred=getPreferredMarket();setMarket(preferred);setPreferredMarket(preferred);
     Promise.all([fetch("/api/products").then(r=>r.json()),fetch("/api/categories").then(r=>r.json()),fetch("/api/settings").then(r=>r.json()),fetch("/api/cart").then(r=>r.json())]).then(([p,c,s,cart])=>{
       const categoryRows:Category[]=(c.categories??[]).filter((item:Category)=>item.active!==false);
       setProducts((p.products??[]).filter((item:Product)=>item.active));setCategories(categoryRows);if(s.settings)setSettings(s.settings);setCartCount((cart.items??[]).reduce((sum:number,item:{quantity:number})=>sum+item.quantity,0));
@@ -36,13 +38,14 @@ export default function CatalogPage() {
   },[products,categories,market,category,query,sort]);
 
   const productName=(product:Product)=>market==="GLOBAL"?(product.nameEn||product.nameTr):product.nameTr;const productDescription=(product:Product)=>market==="GLOBAL"?(product.descriptionEn||product.descriptionTr):product.descriptionTr;const categoryName=(item:Category)=>market==="GLOBAL"?(item.nameEn||item.nameTr):item.nameTr;
-  async function addToCart(product:Product){const response=await fetch("/api/cart",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({productId:product.id,quantity:1,market})});if(response.ok){setCartCount(count=>count+1);setNotice(market==="GLOBAL"?`${productName(product)} added to your bag`:`${productName(product)} çantanıza eklendi`);window.setTimeout(()=>setNotice(""),2200);}else setNotice(market==="GLOBAL"?"Product could not be added":"Ürün eklenemedi");}
+  async function addToCart(product:Product){const response=await fetch("/api/cart",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({productId:product.id,quantity:1,market})});const data=await response.json();if(response.ok){setCartCount(count=>count+1);setNotice(market==="GLOBAL"?`${productName(product)} added to your bag`:`${productName(product)} çantanıza eklendi`);window.setTimeout(()=>setNotice(""),2200);}else setNotice(data.error??(market==="GLOBAL"?"Product could not be added":"Ürün eklenemedi"));}
   const money=(product:Product)=>market==="TR"?`${product.priceTr.toLocaleString("tr-TR")} TL`:`€${product.priceGlobal.toLocaleString("en-US")}`;
   const roots=categories.filter(item=>!item.parentId);
+  const changeMarket=(next:Market)=>{setMarket(next);setPreferredMarket(next);};
 
   return <main className="catalog-page">
     <header className="catalog-header"><a className="catalog-brand" href="/">{settings.brandName}<span>{settings.brandSuffix}</span></a><nav><a href="/">Ana sayfa</a><a className="active" href="/magaza">Mağaza</a><a href="/siparis-takip">Sipariş takibi</a><a href="/sepet">Çanta <b>{cartCount}</b></a></nav></header>
-    <section className="catalog-hero"><p>TÜM SEÇKİ</p><h1>Gündelik yaşam,<br/><em>özenle seçildi.</em></h1><div className="catalog-market"><button className={market==="TR"?"active":""} onClick={()=>setMarket("TR")}>Türkiye · TRY</button><button className={market==="GLOBAL"?"active":""} onClick={()=>setMarket("GLOBAL")}>Global · EUR</button></div></section>
+    <section className="catalog-hero"><p>{market==="GLOBAL"?"THE FULL EDIT":"TÜM SEÇKİ"}</p><h1>{market==="GLOBAL"?"Everyday living,":"Gündelik yaşam,"}<br/><em>{market==="GLOBAL"?"carefully curated.":"özenle seçildi."}</em></h1><div className="catalog-market"><button className={market==="TR"?"active":""} onClick={()=>changeMarket("TR")}>Türkiye · TRY</button><button className={market==="GLOBAL"?"active":""} onClick={()=>changeMarket("GLOBAL")}>Global · EUR</button></div></section>
     <section className="catalog-tools">
       <label className="catalog-search"><span>ARA</span><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Ürün adı veya açıklama…"/><b>⌕</b></label>
       <label><span>SIRALA</span><select value={sort} onChange={event=>setSort(event.target.value)}><option value="newest">En yeniler</option><option value="price-asc">Fiyat: düşükten yükseğe</option><option value="price-desc">Fiyat: yüksekten düşüğe</option></select></label>

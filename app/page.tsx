@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { categories as sampleCategories, products as sampleProducts, type Market } from "./content";
+import {getPreferredMarket,setPreferredMarket} from "./market-preference";
 
 type StoreProduct = (typeof sampleProducts)[number] & { id?: number; active?: boolean; featured?:boolean; slug?:string; nameGlobal?:string; descriptionGlobal?:string };
 type DatabaseProduct = {
@@ -38,7 +39,7 @@ export default function Home() {
   const [newsletterEmail,setNewsletterEmail]=useState("");
   const [newsletterMessage,setNewsletterMessage]=useState("");
 
-  useEffect(()=>{if(new URLSearchParams(window.location.search).get("market")==="GLOBAL")setMarket("GLOBAL");},[]);
+  useEffect(()=>{setMarket(getPreferredMarket());},[]);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,7 +75,7 @@ export default function Home() {
   useEffect(() => { fetch("/api/settings").then(response => response.json()).then(data => data.settings && setSettings(data.settings)).catch(() => undefined); }, []);
   useEffect(() => { fetch("/api/categories").then(response => response.json()).then(data => { const rows = (data.categories ?? []).filter((category:{parentId:number|null;active:boolean}) => !category.parentId && category.active !== false); if (rows.length) setStoreCategories(rows.slice(0,3).map((category:{id:number;nameTr:string;nameEn:string;imageUrl:string;parentId:number|null},index:number) => ({ id:category.id, name:category.nameTr, nameGlobal:category.nameEn||category.nameTr, image:category.imageUrl || sampleCategories[index % sampleCategories.length].image, alt:`${category.nameTr} kategorisi`, parentId:category.parentId }))); }).catch(() => undefined); }, []);
   useEffect(() => { fetch("/api/cart").then(response => response.json()).then(data => setCartCount((data.items ?? []).reduce((sum:number,item:{quantity:number}) => sum + item.quantity, 0))).catch(() => undefined); }, []);
-  useEffect(()=>{document.documentElement.lang=market==="GLOBAL"?"en":"tr";},[market]);
+  useEffect(()=>{setPreferredMarket(market);},[market]);
 
   const visibleProducts = useMemo(() => {
     const marketProducts=catalogProducts.filter((product) => product.markets.includes(market));
@@ -84,6 +85,7 @@ export default function Home() {
 
   const changeMarket = (next: Market) => {
     setMarket(next);
+    setPreferredMarket(next);
     setNotice(next === "TR" ? "Türkiye mağazasına geçildi" : "Global mağazaya geçildi");
     window.setTimeout(() => setNotice(""), 2200);
   };
@@ -91,7 +93,7 @@ export default function Home() {
   const addToCart = async (product: StoreProduct) => {
     if (product.id) {
       const response = await fetch("/api/cart", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ productId:product.id, quantity:1, market }) });
-      if (!response.ok) { setNotice("Ürün eklenemedi"); return; }
+      if (!response.ok) { const data=await response.json();setNotice(data.error??(market==="GLOBAL"?"Product could not be added":"Ürün eklenemedi")); return; }
     }
     setCartCount((count) => count + 1);
     setNotice(market === "TR" ? `${product.name} çantanıza eklendi` : `${product.nameGlobal || product.name} added to your bag`);

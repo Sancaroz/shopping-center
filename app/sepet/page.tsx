@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import "./sepet.css";
 import "./cart-controls.css";
+import {getPreferredMarket,setPreferredMarket} from "../market-preference";
 
 type CartItem = {
   id: number;
@@ -29,8 +30,9 @@ export default function CartPage() {
   const [shippingSettings,setShippingSettings]=useState({shippingTr:99,freeShippingTr:1500,shippingGlobal:15,freeShippingGlobal:150});
 
   const load = () => fetch("/api/cart").then(response => response.json()).then(data => {
-    setItems(data.items ?? []);
-    setMarket(data.market === "GLOBAL" ? "GLOBAL" : "TR");
+    const rows=data.items??[];const next=rows.length?(data.market === "GLOBAL" ? "GLOBAL" : "TR"):getPreferredMarket();
+    setItems(rows);
+    setMarket(next);setPreferredMarket(next);
     setLoading(false);
   }).catch(() => setLoading(false));
 
