@@ -18,9 +18,9 @@ type DatabaseProduct = {
   marketGlobal: boolean;
   active: boolean;
 };
-type StoreSettings = { brandName:string; brandSuffix:string; announcementTr:string; announcementGlobal:string; heroEyebrow:string };
+type StoreSettings = { brandName:string; brandSuffix:string; announcementTr:string; announcementGlobal:string; heroEyebrow:string; heroTitle:string; heroTitleAccent:string; heroCopy:string; heroButton:string; heroImageUrl:string; introTitle:string; introCopy:string };
 type StoreCategory = { id?:number; name:string; image:string; alt:string; parentId?:number|null };
-const defaultSettings:StoreSettings = { brandName:"MYSA", brandSuffix:"OBJETS", announcementTr:"1.500 TL üzeri ücretsiz gönderim", announcementGlobal:"Complimentary shipping over €150", heroEyebrow:"Yavaş yaşam için seçilmiş parçalar" };
+const defaultSettings:StoreSettings = { brandName:"MYSA", brandSuffix:"OBJETS", announcementTr:"1.500 TL üzeri ücretsiz gönderim", announcementGlobal:"Complimentary shipping over €150", heroEyebrow:"Yavaş yaşam için seçilmiş parçalar", heroTitle:"Gündelik olanı", heroTitleAccent:"olağanüstü kılın.", heroCopy:"Eviniz, gardırobunuz ve en yakın dostlarınız için; dokusu, işçiliği ve hikâyesi olan zamansız objeler.", heroButton:"Yeni seçkiyi keşfet", heroImageUrl:"https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&w=2000&q=90", introTitle:"Daha az, ama daha iyi.", introCopy:"Dokunmak isteyeceğiniz tekstillerden bilinçli üretilmiş aksesuarlara ve dostlarımız için özenle seçilmiş ürünlere uzanan modern bir yaşam koleksiyonu." };
 
 const Arrow = () => <span aria-hidden="true">&#8599;</span>;
 
@@ -115,12 +115,12 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="hero" id="top">
+      <section className="hero" id="top" style={{backgroundImage:`linear-gradient(90deg,rgba(22,29,23,.78) 0%,rgba(22,29,23,.22) 56%,rgba(22,29,23,.06)), url("${settings.heroImageUrl.replaceAll('"','%22')}")`}}>
         <div className="hero-content">
           <p className="eyebrow">{settings.heroEyebrow}</p>
-          <h1>Gündelik olanı<br/><em>olağanüstü</em> kılın.</h1>
-          <p className="hero-copy">Eviniz, gardırobunuz ve en yakın dostlarınız için; dokusu, işçiliği ve hikâyesi olan zamansız objeler.</p>
-          <a className="text-link light" href="/magaza">Yeni seçkiyi keşfet <Arrow /></a>
+          <h1>{settings.heroTitle}<br/><em>{settings.heroTitleAccent}</em></h1>
+          <p className="hero-copy">{settings.heroCopy}</p>
+          <a className="text-link light" href="/magaza">{settings.heroButton} <Arrow /></a>
         </div>
         <div className="hero-index">SEÇKİ · 01</div>
       </section>
@@ -128,8 +128,8 @@ export default function Home() {
       <section className="intro" id="story">
         <p className="section-label">Bizim dünyamız</p>
         <div>
-          <h2>Daha az, ama daha iyi.</h2>
-          <p>Dokunmak isteyeceğiniz tekstillerden bilinçli üretilmiş aksesuarlara ve dostlarımız için özenle seçilmiş ürünlere uzanan modern bir yaşam koleksiyonu.</p>
+          <h2>{settings.introTitle}</h2>
+          <p>{settings.introCopy}</p>
         </div>
       </section>
 
