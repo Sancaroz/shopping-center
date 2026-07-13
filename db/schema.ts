@@ -48,6 +48,15 @@ export const productVariants = sqliteTable("product_variants", {
   priceAdjustment: real("price_adjustment").notNull().default(0),
 });
 
+export const productImages = sqliteTable("product_images", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  imageUrl: text("image_url").notNull(),
+  altText: text("alt_text").notNull().default(""),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const carts = sqliteTable("carts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   token: text("token").notNull().unique(),
