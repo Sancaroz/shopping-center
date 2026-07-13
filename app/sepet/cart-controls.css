@@ -4,3 +4,4 @@
 .cart-quantity button:disabled { opacity: .25; }
 .cart-quantity span { min-width: 26px; margin: 0; text-align: center; }
 .cart-checkout { display: block; box-sizing: border-box; width: 100%; background: #1c241d; color: white; padding: 17px; margin: 10px 0 15px; text-align: center; text-transform: uppercase; letter-spacing: .14em; font-size: 9px; }
+.cart-market-warning{display:flex;justify-content:space-between;gap:20px;margin-top:30px;border-left:3px solid #a85337;background:#eee1d8;padding:16px 20px}.cart-market-warning b{font:400 15px Georgia,serif}.cart-market-warning span{font-size:10px;color:#7e402d}.cart-line.unavailable{background:#f3e6de;box-shadow:inset 3px 0 #a85337;padding:16px}.cart-unavailable-note{color:#943d27!important;font-weight:600}.cart-checkout.disabled{opacity:.42;cursor:not-allowed}@media(max-width:600px){.cart-market-warning{flex-direction:column;gap:7px}}

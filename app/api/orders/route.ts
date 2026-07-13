@@ -41,8 +41,10 @@ export async function POST(request:Request) {
     variantStock:productVariants.stock, priceAdjustment:productVariants.priceAdjustment,
   }).from(cartItems).innerJoin(products, eq(cartItems.productId, products.id)).leftJoin(productVariants, eq(cartItems.variantId, productVariants.id)).where(eq(cartItems.cartId, cart.id));
   if (!lines.length) return Response.json({ error:"Çantanız boş." }, { status:400 });
-  const unavailable = lines.find(line => !line.active || (cart.market==="TR"?!line.marketTr:!line.marketGlobal) || line.quantity > (line.variantId ? Number(line.variantStock ?? 0) : line.stock));
-  if (unavailable) return Response.json({ error:`${unavailable.productName} için yeterli stok bulunmuyor.` }, { status:409 });
+  const unavailable = lines.find(line => !line.active || (cart.market==="TR"?!line.marketTr:!line.marketGlobal));
+  if (unavailable) return Response.json({ error:cart.market==="GLOBAL"?`${unavailable.productNameEn||unavailable.productName} is no longer available in the global store.`:`${unavailable.productName} artık Türkiye mağazasında satışta değil.` }, { status:409 });
+  const insufficient = lines.find(line => line.quantity > (line.variantId ? Number(line.variantStock ?? 0) : line.stock));
+  if (insufficient) return Response.json({ error:`${cart.market==="GLOBAL"?(insufficient.productNameEn||insufficient.productName):insufficient.productName} için yeterli stok bulunmuyor.` }, { status:409 });
 
   const priced = lines.map(line => ({ ...line, unitPrice:(cart.market === "GLOBAL" ? line.priceGlobal : line.priceTr) + Number(line.priceAdjustment ?? 0) }));
   const subtotal = priced.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
