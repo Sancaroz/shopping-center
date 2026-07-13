@@ -41,11 +41,19 @@ export async function PATCH(request: Request) {
   const id = Number(body.id);
   if (!id) return Response.json({ error: "Geçersiz ürün" }, { status: 400 });
   const db = getDb();
-  const [product] = await db.update(products).set({
-    active: body.active === undefined ? true : Boolean(body.active),
-    stock: Number(body.stock ?? 0),
-    updatedAt: new Date().toISOString(),
-  }).where(eq(products.id, id)).returning();
+  const updates: Partial<typeof products.$inferInsert> = { updatedAt: new Date().toISOString() };
+  if (body.nameTr !== undefined) updates.nameTr = String(body.nameTr).trim();
+  if (body.slug !== undefined) updates.slug = String(body.slug).trim();
+  if (body.descriptionTr !== undefined) updates.descriptionTr = String(body.descriptionTr);
+  if (body.categoryId !== undefined) updates.categoryId = Number(body.categoryId) || null;
+  if (body.imageUrl !== undefined) updates.imageUrl = String(body.imageUrl);
+  if (body.priceTr !== undefined) updates.priceTr = Number(body.priceTr);
+  if (body.priceGlobal !== undefined) updates.priceGlobal = Number(body.priceGlobal);
+  if (body.stock !== undefined) updates.stock = Number(body.stock);
+  if (body.marketTr !== undefined) updates.marketTr = Boolean(body.marketTr);
+  if (body.marketGlobal !== undefined) updates.marketGlobal = Boolean(body.marketGlobal);
+  if (body.active !== undefined) updates.active = Boolean(body.active);
+  const [product] = await db.update(products).set(updates).where(eq(products.id, id)).returning();
   return Response.json({ product });
 }
 

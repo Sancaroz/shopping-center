@@ -9,6 +9,7 @@
 .category-list .sub-category { padding-left: 22px; background: rgba(201, 192, 174, .12); }
 .product-list .product-inactive { opacity: .52; }
 .product-list .product-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.product-list .product-actions a { font-size: 10px; border-bottom: 1px solid; padding-bottom: 3px; }
 .product-list .product-actions button:first-child { text-decoration: none; border: 1px solid #b9b2a6; padding: 6px 8px; }
 .stock-controls { display: inline-flex; align-items: center; gap: 8px; margin-top: 9px; border: 1px solid #c9c3b8; }
 .stock-controls button { text-decoration: none !important; width: 25px; height: 24px; }
@@ -22,3 +23,4 @@
 .variant-list span,.variant-list code { margin-top: 5px; font-size: 10px; color: #687066; }
 .variant-list button { border: 0; background: none; text-decoration: underline; font-size: 10px; cursor: pointer; }
 @media(max-width:800px){.variant-form{grid-template-columns:1fr 1fr}}
+.editor-shell{max-width:1200px;margin:auto}.editor-card{margin:35px auto 0;max-width:820px}.editor-card .admin-form>button{grid-column:1/-1}.editor-card textarea{resize:vertical}
