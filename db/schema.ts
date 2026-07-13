@@ -47,3 +47,20 @@ export const productVariants = sqliteTable("product_variants", {
   stock: integer("stock").notNull().default(0),
   priceAdjustment: real("price_adjustment").notNull().default(0),
 });
+
+export const carts = sqliteTable("carts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  token: text("token").notNull().unique(),
+  market: text("market").notNull().default("TR"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const cartItems = sqliteTable("cart_items", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  cartId: integer("cart_id").notNull().references(() => carts.id, { onDelete: "cascade" }),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  variantId: integer("variant_id").references(() => productVariants.id, { onDelete: "set null" }),
+  quantity: integer("quantity").notNull().default(1),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});

@@ -1,0 +1,3 @@
+.detail-header > div { display: flex; gap: 25px; }
+.detail-notice { margin: 12px 0 0; font-size: 11px; color: #536052; }
+.detail-notice a { margin-left: 5px; text-decoration: underline; }

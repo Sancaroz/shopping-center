@@ -16,10 +16,11 @@ img { display:block; width:100%; }
 .wordmark { font-family:Georgia, serif; font-size:26px; letter-spacing:.02em; text-align:center; line-height:.72; }
 .wordmark span { display:block; font-family:Arial,sans-serif; font-size:7px; letter-spacing:.5em; margin:8px 0 0 .5em; }
 .nav { display:flex; gap:28px; font-size:11px; letter-spacing:.12em; text-transform:uppercase; }
-.nav a, .header-actions button { transition:opacity .2s; }
-.nav a:hover, .header-actions button:hover { opacity:.55; }
+.nav a, .header-actions button, .header-actions a { transition:opacity .2s; }
+.nav a:hover, .header-actions button:hover, .header-actions a:hover { opacity:.55; }
 .header-actions { justify-self:end; display:flex; gap:22px; align-items:center; }
 .header-actions button { border:0; color:white; background:none; text-transform:uppercase; font-size:10px; letter-spacing:.1em; cursor:pointer; }
+.header-actions a { color:white; text-transform:uppercase; font-size:10px; letter-spacing:.1em; }
 .header-actions b { display:inline-grid; place-items:center; width:18px; height:18px; margin-left:4px; border:1px solid rgba(255,255,255,.6); border-radius:50%; font-weight:400; }
 .menu-button { display:none; }
 .hero { min-height:92vh; position:relative; display:flex; align-items:center; color:#f5f1e8; padding:150px 8vw 70px; background:linear-gradient(90deg,rgba(22,29,23,.78) 0%,rgba(22,29,23,.22) 56%,rgba(22,29,23,.06)), url('https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&w=2000&q=90') center/cover; }

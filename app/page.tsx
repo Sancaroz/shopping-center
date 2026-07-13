@@ -62,6 +62,7 @@ export default function Home() {
 
   useEffect(() => { fetch("/api/settings").then(response => response.json()).then(data => data.settings && setSettings(data.settings)).catch(() => undefined); }, []);
   useEffect(() => { fetch("/api/categories").then(response => response.json()).then(data => { const rows = (data.categories ?? []).filter((category:{parentId:number|null}) => !category.parentId); if (rows.length) setStoreCategories(rows.slice(0,3).map((category:{id:number;nameTr:string;imageUrl:string;parentId:number|null},index:number) => ({ id:category.id, name:category.nameTr, image:category.imageUrl || sampleCategories[index % sampleCategories.length].image, alt:`${category.nameTr} kategorisi`, parentId:category.parentId }))); }).catch(() => undefined); }, []);
+  useEffect(() => { fetch("/api/cart").then(response => response.json()).then(data => setCartCount((data.items ?? []).reduce((sum:number,item:{quantity:number}) => sum + item.quantity, 0))).catch(() => undefined); }, []);
 
   const visibleProducts = useMemo(
     () => catalogProducts.filter((product) => product.markets.includes(market)),
@@ -74,9 +75,13 @@ export default function Home() {
     window.setTimeout(() => setNotice(""), 2200);
   };
 
-  const addToCart = (name: string) => {
+  const addToCart = async (product: StoreProduct) => {
+    if (product.id) {
+      const response = await fetch("/api/cart", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ productId:product.id, quantity:1, market }) });
+      if (!response.ok) { setNotice("Ürün eklenemedi"); return; }
+    }
     setCartCount((count) => count + 1);
-    setNotice(`${name} çantanıza eklendi`);
+    setNotice(`${product.name} çantanıza eklendi`);
     window.setTimeout(() => setNotice(""), 2200);
   };
 
@@ -102,7 +107,7 @@ export default function Home() {
         </nav>
         <div className="header-actions">
           <button aria-label="Ara">⌕</button>
-          <button aria-label={`Çanta, ${cartCount} ürün`}>Çanta <b>{cartCount}</b></button>
+          <a className="cart-link" href="/sepet" aria-label={`Çanta, ${cartCount} ürün`}>Çanta <b>{cartCount}</b></a>
         </div>
       </header>
 
@@ -155,7 +160,7 @@ export default function Home() {
                 {product.slug && <a className="product-detail-link" href={`/urun/${encodeURIComponent(product.slug)}`} aria-label={`${product.name} detaylarını aç`}></a>}
                 <img src={product.image} alt={product.alt} />
                 {product.badge && <span>{product.badge}</span>}
-                <button onClick={() => addToCart(product.name)} aria-label={`${product.name} ürününü çantaya ekle`}>+</button>
+                <button onClick={() => addToCart(product)} aria-label={`${product.name} ürününü çantaya ekle`}>+</button>
               </div>
               <div className="product-meta">
                 <div><h3>{product.slug?<a href={`/urun/${encodeURIComponent(product.slug)}`}>{product.name}</a>:product.name}</h3><p>{product.description}</p></div>
