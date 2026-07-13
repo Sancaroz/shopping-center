@@ -36,12 +36,12 @@ export async function POST(request:Request) {
   if (!cart) return Response.json({ error:"Çantanız bulunamadı." }, { status:400 });
   const lines = await db.select({
     cartItemId:cartItems.id, productId:products.id, variantId:productVariants.id, quantity:cartItems.quantity,
-    productName:products.nameTr, priceTr:products.priceTr, priceGlobal:products.priceGlobal, stock:products.stock,
+    productName:products.nameTr, productNameEn:products.nameEn, priceTr:products.priceTr, priceGlobal:products.priceGlobal, stock:products.stock, active:products.active, marketTr:products.marketTr, marketGlobal:products.marketGlobal,
     optionName:productVariants.optionName, optionValue:productVariants.optionValue, optionNameEn:productVariants.optionNameEn, optionValueEn:productVariants.optionValueEn,
     variantStock:productVariants.stock, priceAdjustment:productVariants.priceAdjustment,
   }).from(cartItems).innerJoin(products, eq(cartItems.productId, products.id)).leftJoin(productVariants, eq(cartItems.variantId, productVariants.id)).where(eq(cartItems.cartId, cart.id));
   if (!lines.length) return Response.json({ error:"Çantanız boş." }, { status:400 });
-  const unavailable = lines.find(line => line.quantity > (line.variantId ? Number(line.variantStock ?? 0) : line.stock));
+  const unavailable = lines.find(line => !line.active || (cart.market==="TR"?!line.marketTr:!line.marketGlobal) || line.quantity > (line.variantId ? Number(line.variantStock ?? 0) : line.stock));
   if (unavailable) return Response.json({ error:`${unavailable.productName} için yeterli stok bulunmuyor.` }, { status:409 });
 
   const priced = lines.map(line => ({ ...line, unitPrice:(cart.market === "GLOBAL" ? line.priceGlobal : line.priceTr) + Number(line.priceAdjustment ?? 0) }));
@@ -54,7 +54,7 @@ export async function POST(request:Request) {
     note:String(body.note ?? "").trim(), subtotal, shippingAmount, total,
   }).returning();
   await db.insert(orderItems).values(priced.map(line => ({
-    orderId:order.id, productId:line.productId, variantId:line.variantId, productName:line.productName,
+    orderId:order.id, productId:line.productId, variantId:line.variantId, productName:cart.market==="GLOBAL"?(line.productNameEn||line.productName):line.productName,
     variantLabel:line.optionValue ? (cart.market==="GLOBAL"?`${line.optionNameEn||line.optionName}: ${line.optionValueEn||line.optionValue}`:`${line.optionName}: ${line.optionValue}`) : "", quantity:line.quantity, unitPrice:line.unitPrice,
   })));
   await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));
@@ -66,6 +66,8 @@ export async function PATCH(request:Request) {
   const body = await request.json() as { id?:number; status?:string };
   const allowed = ["new", "confirmed", "preparing", "completed", "cancelled"];
   if (!body.id || !allowed.includes(String(body.status))) return Response.json({ error:"Geçersiz sipariş durumu" }, { status:400 });
-  const [order] = await getDb().update(orders).set({ status:String(body.status), updatedAt:new Date().toISOString() }).where(eq(orders.id, Number(body.id))).returning();
-  return Response.json({ order });
+  const db=getDb();const orderId=Number(body.id);const[existing]=await db.select().from(orders).where(eq(orders.id,orderId)).limit(1);if(!existing)return Response.json({error:"Sipariş bulunamadı"},{status:404});const lines=await db.select().from(orderItems).where(eq(orderItems.orderId,orderId));const nextStatus=String(body.status);const needsInventory=["confirmed","preparing","completed"].includes(nextStatus);
+  if(needsInventory&&!existing.inventoryApplied){const checks=[] as Array<{kind:"variant"|"product";id:number;quantity:number;stock:number}>;for(const line of lines){if(line.variantId){const[row]=await db.select().from(productVariants).where(eq(productVariants.id,line.variantId)).limit(1);if(!row||row.stock<line.quantity)return Response.json({error:`${line.productName} için yeterli varyant stoğu yok.`},{status:409});checks.push({kind:"variant",id:row.id,quantity:line.quantity,stock:row.stock});}else if(line.productId){const[row]=await db.select().from(products).where(eq(products.id,line.productId)).limit(1);if(!row||row.stock<line.quantity)return Response.json({error:`${line.productName} için yeterli stok yok.`},{status:409});checks.push({kind:"product",id:row.id,quantity:line.quantity,stock:row.stock});}else return Response.json({error:`${line.productName} artık katalogda bulunmuyor.`},{status:409});}for(const item of checks){if(item.kind==="variant")await db.update(productVariants).set({stock:item.stock-item.quantity}).where(eq(productVariants.id,item.id));else await db.update(products).set({stock:item.stock-item.quantity,updatedAt:new Date().toISOString()}).where(eq(products.id,item.id));}}
+  if(nextStatus==="cancelled"&&existing.inventoryApplied){for(const line of lines){if(line.variantId){const[row]=await db.select().from(productVariants).where(eq(productVariants.id,line.variantId)).limit(1);if(row)await db.update(productVariants).set({stock:row.stock+line.quantity}).where(eq(productVariants.id,row.id));}else if(line.productId){const[row]=await db.select().from(products).where(eq(products.id,line.productId)).limit(1);if(row)await db.update(products).set({stock:row.stock+line.quantity,updatedAt:new Date().toISOString()}).where(eq(products.id,row.id));}}}
+  const inventoryApplied=needsInventory?true:nextStatus==="cancelled"?false:existing.inventoryApplied;const[order]=await db.update(orders).set({status:nextStatus,inventoryApplied,updatedAt:new Date().toISOString()}).where(eq(orders.id,orderId)).returning();return Response.json({order});
 }

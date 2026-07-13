@@ -1,0 +1,1 @@
+ALTER TABLE `orders` ADD `inventory_applied` integer DEFAULT false NOT NULL;
