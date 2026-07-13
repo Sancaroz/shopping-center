@@ -1,0 +1,6 @@
+.cart-copy .cart-remove { border: 0; border-bottom: 1px solid currentColor; background: transparent; padding: 0; margin-top: 20px; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
+.cart-quantity { display: flex; width: max-content; align-items: center; border: 1px solid rgba(28,36,29,.25); margin-top: 12px; }
+.cart-quantity button { width: 30px; height: 29px; border: 0; background: transparent; cursor: pointer; }
+.cart-quantity button:disabled { opacity: .25; }
+.cart-quantity span { min-width: 26px; margin: 0; text-align: center; }
+.cart-checkout { display: block; box-sizing: border-box; width: 100%; background: #1c241d; color: white; padding: 17px; margin: 10px 0 15px; text-align: center; text-transform: uppercase; letter-spacing: .14em; font-size: 9px; }

@@ -64,3 +64,32 @@ export const cartItems = sqliteTable("cart_items", {
   quantity: integer("quantity").notNull().default(1),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const orders = sqliteTable("orders", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  orderNumber: text("order_number").notNull().unique(),
+  market: text("market").notNull().default("TR"),
+  status: text("status").notNull().default("new"),
+  customerName: text("customer_name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone").notNull(),
+  address: text("address").notNull(),
+  city: text("city").notNull(),
+  postalCode: text("postal_code").notNull().default(""),
+  country: text("country").notNull().default("Türkiye"),
+  note: text("note").notNull().default(""),
+  subtotal: real("subtotal").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const orderItems = sqliteTable("order_items", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  orderId: integer("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
+  productId: integer("product_id").references(() => products.id, { onDelete: "set null" }),
+  variantId: integer("variant_id").references(() => productVariants.id, { onDelete: "set null" }),
+  productName: text("product_name").notNull(),
+  variantLabel: text("variant_label").notNull().default(""),
+  quantity: integer("quantity").notNull(),
+  unitPrice: real("unit_price").notNull(),
+});
