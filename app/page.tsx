@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { categories as sampleCategories, products as sampleProducts, type Market } from "./content";
 import {getPreferredMarket,setPreferredMarket} from "./market-preference";
 
-type StoreProduct = (typeof sampleProducts)[number] & { id?: number; active?: boolean; featured?:boolean; slug?:string; nameGlobal?:string; descriptionGlobal?:string };
+type StoreProduct = (typeof sampleProducts)[number] & { id?: number; active?: boolean; featured?:boolean; slug?:string; nameGlobal?:string; descriptionGlobal?:string; categoryId?:number|null };
 type DatabaseProduct = {
   id: number;
   slug: string;
@@ -15,6 +15,7 @@ type DatabaseProduct = {
   imageUrl: string;
   priceTr: number;
   priceGlobal: number;
+  categoryId: number|null;
   marketTr: boolean;
   marketGlobal: boolean;
   featured: boolean;
@@ -22,7 +23,7 @@ type DatabaseProduct = {
 };
 type GlobalContent = { nav1LabelGlobal:string; nav2LabelGlobal:string; nav3LabelGlobal:string; nav4LabelGlobal:string; heroEyebrowGlobal:string; heroTitleGlobal:string; heroTitleAccentGlobal:string; heroCopyGlobal:string; heroButtonGlobal:string; introTitleGlobal:string; introCopyGlobal:string; productsEyebrowGlobal:string; productsTitleGlobal:string; manifestoEyebrowGlobal:string; manifestoQuoteGlobal:string; manifestoPrinciple1Global:string; manifestoPrinciple2Global:string; manifestoPrinciple3Global:string; journalEyebrowGlobal:string; journalTitleGlobal:string; journalCopyGlobal:string; journalButtonGlobal:string; footerTaglineGlobal:string; newsletterTitleGlobal:string; newsletterCopyGlobal:string; footerLocationGlobal:string };
 type StoreSettings = { brandName:string; brandSuffix:string; brandLogoUrl?:string; faviconUrl?:string; announcementTr:string; announcementGlobal:string; showAnnouncement?:string; announcementUrlTr?:string; announcementUrlGlobal?:string; nav1Label?:string; nav1Url?:string; nav2Label?:string; nav2Url?:string; nav3Label?:string; nav3Url?:string; nav4Label?:string; nav4Url?:string; heroEyebrow:string; heroTitle:string; heroTitleAccent:string; heroCopy:string; heroButton:string; heroImageUrl:string; introTitle:string; introCopy:string; showCategories:string; showProducts:string; showJournal:string; showManifesto?:string; homepageSectionOrder?:string; manifestoEyebrow?:string; manifestoQuote?:string; manifestoPrinciple1?:string; manifestoPrinciple2?:string; manifestoPrinciple3?:string; journalEyebrow?:string; journalTitle?:string; journalCopy?:string; journalButton?:string; journalImageUrl?:string; footerTagline?:string; footerLocation?:string; newsletterTitle?:string; newsletterCopy?:string; instagramUrl?:string; pinterestUrl?:string } & Partial<GlobalContent>;
-type StoreCategory = { id?:number; name:string; nameGlobal?:string; image:string; alt:string; parentId?:number|null };
+type StoreCategory = { id?:number; name:string; nameGlobal?:string; image:string; alt:string; parentId?:number|null; slug?:string };
 type HomepageBlock={id:number;eyebrowTr:string;eyebrowEn:string;titleTr:string;titleEn:string;copyTr:string;copyEn:string;buttonTr:string;buttonEn:string;buttonUrl:string;imageUrl:string;imagePosition:string;active:boolean};
 const defaultSettings:StoreSettings = { brandName:"MYSA", brandSuffix:"OBJETS", announcementTr:"1.500 TL üzeri ücretsiz gönderim", announcementGlobal:"Complimentary shipping over €150", heroEyebrow:"Yavaş yaşam için seçilmiş parçalar", heroTitle:"Gündelik olanı", heroTitleAccent:"olağanüstü kılın.", heroCopy:"Eviniz, gardırobunuz ve en yakın dostlarınız için; dokusu, işçiliği ve hikâyesi olan zamansız objeler.", heroButton:"Yeni seçkiyi keşfet", heroImageUrl:"https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&w=2000&q=90", introTitle:"Daha az, ama daha iyi.", introCopy:"Dokunmak isteyeceğiniz tekstillerden bilinçli üretilmiş aksesuarlara ve dostlarımız için özenle seçilmiş ürünlere uzanan modern bir yaşam koleksiyonu.", showCategories:"true", showProducts:"true", showJournal:"true" };
 
@@ -60,6 +61,7 @@ export default function Home() {
             descriptionGlobal: product.descriptionEn || product.descriptionTr,
             priceTR: product.priceTr,
             priceGlobal: product.priceGlobal,
+            categoryId: product.categoryId,
             markets: [product.marketTr ? "TR" : null, product.marketGlobal ? "GLOBAL" : null].filter(Boolean) as Market[],
             image: product.imageUrl || "https://images.unsplash.com/photo-1616627547584-bf28cee262db?auto=format&fit=crop&w=900&q=88",
             alt: product.nameTr,
@@ -75,7 +77,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => { fetch("/api/settings").then(response => response.json()).then(data => data.settings && setSettings(data.settings)).catch(() => undefined); }, []);
-  useEffect(() => { fetch("/api/categories").then(response => response.json()).then(data => { const rows = (data.categories ?? []).filter((category:{parentId:number|null;active:boolean}) => !category.parentId && category.active !== false); if (rows.length) setStoreCategories(rows.slice(0,3).map((category:{id:number;nameTr:string;nameEn:string;imageUrl:string;parentId:number|null},index:number) => ({ id:category.id, name:category.nameTr, nameGlobal:category.nameEn||category.nameTr, image:category.imageUrl || sampleCategories[index % sampleCategories.length].image, alt:`${category.nameTr} kategorisi`, parentId:category.parentId }))); }).catch(() => undefined); }, []);
+  useEffect(() => { fetch("/api/categories").then(response => response.json()).then(data => { const rows = (data.categories ?? []).filter((category:{active:boolean}) => category.active !== false); if (rows.length) setStoreCategories(rows.map((category:{id:number;nameTr:string;nameEn:string;imageUrl:string;parentId:number|null;slug:string},index:number) => ({ id:category.id, name:category.nameTr, nameGlobal:category.nameEn||category.nameTr, image:category.imageUrl || sampleCategories[index % sampleCategories.length].image, alt:`${category.nameTr} kategorisi`, parentId:category.parentId, slug:category.slug }))); }).catch(() => undefined); }, []);
   useEffect(() => { fetch("/api/cart").then(response => response.json()).then(data => setCartCount((data.items ?? []).reduce((sum:number,item:{quantity:number}) => sum + item.quantity, 0))).catch(() => undefined); }, []);
   useEffect(()=>{fetch("/api/homepage-blocks").then(r=>r.json()).then(data=>setHomepageBlocks((data.blocks??[]).filter((block:HomepageBlock)=>block.active))).catch(()=>undefined)},[]);
   useEffect(()=>{setPreferredMarket(market);},[market]);
@@ -85,6 +87,8 @@ export default function Home() {
     const featuredProducts=marketProducts.filter(product=>product.featured);
     return (featuredProducts.length?featuredProducts:marketProducts).slice(0,8);
   }, [catalogProducts, market]);
+
+  const visibleCategories=useMemo(()=>{const roots=storeCategories.filter(category=>!category.parentId);if(catalogSource!=="live")return roots.slice(0,3);const marketProducts=catalogProducts.filter(product=>product.markets.includes(market));const ids=new Set(marketProducts.map(product=>product.categoryId).filter((id):id is number=>typeof id==="number"));storeCategories.forEach(category=>{if(category.id&&category.parentId&&ids.has(category.id))ids.add(category.parentId);});return roots.filter(category=>category.id&&ids.has(category.id)).slice(0,3);},[storeCategories,catalogProducts,catalogSource,market]);
 
   const changeMarket = (next: Market) => {
     setMarket(next);
@@ -156,13 +160,13 @@ export default function Home() {
       </section>
 
       {settings.showCategories==="true"&&<section className="category-grid" id="categories" style={{order:sectionPosition("categories")}}>
-        {storeCategories.map((category, index) => (
+        {visibleCategories.map((category, index) => (
           <article className={`category-card category-${index + 1}`} key={category.id ?? category.name}>
             <img src={category.image} alt={category.alt} />
             <div className="category-info">
               <span>0{index + 1}</span>
               <h3>{isGlobal?category.nameGlobal||category.name:category.name}</h3>
-              <a href="/magaza" aria-label={isGlobal?`Open ${category.nameGlobal||category.name} collection`:`${category.name} koleksiyonunu aç`}><Arrow /></a>
+              <a href={category.slug?`/magaza?kategori=${encodeURIComponent(category.slug)}`:"/magaza"} aria-label={isGlobal?`Open ${category.nameGlobal||category.name} collection`:`${category.name} koleksiyonunu aç`}><Arrow /></a>
             </div>
           </article>
         ))}
