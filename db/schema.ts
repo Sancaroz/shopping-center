@@ -44,6 +44,8 @@ export const productVariants = sqliteTable("product_variants", {
   sku: text("sku").notNull().unique(),
   optionName: text("option_name").notNull().default(""),
   optionValue: text("option_value").notNull().default(""),
+  optionNameEn: text("option_name_en").notNull().default(""),
+  optionValueEn: text("option_value_en").notNull().default(""),
   stock: integer("stock").notNull().default(0),
   priceAdjustment: real("price_adjustment").notNull().default(0),
 });

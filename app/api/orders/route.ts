@@ -37,7 +37,7 @@ export async function POST(request:Request) {
   const lines = await db.select({
     cartItemId:cartItems.id, productId:products.id, variantId:productVariants.id, quantity:cartItems.quantity,
     productName:products.nameTr, priceTr:products.priceTr, priceGlobal:products.priceGlobal, stock:products.stock,
-    optionName:productVariants.optionName, optionValue:productVariants.optionValue,
+    optionName:productVariants.optionName, optionValue:productVariants.optionValue, optionNameEn:productVariants.optionNameEn, optionValueEn:productVariants.optionValueEn,
     variantStock:productVariants.stock, priceAdjustment:productVariants.priceAdjustment,
   }).from(cartItems).innerJoin(products, eq(cartItems.productId, products.id)).leftJoin(productVariants, eq(cartItems.variantId, productVariants.id)).where(eq(cartItems.cartId, cart.id));
   if (!lines.length) return Response.json({ error:"Çantanız boş." }, { status:400 });
@@ -55,7 +55,7 @@ export async function POST(request:Request) {
   }).returning();
   await db.insert(orderItems).values(priced.map(line => ({
     orderId:order.id, productId:line.productId, variantId:line.variantId, productName:line.productName,
-    variantLabel:line.optionValue ? `${line.optionName}: ${line.optionValue}` : "", quantity:line.quantity, unitPrice:line.unitPrice,
+    variantLabel:line.optionValue ? (cart.market==="GLOBAL"?`${line.optionNameEn||line.optionName}: ${line.optionValueEn||line.optionValue}`:`${line.optionName}: ${line.optionValue}`) : "", quantity:line.quantity, unitPrice:line.unitPrice,
   })));
   await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));
   return Response.json({ orderNumber, subtotal, shippingAmount, total, market:cart.market }, { status:201 });
