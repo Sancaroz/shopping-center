@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { categories as sampleCategories, products as sampleProducts, type Market } from "./content";
 import {getPreferredMarket,setPreferredMarket} from "./market-preference";
 
-type StoreProduct = (typeof sampleProducts)[number] & { id?: number; active?: boolean; featured?:boolean; slug?:string; nameGlobal?:string; descriptionGlobal?:string; categoryId?:number|null };
+type StoreProduct = (typeof sampleProducts)[number] & { id?: number; active?: boolean; featured?:boolean; slug?:string; nameGlobal?:string; descriptionGlobal?:string; categoryId?:number|null; stock?:number };
 type DatabaseProduct = {
   id: number;
   slug: string;
@@ -15,6 +15,7 @@ type DatabaseProduct = {
   imageUrl: string;
   priceTr: number;
   priceGlobal: number;
+  stock: number;
   categoryId: number|null;
   marketTr: boolean;
   marketGlobal: boolean;
@@ -61,6 +62,7 @@ export default function Home() {
             descriptionGlobal: product.descriptionEn || product.descriptionTr,
             priceTR: product.priceTr,
             priceGlobal: product.priceGlobal,
+            stock: product.stock,
             categoryId: product.categoryId,
             markets: [product.marketTr ? "TR" : null, product.marketGlobal ? "GLOBAL" : null].filter(Boolean) as Market[],
             image: product.imageUrl || "https://images.unsplash.com/photo-1616627547584-bf28cee262db?auto=format&fit=crop&w=900&q=88",
@@ -111,7 +113,7 @@ export default function Home() {
   const subscribe=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();setNewsletterMessage("");const response=await fetch("/api/newsletter",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:newsletterEmail,market})});const data=await response.json();if(response.ok){setNewsletterEmail("");setNewsletterMessage(market==="TR"?"Kaydınız alındı.":"You are subscribed.");}else setNewsletterMessage(data.error??"Kayıt tamamlanamadı.");};
   const isGlobal=market==="GLOBAL";
   const globalText=(key:keyof GlobalContent,fallback:string)=>isGlobal?(settings[key]||fallback):fallback;
-  const badgeText=(badge:string)=>!isGlobal?badge:({"YENİ":"NEW","ÇOK SEVİLEN":"BESTSELLER"}[badge]||badge);
+  const badgeText=(badge:string)=>!isGlobal?badge:({"YENİ":"NEW","ÇOK SEVİLEN":"BESTSELLER","YAKINDA":"COMING SOON"}[badge]||badge);
   const savedSectionOrder=(settings.homepageSectionOrder||"categories,products,custom,manifesto,journal").split(",");
   const sectionOrder=[...savedSectionOrder,...["categories","products","custom","manifesto","journal"].filter(key=>!savedSectionOrder.includes(key))];
   const sectionPosition=(key:string)=>Math.max(1,sectionOrder.indexOf(key)+1);
@@ -191,11 +193,11 @@ export default function Home() {
                 {product.slug && <a className="product-detail-link" href={`/urun/${encodeURIComponent(product.slug)}`} aria-label={`${market === "TR" ? product.name : product.nameGlobal || product.name} detaylarını aç`}></a>}
                 <img src={product.image} alt={market === "TR" ? product.alt : product.nameGlobal || product.alt} />
                 {product.badge && <span>{badgeText(product.badge)}</span>}
-                <button onClick={() => addToCart(product)} aria-label={`${market === "TR" ? product.name : product.nameGlobal || product.name} ürününü çantaya ekle`}>+</button>
+                {(product.stock??1)>0&&<button onClick={() => addToCart(product)} aria-label={`${market === "TR" ? product.name : product.nameGlobal || product.name} ürününü çantaya ekle`}>+</button>}
               </div>
               <div className="product-meta">
                 <div><h3>{product.slug?<a href={`/urun/${encodeURIComponent(product.slug)}`}>{market === "TR" ? product.name : product.nameGlobal || product.name}</a>:market === "TR" ? product.name : product.nameGlobal || product.name}</h3><p>{market === "TR" ? product.description : product.descriptionGlobal || product.description}</p></div>
-                <strong>{market === "TR" ? `${product.priceTR.toLocaleString("tr-TR")} TL` : `€${product.priceGlobal}`}</strong>
+                <strong>{(market === "TR" ? product.priceTR : product.priceGlobal)>0?(market === "TR" ? `${product.priceTR.toLocaleString("tr-TR")} TL` : `€${product.priceGlobal}`):(isGlobal?"PRICE COMING SOON":"FİYAT YAKINDA")}</strong>
               </div>
             </article>
           ))}
