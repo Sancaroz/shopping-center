@@ -8,7 +8,11 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const db = getDb();
-    return Response.json({ products: await db.select().from(products).orderBy(desc(products.id)) });
+    const user = await getChatGPTUser();
+    const rows = user
+      ? await db.select().from(products).orderBy(desc(products.id))
+      : await db.select().from(products).where(eq(products.active, true)).orderBy(desc(products.id));
+    return Response.json({ products: rows });
   } catch {
     return Response.json({ products: [], status: "catalog_initializing" });
   }
