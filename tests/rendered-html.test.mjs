@@ -445,3 +445,29 @@ test("tracks durable shipment events and warns about delayed delivery", async ()
   assert.match(backup, /Kargo hareketi-sipariş/);
   assert.match(exportApi, /shipmentEventRows/);
 });
+
+test("captures immutable billing data without issuing a premature invoice", async () => {
+  const [schema,migration,orders,checkout,invoice,tracking,backup] = await Promise.all([
+    source("db/schema.ts"),
+    source("drizzle/0025_wooden_newton_destine.sql"),
+    source("app/api/orders/route.ts"),
+    source("app/teslimat/page.tsx"),
+    source("app/admin/siparis/[id]/invoice-readiness.tsx"),
+    source("app/api/order-tracking/route.ts"),
+    source("app/backup-format.ts"),
+  ]);
+  assert.match(schema, /billingTaxNumber/);
+  assert.match(schema, /sellerSnapshotJson/);
+  assert.match(schema, /pricingTaxStatus/);
+  assert.match(migration, /billing_tax_number/);
+  assert.match(migration, /seller_snapshot_json/);
+  assert.match(orders, /Kurumsal fatura için geçerli vergi numarası/);
+  assert.match(orders, /sellerSnapshotJson=JSON\.stringify/);
+  assert.match(orders, /pricingTaxStatus:settings\.taxDisplayMode/);
+  assert.match(checkout, /Fatura bilgileri/);
+  assert.match(checkout, /Bu aşamada fatura kesilmez ve ödeme alınmaz/);
+  assert.match(invoice, /Bu ekran mali belge üretmez/);
+  assert.match(invoice, /Sipariş anındaki satıcı şirket bilgileri/);
+  assert.doesNotMatch(tracking, /billingTaxNumber|sellerSnapshotJson/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 3/);
+});

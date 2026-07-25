@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import "./teslimat.css";
 import "./success-actions.css";
+import "./billing.css";
 import {getPreferredMarket,setPreferredMarket} from "../market-preference";
 import {globalCountries,shippingQuote} from "../shipping-rules";
 
@@ -19,6 +20,8 @@ export default function CheckoutPage() {
   const [brand,setBrand]=useState({brandName:"MYSA",brandSuffix:"OBJETS"});
   const [intakeOpen,setIntakeOpen]=useState(true);
   const [country,setCountry]=useState("Türkiye");
+  const [billingType,setBillingType]=useState<"individual"|"corporate">("individual");
+  const [billingSameAsDelivery,setBillingSameAsDelivery]=useState(true);
   const [shippingSettings,setShippingSettings]=useState({shippingTr:99,freeShippingTr:1500,shippingGlobal:15,freeShippingGlobal:150,shippingGlobalEnabled:"false",shippingGlobalCountries:"",taxDisplayMode:"pending"});
 
   useEffect(() => { fetch("/api/cart").then(response => response.json()).then(data => { const rows=data.items??[];const next=rows.length?(data.market === "GLOBAL" ? "GLOBAL" : "TR"):getPreferredMarket();setItems(rows);setMarket(next);setPreferredMarket(next); }).catch(() => setMessage("Çantanız yüklenemedi.")); }, []);
@@ -30,7 +33,7 @@ export default function CheckoutPage() {
 
   async function submit(event:FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage("");
-    const values=Object.fromEntries(new FormData(event.currentTarget));const response = await fetch("/api/orders", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({...values,requestKey,privacyConsent:values.privacyConsent==="on",termsConsent:values.termsConsent==="on"}) });
+    const values=Object.fromEntries(new FormData(event.currentTarget));const response = await fetch("/api/orders", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({...values,requestKey,billingType,billingSameAsDelivery,privacyConsent:values.privacyConsent==="on",termsConsent:values.termsConsent==="on"}) });
     const data = await response.json();
     if (response.ok) { setResult(data); setItems([]); window.scrollTo({ top:0, behavior:"smooth" }); }
     else setMessage(data.error ?? (market==="GLOBAL"?"Your order request could not be created.":"Sipariş talebi oluşturulamadı."));
@@ -53,6 +56,7 @@ export default function CheckoutPage() {
           <label className="wide">{market==="GLOBAL"?"Address":"Adres"}<textarea name="address" rows={4} autoComplete="street-address" required/></label>
           <label>{market==="GLOBAL"?"City":"Şehir"}<input name="city" autoComplete="address-level2" required/></label>
           <label>{market==="GLOBAL"?"Postal code":"Posta kodu"}<input name="postalCode" autoComplete="postal-code"/></label>
+          <fieldset className="billing-fields wide"><legend>{market==="GLOBAL"?"Billing information":"Fatura bilgileri"}</legend><div className="billing-choice"><label><input type="radio" checked={billingType==="individual"} onChange={()=>setBillingType("individual")}/>{market==="GLOBAL"?"Individual":"Bireysel"}</label><label><input type="radio" checked={billingType==="corporate"} onChange={()=>setBillingType("corporate")}/>{market==="GLOBAL"?"Business":"Kurumsal"}</label></div><label className="billing-same"><input type="checkbox" checked={billingSameAsDelivery} onChange={event=>setBillingSameAsDelivery(event.target.checked)}/>{market==="GLOBAL"?"Use delivery address for billing":"Teslimat adresini fatura adresi olarak kullan"}</label><div className="billing-grid"><label className="wide">{billingType==="corporate"?(market==="GLOBAL"?"Business legal name":"Firma unvanı"):(market==="GLOBAL"?"Billing name":"Fatura adı")}<input name="billingName" required={!billingSameAsDelivery||billingType==="corporate"}/></label>{!billingSameAsDelivery&&<><label className="wide">{market==="GLOBAL"?"Billing address":"Fatura adresi"}<textarea name="billingAddress" rows={3} required/></label><label>{market==="GLOBAL"?"Billing city":"Fatura şehri"}<input name="billingCity" required/></label><label>{market==="GLOBAL"?"Billing postal code":"Fatura posta kodu"}<input name="billingPostalCode"/></label><label className="wide">{market==="GLOBAL"?"Billing country":"Fatura ülkesi"}<input name="billingCountry" required/></label></>}{billingType==="corporate"&&<><label>{market==="GLOBAL"?"Tax office (optional)":"Vergi dairesi"}<input name="billingTaxOffice" required={market==="TR"}/></label><label>{market==="GLOBAL"?"Tax / VAT number":"Vergi numarası"}<input name="billingTaxNumber" minLength={5} maxLength={30} required/></label></>}</div><small>{market==="GLOBAL"?"These details are stored for future invoicing. No invoice is issued or payment collected at this stage.":"Bu bilgiler ileride fatura düzenlenebilmesi için saklanır. Bu aşamada fatura kesilmez ve ödeme alınmaz."}</small></fieldset>
           <label className="wide">{market==="GLOBAL"?"Order note":"Sipariş notu"} <small>{market==="GLOBAL"?"Optional":"İsteğe bağlı"}</small><textarea name="note" rows={3}/></label>
           <label className="checkout-consent wide"><input name="privacyConsent" type="checkbox" required/> <span>{market==="GLOBAL"?<>I agree that my information may be stored to process this order request. <a href="/politikalar#gizlilik" target="_blank">Privacy notice ↗</a></>:<>Bilgilerimin bu sipariş talebinin işlenmesi için kaydedilmesini kabul ediyorum. <a href="/politikalar#gizlilik" target="_blank">Gizlilik açıklaması ↗</a></>}</span></label>
           <label className="checkout-consent wide"><input name="termsConsent" type="checkbox" required/> <span>{market==="GLOBAL"?<>I have read the delivery, returns and order-request information. <a href="/politikalar" target="_blank">Review information ↗</a></>:<>Teslimat, iade ve sipariş talebi bilgilendirmesini okudum. <a href="/politikalar" target="_blank">Bilgilendirmeyi incele ↗</a></>}</span></label>

@@ -41,10 +41,19 @@ export async function POST(request:Request) {
   const address = String(body.address ?? "").trim().slice(0,600);
   const city = String(body.city ?? "").trim().slice(0,120);
   const country = String(body.country ?? "").trim().slice(0,100);
+  const billingType=body.billingType==="corporate"?"corporate":"individual";const billingSameAsDelivery=body.billingSameAsDelivery===true||body.billingSameAsDelivery==="on";
+  const billingName=(billingSameAsDelivery?customerName:String(body.billingName??"")).trim().slice(0,180);
+  const billingAddress=(billingSameAsDelivery?address:String(body.billingAddress??"")).trim().slice(0,600);
+  const billingCity=(billingSameAsDelivery?city:String(body.billingCity??"")).trim().slice(0,120);
+  const billingPostalCode=(billingSameAsDelivery?String(body.postalCode??""):String(body.billingPostalCode??"")).trim().slice(0,30);
+  const billingCountry=(billingSameAsDelivery?country:String(body.billingCountry??"")).trim().slice(0,100);
+  const billingTaxOffice=String(body.billingTaxOffice??"").trim().slice(0,120);const billingTaxNumber=String(body.billingTaxNumber??"").replace(/\s/g,"").slice(0,30);
   const requestKey=String(body.requestKey??"").trim().slice(0,80);
   const consent=body.privacyConsent===true||body.privacyConsent==="on";
   const termsConsent=body.termsConsent===true||body.termsConsent==="on";
   if (!customerName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || phone.replace(/\D/g,"").length<7 || !address || !city || !country || !consent || !termsConsent || !/^[a-f0-9-]{20,80}$/i.test(requestKey)) return Response.json({ error:"Lütfen zorunlu teslimat ve onay bilgilerini eksiksiz girin." }, { status:400 });
+  if(!billingName||!billingAddress||!billingCity||!billingCountry)return Response.json({error:"Fatura adı ve adres bilgileri eksiksiz girilmelidir."},{status:400});
+  if(billingType==="corporate"&&(!/^[A-Za-z0-9.-]{5,30}$/.test(billingTaxNumber)||(country==="Türkiye"&&!billingTaxOffice)))return Response.json({error:"Kurumsal fatura için geçerli vergi numarası ve Türkiye siparişlerinde vergi dairesi zorunludur."},{status:400});
   const limited=await enforceRateLimit(request,{scope:"order_create",identifier:email,limit:10,windowMinutes:60});if(limited)return limited;
 
   const db = getDb();
@@ -77,10 +86,11 @@ export async function POST(request:Request) {
   if(!reservation.ok)return Response.json({error:reservation.error},{status:409});
   const orderNumber = `MS-${new Date().toISOString().slice(0,10).replaceAll("-","")}-${crypto.randomUUID().slice(0,6).toUpperCase()}`;
   const verificationToken=createVerificationToken();const verificationTokenHash=await hashVerificationToken(verificationToken);const verificationExpiresAt=new Date(Date.now()+24*60*60*1000).toISOString();
+  const sellerSnapshotJson=JSON.stringify({legalStatus:settings.legalStatus??"draft",legalName:settings.legalName??"",legalBusinessType:settings.legalBusinessType??"",legalAddress:settings.legalAddress??"",legalTaxOffice:settings.legalTaxOffice??"",legalTaxNumber:settings.legalTaxNumber??"",legalEmail:settings.legalEmail??"",legalPhone:settings.legalPhone??""});
   let order:typeof orders.$inferSelect|undefined;try{[order] = await db.insert(orders).values({
     orderNumber, market:cart.market, customerName, email, phone, address, city,
     postalCode:String(body.postalCode ?? "").trim().slice(0,30), country:quote.country,
-    note:String(body.note ?? "").trim().slice(0,1000), subtotal, shippingAmount, total,requestKey,privacyConsentAt:new Date().toISOString(),termsConsentAt:new Date().toISOString(),termsVersion:"order-request-v1",inventoryApplied:true,reservationState:"active",reservationExpiresAt:verificationExpiresAt,verificationTokenHash,verificationExpiresAt,
+    note:String(body.note ?? "").trim().slice(0,1000), subtotal, shippingAmount, total,requestKey,privacyConsentAt:new Date().toISOString(),termsConsentAt:new Date().toISOString(),termsVersion:"order-request-v1",inventoryApplied:true,reservationState:"active",reservationExpiresAt:verificationExpiresAt,verificationTokenHash,verificationExpiresAt,billingType,billingName,billingAddress,billingCity,billingPostalCode,billingCountry,billingTaxOffice,billingTaxNumber,pricingTaxStatus:settings.taxDisplayMode??"pending",sellerSnapshotJson,
   }).returning();
   await db.insert(orderItems).values(priced.map(line => ({
     orderId:order.id, productId:line.productId, variantId:line.variantId, productName:cart.market==="GLOBAL"?(line.productNameEn||line.productName):line.productName,
