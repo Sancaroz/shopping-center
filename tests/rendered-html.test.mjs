@@ -290,3 +290,23 @@ test("keeps the storefront keyboard accessible and mobile resilient", async () =
   assert.match(styles, /prefers-reduced-motion: reduce/);
   assert.match(styles, /min-width:44px/);
 });
+
+test("publishes truthful search metadata without enabling unconsented tracking", async () => {
+  const [productPage,productDetail,policies,sitemap,shopMetadata,cartMetadata] = await Promise.all([
+    source("app/urun/[slug]/page.tsx"),
+    source("app/urun/[slug]/product-detail.tsx"),
+    source("app/politikalar/page.tsx"),
+    source("app/sitemap.ts"),
+    source("app/magaza/layout.tsx"),
+    source("app/sepet/layout.tsx"),
+  ]);
+  assert.match(productPage, /generateMetadata/);
+  assert.match(productPage, /application\/ld\+json/);
+  assert.match(productPage, /schema\.org/);
+  assert.match(productDetail, /Ödeme alınmadan sipariş talebi/);
+  assert.doesNotMatch(productDetail, /brand\.salesMode!=="live".*Güvenli ödeme/);
+  assert.match(policies, /Reklam, profil oluşturma veya üçüncü taraf ziyaretçi analizi çalıştırılmaz/);
+  assert.doesNotMatch(sitemap, /lastModified:new Date\(\)/);
+  assert.match(shopMetadata, /canonical:"\/magaza"/);
+  assert.match(cartMetadata, /index:false/);
+});
