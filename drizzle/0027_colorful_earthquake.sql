@@ -1,0 +1,1 @@
+ALTER TABLE `order_items` ADD `unit_cost_snapshot` real DEFAULT 0 NOT NULL;

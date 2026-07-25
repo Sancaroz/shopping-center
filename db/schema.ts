@@ -147,6 +147,7 @@ export const orderItems = sqliteTable("order_items", {
   variantLabel: text("variant_label").notNull().default(""),
   quantity: integer("quantity").notNull(),
   unitPrice: real("unit_price").notNull(),
+  unitCostSnapshot: real("unit_cost_snapshot").notNull().default(0),
 });
 
 export const shipmentEvents = sqliteTable("shipment_events", {

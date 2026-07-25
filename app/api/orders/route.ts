@@ -65,7 +65,7 @@ export async function POST(request:Request) {
   if (!cart) return Response.json({ error:"Çantanız bulunamadı." }, { status:400 });
   const lines = await db.select({
     cartItemId:cartItems.id, productId:products.id, variantId:productVariants.id, quantity:cartItems.quantity,
-    productName:products.nameTr, productNameEn:products.nameEn, priceTr:products.priceTr, priceGlobal:products.priceGlobal, stock:products.stock, active:products.active, marketTr:products.marketTr, marketGlobal:products.marketGlobal,
+    productName:products.nameTr, productNameEn:products.nameEn, priceTr:products.priceTr, priceGlobal:products.priceGlobal, unitCost:products.unitCost, stock:products.stock, active:products.active, marketTr:products.marketTr, marketGlobal:products.marketGlobal,
     optionName:productVariants.optionName, optionValue:productVariants.optionValue, optionNameEn:productVariants.optionNameEn, optionValueEn:productVariants.optionValueEn,
     variantStock:productVariants.stock, priceAdjustment:productVariants.priceAdjustment,
   }).from(cartItems).innerJoin(products, eq(cartItems.productId, products.id)).leftJoin(productVariants, eq(cartItems.variantId, productVariants.id)).where(eq(cartItems.cartId, cart.id));
@@ -94,7 +94,7 @@ export async function POST(request:Request) {
   }).returning();
   await db.insert(orderItems).values(priced.map(line => ({
     orderId:order.id, productId:line.productId, variantId:line.variantId, productName:cart.market==="GLOBAL"?(line.productNameEn||line.productName):line.productName,
-    variantLabel:line.optionValue ? (cart.market==="GLOBAL"?`${line.optionNameEn||line.optionName}: ${line.optionValueEn||line.optionValue}`:`${line.optionName}: ${line.optionValue}`) : "", quantity:line.quantity, unitPrice:line.unitPrice,
+    variantLabel:line.optionValue ? (cart.market==="GLOBAL"?`${line.optionNameEn||line.optionName}: ${line.optionValueEn||line.optionValue}`:`${line.optionName}: ${line.optionValue}`) : "", quantity:line.quantity, unitPrice:line.unitPrice,unitCostSnapshot:cart.market==="TR"?line.unitCost:0,
   })));
   for(const line of priced){const[current]=line.variantId?await db.select({stock:productVariants.stock}).from(productVariants).where(eq(productVariants.id,line.variantId)).limit(1):await db.select({stock:products.stock}).from(products).where(eq(products.id,line.productId)).limit(1);if(!current)throw new Error("reserved stock missing");await db.insert(inventoryMovements).values({productId:line.productId,variantId:line.variantId,orderId:order.id,movementType:"reservation",quantityDelta:-line.quantity,previousStock:current.stock+line.quantity,nextStock:current.stock,reason:"Sipariş talebi için 24 saatlik stok rezervasyonu",reference:order.orderNumber,actorEmail:"system"});}
   await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));}catch{if(order?.id)await db.delete(orders).where(eq(orders.id,order.id));await reservation.rollback();return Response.json({error:"Sipariş talebi kaydedilemedi; ayrılan stok geri bırakıldı."},{status:500});}

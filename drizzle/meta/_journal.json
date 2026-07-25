@@ -190,6 +190,13 @@
       "when": 1785007234020,
       "tag": "0026_ordinary_silk_fever",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1785007861376,
+      "tag": "0027_colorful_earthquake",
+      "breakpoints": true
     }
   ]
 }

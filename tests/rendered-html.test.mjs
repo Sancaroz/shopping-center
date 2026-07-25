@@ -469,7 +469,7 @@ test("captures immutable billing data without issuing a premature invoice", asyn
   assert.match(invoice, /Bu ekran mali belge üretmez/);
   assert.match(invoice, /Sipariş anındaki satıcı şirket bilgileri/);
   assert.doesNotMatch(tracking, /billingTaxNumber|sellerSnapshotJson/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 4/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 5/);
 });
 
 test("manages mixed sourcing and records auditable inventory movements", async () => {
@@ -502,10 +502,36 @@ test("manages mixed sourcing and records auditable inventory movements", async (
   assert.match(reservations, /movementType:"reservation_release"/);
   assert.match(readiness, /Stok ve tedarik/);
   assert.match(backup, /"inventoryMovements"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 4/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 5/);
   assert.match(exportApi, /inventoryMovementRows/);
   assert.match(adminPage, /\/admin\/stok/);
   assert.match(productsApi, /Ürün düzenleyicisinden stok düzeltmesi/);
   assert.match(variantsApi, /Varyant düzenleyicisinden stok düzeltmesi/);
   assert.match(variantsApi, /Varyant açılış stoğu/);
+});
+
+test("snapshots order costs and reports finance estimates without false accounting claims", async () => {
+  const [schema,migration,orders,financeApi,center,readiness,adminPage,backup] = await Promise.all([
+    source("db/schema.ts"),
+    source("drizzle/0027_colorful_earthquake.sql"),
+    source("app/api/orders/route.ts"),
+    source("app/api/finance-summary/route.ts"),
+    source("app/admin/finans/finance-center.tsx"),
+    source("app/api/launch-readiness/route.ts"),
+    source("app/admin/page.tsx"),
+    source("app/backup-format.ts"),
+  ]);
+  assert.match(schema, /unitCostSnapshot/);
+  assert.match(migration, /unit_cost_snapshot/);
+  assert.match(orders, /unitCostSnapshot:cart\.market==="TR"\?line\.unitCost:0/);
+  assert.match(financeApi, /Yetkisiz erişim/);
+  assert.match(financeApi, /paymentStatus==="paid"/);
+  assert.match(financeApi, /unitCostSnapshot\*item\.quantity/);
+  assert.match(financeApi, /market==="TR"/);
+  assert.match(center, /Operasyonel tahmin/);
+  assert.match(center, /muhasebe kaydı, gelir tablosu veya vergi beyanı değildir/);
+  assert.match(center, /Global ürün maliyetleri avro bazında tanımlanmadığı/);
+  assert.match(readiness, /Kârlılık kontrolü/);
+  assert.match(adminPage, /\/admin\/finans/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 5/);
 });
