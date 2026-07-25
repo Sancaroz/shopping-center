@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import "./order-detail.css";
 import "./order-totals.css";
 
@@ -13,8 +13,8 @@ export default function OrderDetail({ id }:{ id:number }) {
   const [order,setOrder] = useState<Order|null>(null);
   const [items,setItems] = useState<Line[]>([]);
   const [message,setMessage] = useState("Yükleniyor…");
-  const load = async () => { const response=await fetch(`/api/orders?id=${id}`); const data=await response.json(); if(response.ok){setOrder(data.order);setItems(data.items);setMessage("");}else setMessage(data.error??"Sipariş yüklenemedi."); };
-  useEffect(()=>{void load();},[id]);
+  const load = useCallback(async () => { const response=await fetch(`/api/orders?id=${id}`); const data=await response.json(); if(response.ok){setOrder(data.order);setItems(data.items);setMessage("");}else setMessage(data.error??"Sipariş yüklenemedi."); },[id]);
+  useEffect(()=>{void load();},[load]);
   async function updateStatus(status:string){const response=await fetch("/api/orders",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,status})});setMessage(response.ok?"Sipariş durumu güncellendi.":"Durum güncellenemedi.");if(response.ok)await load();}
   async function saveOperations(event:FormEvent<HTMLFormElement>){event.preventDefault();const values=Object.fromEntries(new FormData(event.currentTarget));const response=await fetch("/api/orders",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,...values})});const data=await response.json();setMessage(response.ok?"Ödeme ve kargo bilgileri kaydedildi.":data.error??"Operasyon bilgileri kaydedilemedi.");if(response.ok)await load();}
   if(!order)return <main className="order-state"><a href="/admin">← Yönetim paneli</a><p>{message}</p></main>;

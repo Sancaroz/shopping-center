@@ -200,3 +200,18 @@ test("creates complete integrity-checked backups and rehearses restore safely", 
   assert.match(safetyCenter, /Canlı mağazadaki hiçbir kayıt/);
   assert.match(safetyCenter, /Yedek geri yüklenmeye hazır/);
 });
+
+test("keeps lint rules aligned with the Vinext and dynamic-media architecture", async () => {
+  const [config, categoryEditor, orderDetail, productEditor] = await Promise.all([
+    source("eslint.config.mjs"),
+    source("app/admin/kategori/[id]/category-editor.tsx"),
+    source("app/admin/siparis/[id]/order-detail.tsx"),
+    source("app/admin/urun/[id]/product-editor.tsx"),
+  ]);
+  assert.match(config, /Vinext admin navigation/);
+  assert.match(config, /user-managed R2\/external URLs/);
+  assert.match(config, /D1-backed client screens/);
+  assert.match(categoryEditor, /useCallback/);
+  assert.match(orderDetail, /useEffect\(\(\)=>\{void load\(\);\},\[load\]\)/);
+  assert.match(productEditor, /useCallback/);
+});
