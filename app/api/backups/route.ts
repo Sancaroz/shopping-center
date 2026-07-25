@@ -1,0 +1,64 @@
+import { desc, lt } from "drizzle-orm";
+import { getDb } from "../../../db";
+import { auditLogs, requestThrottles } from "../../../db/schema";
+import { recordAudit } from "../../audit-log";
+import { verifyBackupEnvelope } from "../../backup-format";
+import { getChatGPTUser } from "../../chatgpt-auth";
+
+export const dynamic = "force-dynamic";
+const MAX_BACKUP_BYTES = 10 * 1024 * 1024;
+
+export async function GET() {
+  if (!(await getChatGPTUser())) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
+  const rows = await getDb().select().from(auditLogs).orderBy(desc(auditLogs.id)).limit(300);
+  const history = rows
+    .filter((row) => row.entityType === "backup" || row.action === "data.retention_cleanup")
+    .slice(0, 20)
+    .map((row) => ({ id: row.id, action: row.action, summary: row.summary, actorName: row.actorName, createdAt: row.createdAt }));
+  return Response.json({ history, retention: { requestThrottleHours: 48 } });
+}
+
+export async function POST(request: Request) {
+  const user = await getChatGPTUser();
+  if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (contentLength > MAX_BACKUP_BYTES) return Response.json({ error: "Yedek dosyası 10 MB sınırını aşıyor." }, { status: 413 });
+  const raw = await request.text();
+  if (new TextEncoder().encode(raw).byteLength > MAX_BACKUP_BYTES) return Response.json({ error: "Yedek dosyası 10 MB sınırını aşıyor." }, { status: 413 });
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return Response.json({ error: "Dosya geçerli JSON içermiyor." }, { status: 400 });
+  }
+  const report = await verifyBackupEnvelope(parsed);
+  await recordAudit({
+    user,
+    action: "backup.verify",
+    entityType: "backup",
+    summary: report.valid ? "Yedek geri yükleme provası başarıyla tamamlandı." : "Yedek geri yükleme provasında sorun bulundu.",
+    after: { valid: report.valid, counts: report.counts, errors: report.errors },
+  });
+  return Response.json(report, { status: report.valid ? 200 : 422, headers: { "Cache-Control": "no-store" } });
+}
+
+export async function DELETE() {
+  const user = await getChatGPTUser();
+  if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
+  const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const staleRows = await getDb()
+    .select({ keyHash: requestThrottles.keyHash })
+    .from(requestThrottles)
+    .where(lt(requestThrottles.updatedAt, cutoff));
+  if (staleRows.length) {
+    await getDb().delete(requestThrottles).where(lt(requestThrottles.updatedAt, cutoff));
+  }
+  await recordAudit({
+    user,
+    action: "data.retention_cleanup",
+    entityType: "maintenance",
+    summary: `${staleRows.length} süresi dolmuş güvenlik sayacı temizlendi.`,
+    after: { deleted: staleRows.length, cutoff, retentionHours: 48 },
+  });
+  return Response.json({ deleted: staleRows.length, cutoff, message: staleRows.length ? "Süresi dolmuş teknik kayıtlar temizlendi." : "Temizlenecek süresi dolmuş kayıt yok." });
+}

@@ -180,3 +180,23 @@ test("rate limits public forms with hashed durable identifiers", async () => {
   assert.match(newsletter, /scope:"newsletter"/);
   assert.match(returns, /scope:"return_request"/);
 });
+
+test("creates complete integrity-checked backups and rehearses restore safely", async () => {
+  const [format, exportApi, backupApi, safetyCenter] = await Promise.all([
+    source("app/backup-format.ts"),
+    source("app/api/export/route.ts"),
+    source("app/api/backups/route.ts"),
+    source("app/admin/veri-guvenligi/data-safety-center.tsx"),
+  ]);
+  assert.match(format, /BACKUP_FORMAT = "mysa-store-backup"/);
+  assert.match(format, /crypto\.subtle\.digest\("SHA-256"/);
+  assert.match(format, /checkReferences/);
+  assert.match(exportApi, /notificationOutbox/);
+  assert.match(exportApi, /returnRequests/);
+  assert.match(exportApi, /auditLogs/);
+  assert.match(backupApi, /MAX_BACKUP_BYTES/);
+  assert.match(backupApi, /data\.retention_cleanup/);
+  assert.doesNotMatch(backupApi, /insert\(products\)|delete\(orders\)/);
+  assert.match(safetyCenter, /Canlı mağazadaki hiçbir kayıt/);
+  assert.match(safetyCenter, /Yedek geri yüklenmeye hazır/);
+});
