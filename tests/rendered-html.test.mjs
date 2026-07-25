@@ -57,3 +57,16 @@ test("supports payment and shipment operations without exposing internal notes",
   assert.match(migration, /ADD `payment_status`/);
   assert.match(migration, /ADD `tracking_number`/);
 });
+
+test("keeps incomplete catalog items in draft and guards publication", async () => {
+  const [productsApi, adminPanel] = await Promise.all([
+    source("app/api/products/route.ts"),
+    source("app/admin/panel.tsx"),
+  ]);
+  assert.match(productsApi, /function publicationIssues/);
+  assert.match(productsApi, /active: false/);
+  assert.match(productsApi, /satılabilir stok/);
+  assert.match(productsApi, /Ürün yayınlanmadan önce tamamlanmalı/);
+  assert.match(adminPanel, /Satışa hazır değil/);
+  assert.match(adminPanel, /Satışa hazır ✓/);
+});

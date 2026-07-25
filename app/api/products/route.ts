@@ -5,6 +5,25 @@ import { getChatGPTUser } from "../../chatgpt-auth";
 
 export const dynamic = "force-dynamic";
 
+type ProductRecord = typeof products.$inferSelect;
+
+function publicationIssues(product: ProductRecord, variants: Array<typeof productVariants.$inferSelect>) {
+  const issues:string[] = [];
+  if (!product.nameTr.trim()) issues.push("Türkçe ürün adı");
+  if (!product.descriptionTr.trim()) issues.push("Türkçe açıklama");
+  if (!product.slug.trim()) issues.push("ürün kodu");
+  if (!product.categoryId) issues.push("kategori");
+  if (!product.imageUrl.trim()) issues.push("kapak görseli");
+  if (!product.marketTr && !product.marketGlobal) issues.push("satış pazarı");
+  if (product.marketTr && product.priceTr <= 0) issues.push("Türkiye fiyatı");
+  if (product.marketGlobal && product.priceGlobal <= 0) issues.push("global fiyat");
+  if (product.marketGlobal && !product.nameEn.trim()) issues.push("İngilizce ürün adı");
+  if (product.marketGlobal && !product.descriptionEn.trim()) issues.push("İngilizce açıklama");
+  const availableStock = variants.length ? variants.some(variant => variant.stock > 0) : product.stock > 0;
+  if (!availableStock) issues.push("satılabilir stok");
+  return issues;
+}
+
 export async function GET() {
   try {
     const db = getDb();
@@ -57,6 +76,7 @@ export async function POST(request: Request) {
     stock: Number(body.stock ?? 0),
     marketTr: Boolean(body.marketTr),
     marketGlobal: Boolean(body.marketGlobal),
+    active: false,
   }).returning();
   return Response.json({ product }, { status: 201 });
 }
@@ -72,6 +92,21 @@ export async function PATCH(request: Request) {
     if (body.marketGlobal !== undefined) bulkUpdates.marketGlobal = Boolean(body.marketGlobal);
     if (body.featured !== undefined) bulkUpdates.featured = Boolean(body.featured);
     if (Object.keys(bulkUpdates).length === 1) return Response.json({ error: "Toplu işlem seçilmedi." }, { status: 400 });
+    if (bulkUpdates.active === true) {
+      const db = getDb();
+      const [selectedProducts, selectedVariants] = await Promise.all([
+        db.select().from(products).where(inArray(products.id, ids)),
+        db.select().from(productVariants).where(inArray(productVariants.productId, ids)),
+      ]);
+      const incomplete = selectedProducts.map(product => ({
+        product,
+        issues: publicationIssues(product, selectedVariants.filter(variant => variant.productId === product.id)),
+      })).filter(item => item.issues.length);
+      if (incomplete.length) return Response.json({
+        error: `${incomplete.length} ürün satışa hazır değil.`,
+        incomplete: incomplete.map(item => ({ id:item.product.id, name:item.product.nameTr, issues:item.issues })),
+      }, { status: 409 });
+    }
     const updated = await getDb().update(products).set(bulkUpdates).where(inArray(products.id, ids)).returning({ id: products.id });
     return Response.json({ ok: true, updated: updated.length });
   }
@@ -93,6 +128,17 @@ export async function PATCH(request: Request) {
   if (body.marketGlobal !== undefined) updates.marketGlobal = Boolean(body.marketGlobal);
   if (body.featured !== undefined) updates.featured = Boolean(body.featured);
   if (body.active !== undefined) updates.active = Boolean(body.active);
+  if (updates.active === true) {
+    const [current] = await db.select().from(products).where(eq(products.id, id)).limit(1);
+    if (!current) return Response.json({ error: "Ürün bulunamadı." }, { status: 404 });
+    const variants = await db.select().from(productVariants).where(eq(productVariants.productId, id));
+    const candidate = { ...current, ...updates } as ProductRecord;
+    const issues = publicationIssues(candidate, variants);
+    if (issues.length) return Response.json({
+      error: `Ürün yayınlanmadan önce tamamlanmalı: ${issues.join(", ")}.`,
+      issues,
+    }, { status: 409 });
+  }
   const [product] = await db.update(products).set(updates).where(eq(products.id, id)).returning();
   return Response.json({ product });
 }
