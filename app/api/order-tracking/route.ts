@@ -35,6 +35,8 @@ export async function POST(request: Request) {
       status: order.status,
       market: order.market,
       subtotal: order.subtotal,
+      discountAmount: order.discountAmount,
+      promoCode: order.promoCode,
       shippingAmount: order.shippingAmount,
       total: order.total,
       shippingCarrier: order.shippingCarrier,

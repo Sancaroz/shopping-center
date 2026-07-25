@@ -4,11 +4,12 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import "./teslimat.css";
 import "./success-actions.css";
 import "./billing.css";
+import "./promotions.css";
 import {getPreferredMarket,setPreferredMarket} from "../market-preference";
 import {globalCountries,shippingQuote} from "../shipping-rules";
 
 type Line = { id:number; quantity:number; name:string; nameEn:string; optionValue:string|null; optionValueEn:string|null; priceTr:number; priceGlobal:number; priceAdjustment:number|null };
-type Result = { orderNumber:string; subtotal:number; shippingAmount:number; total:number; market:"TR"|"GLOBAL" };
+type Result = { orderNumber:string; subtotal:number; discountAmount:number; shippingAmount:number; total:number; market:"TR"|"GLOBAL" };
 
 export default function CheckoutPage() {
   const [items,setItems] = useState<Line[]>([]);
@@ -22,18 +23,21 @@ export default function CheckoutPage() {
   const [country,setCountry]=useState("Türkiye");
   const [billingType,setBillingType]=useState<"individual"|"corporate">("individual");
   const [billingSameAsDelivery,setBillingSameAsDelivery]=useState(true);
+  const [promoCode,setPromoCode]=useState("");const[discount,setDiscount]=useState(0);const[promoMessage,setPromoMessage]=useState("");const[promoBusy,setPromoBusy]=useState(false);
   const [shippingSettings,setShippingSettings]=useState({shippingTr:99,freeShippingTr:1500,shippingGlobal:15,freeShippingGlobal:150,shippingGlobalEnabled:"false",shippingGlobalCountries:"",taxDisplayMode:"pending"});
 
   useEffect(() => { fetch("/api/cart").then(response => response.json()).then(data => { const rows=data.items??[];const next=rows.length?(data.market === "GLOBAL" ? "GLOBAL" : "TR"):getPreferredMarket();setItems(rows);setMarket(next);setPreferredMarket(next); }).catch(() => setMessage("Çantanız yüklenemedi.")); }, []);
   useEffect(()=>{fetch("/api/settings").then(response=>response.json()).then(data=>{const s=data.settings??{};setBrand({brandName:s.brandName??"MYSA",brandSuffix:s.brandSuffix??"OBJETS"});setIntakeOpen(s.orderIntakeStatus!=="paused");setShippingSettings({shippingTr:Number(s.shippingTr??99),freeShippingTr:Number(s.freeShippingTr??1500),shippingGlobal:Number(s.shippingGlobal??15),freeShippingGlobal:Number(s.freeShippingGlobal??150),shippingGlobalEnabled:String(s.shippingGlobalEnabled??"false"),shippingGlobalCountries:String(s.shippingGlobalCountries??""),taxDisplayMode:String(s.taxDisplayMode??"pending")});}).catch(()=>undefined);},[]);
-  useEffect(()=>{setCountry(market==="TR"?"Türkiye":"");},[market]);
+  useEffect(()=>{setCountry(market==="TR"?"Türkiye":"");setPromoCode("");setDiscount(0);setPromoMessage("");},[market]);
   const total = useMemo(() => items.reduce((sum,item) => sum + ((market === "TR" ? item.priceTr : item.priceGlobal) + Number(item.priceAdjustment ?? 0)) * item.quantity, 0), [items,market]);
   const money = (value:number) => market === "TR" ? `${value.toLocaleString("tr-TR")} TL` : `€${value.toLocaleString("en-US")}`;
-  const countries=globalCountries(shippingSettings);const quote=shippingQuote({market,country,subtotal:total,settings:shippingSettings});const shipping=quote.ok?quote.shippingAmount:0;const grandTotal=quote.ok?quote.total:total;
+  const discountedSubtotal=Math.max(0,total-discount);const countries=globalCountries(shippingSettings);const quote=shippingQuote({market,country,subtotal:discountedSubtotal,settings:shippingSettings});const shipping=quote.ok?quote.shippingAmount:0;const grandTotal=quote.ok?quote.total:discountedSubtotal;
+
+  async function applyPromotion(){if(!promoCode.trim())return;setPromoBusy(true);setPromoMessage("");const response=await fetch("/api/promotions/validate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code:promoCode})});const data=await response.json();if(response.ok){setPromoCode(data.code);setDiscount(data.discountAmount);setPromoMessage(market==="GLOBAL"?"Discount applied.":"İndirim uygulandı.");}else{setDiscount(0);setPromoMessage(data.error??(market==="GLOBAL"?"Code could not be applied.":"Kod uygulanamadı."));}setPromoBusy(false);}
 
   async function submit(event:FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage("");
-    const values=Object.fromEntries(new FormData(event.currentTarget));const response = await fetch("/api/orders", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({...values,requestKey,billingType,billingSameAsDelivery,privacyConsent:values.privacyConsent==="on",termsConsent:values.termsConsent==="on"}) });
+    const values=Object.fromEntries(new FormData(event.currentTarget));const response = await fetch("/api/orders", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({...values,requestKey,promoCode:discount>0?promoCode:"",billingType,billingSameAsDelivery,privacyConsent:values.privacyConsent==="on",termsConsent:values.termsConsent==="on"}) });
     const data = await response.json();
     if (response.ok) { setResult(data); setItems([]); window.scrollTo({ top:0, behavior:"smooth" }); }
     else setMessage(data.error ?? (market==="GLOBAL"?"Your order request could not be created.":"Sipariş talebi oluşturulamadı."));
@@ -64,7 +68,7 @@ export default function CheckoutPage() {
           {message && <p className="checkout-error wide" role="alert">{message}</p>}
           <button className="wide" disabled={busy||!intakeOpen||!quote.ok}>{!intakeOpen?(market==="GLOBAL"?"Order requests paused":"Sipariş alımı durduruldu"):busy ? (market==="GLOBAL"?"Saving…":"Kaydediliyor…") : (market==="GLOBAL"?"Create order request":"Sipariş talebini oluştur")}</button>
         </form>
-        <aside className="checkout-summary"><p>{market==="TR"?"SEÇİMİNİZ":"YOUR SELECTION"}</p>{items.map(item => <div className="checkout-line" key={item.id}><span>{market==="GLOBAL"?(item.nameEn||item.name):item.name}{item.optionValue ? ` · ${market==="GLOBAL"?(item.optionValueEn||item.optionValue):item.optionValue}` : ""}<small>{item.quantity} {market==="TR"?"adet":"pcs"}</small></span><strong>{money(((market === "TR" ? item.priceTr : item.priceGlobal) + Number(item.priceAdjustment ?? 0)) * item.quantity)}</strong></div>)}<hr/><div className="checkout-total"><span>{market==="TR"?"Ara toplam":"Subtotal"}</span><strong>{money(total)}</strong></div><div className="checkout-total"><span>{market==="TR"?"Teslimat":"Shipping"}</span><strong>{quote.ok?(shipping===0?(market==="TR"?"Ücretsiz":"Free"):money(shipping)):(market==="TR"?"Hesaplanamadı":"Select country")}</strong></div><hr/><div className="checkout-total"><span>{market==="TR"?"Genel toplam":"Total"}</span><strong>{money(grandTotal)}</strong></div><small>{shippingSettings.taxDisplayMode==="tax_included"?(market==="TR"?"Gösterilen tüketici fiyatları vergiler dâhildir. Bu aşamada ödeme alınmaz.":"Displayed consumer prices include applicable taxes. No payment is collected at this stage."):(market==="TR"?"Fiyatların vergi durumu şirket ve mali onay tamamlandığında kesinleşecektir; bu aşamada ödeme alınmaz.":"Tax treatment will be finalized after company and financial review; no payment is collected at this stage.")}</small></aside>
+        <aside className="checkout-summary"><p>{market==="TR"?"SEÇİMİNİZ":"YOUR SELECTION"}</p>{items.map(item => <div className="checkout-line" key={item.id}><span>{market==="GLOBAL"?(item.nameEn||item.name):item.name}{item.optionValue ? ` · ${market==="GLOBAL"?(item.optionValueEn||item.optionValue):item.optionValue}` : ""}<small>{item.quantity} {market==="TR"?"adet":"pcs"}</small></span><strong>{money(((market === "TR" ? item.priceTr : item.priceGlobal) + Number(item.priceAdjustment ?? 0)) * item.quantity)}</strong></div>)}<div className="promo-entry"><label>{market==="GLOBAL"?"DISCOUNT CODE":"İNDİRİM KODU"}<span><input value={promoCode} onChange={event=>{setPromoCode(event.target.value.toUpperCase());setDiscount(0);setPromoMessage("");}} maxLength={40}/><button type="button" onClick={applyPromotion} disabled={promoBusy||!promoCode.trim()}>{promoBusy?"…":market==="GLOBAL"?"Apply":"Uygula"}</button></span></label>{promoMessage&&<small className={discount>0?"success":"error"}>{promoMessage}</small>}</div><hr/><div className="checkout-total"><span>{market==="TR"?"Ara toplam":"Subtotal"}</span><strong>{money(total)}</strong></div>{discount>0&&<div className="checkout-total checkout-discount"><span>{market==="TR"?"İndirim":"Discount"}</span><strong>−{money(discount)}</strong></div>}<div className="checkout-total"><span>{market==="TR"?"Teslimat":"Shipping"}</span><strong>{quote.ok?(shipping===0?(market==="TR"?"Ücretsiz":"Free"):money(shipping)):(market==="TR"?"Hesaplanamadı":"Select country")}</strong></div><hr/><div className="checkout-total"><span>{market==="TR"?"Genel toplam":"Total"}</span><strong>{money(grandTotal)}</strong></div><small>{shippingSettings.taxDisplayMode==="tax_included"?(market==="TR"?"Gösterilen tüketici fiyatları vergiler dâhildir. Bu aşamada ödeme alınmaz.":"Displayed consumer prices include applicable taxes. No payment is collected at this stage."):(market==="TR"?"Fiyatların vergi durumu şirket ve mali onay tamamlandığında kesinleşecektir; bu aşamada ödeme alınmaz.":"Tax treatment will be finalized after company and financial review; no payment is collected at this stage.")}</small></aside>
       </div>}
     </section>
   </main>;

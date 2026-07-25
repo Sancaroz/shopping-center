@@ -134,6 +134,9 @@ export const orders = sqliteTable("orders", {
   invoiceStatus: text("invoice_status").notNull().default("draft"),
   invoiceNumber: text("invoice_number").notNull().default(""),
   invoicedAt: text("invoiced_at"),
+  promotionId: integer("promotion_id"),
+  promoCode: text("promo_code").notNull().default(""),
+  discountAmount: real("discount_amount").notNull().default(0),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
@@ -176,6 +179,33 @@ export const inventoryMovements = sqliteTable("inventory_movements", {
   reason: text("reason").notNull().default(""),
   reference: text("reference").notNull().default(""),
   actorEmail: text("actor_email").notNull().default("system"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const promotions = sqliteTable("promotions", {
+  id: integer("id").primaryKey({ autoIncrement:true }),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  market: text("market").notNull().default("BOTH"),
+  discountType: text("discount_type").notNull(),
+  discountValue: real("discount_value").notNull(),
+  maxDiscount: real("max_discount").notNull().default(0),
+  minSubtotal: real("min_subtotal").notNull().default(0),
+  usageLimit: integer("usage_limit").notNull().default(0),
+  usedCount: integer("used_count").notNull().default(0),
+  startsAt: text("starts_at"),
+  endsAt: text("ends_at"),
+  active: integer("active", { mode:"boolean" }).notNull().default(false),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const promotionRedemptions = sqliteTable("promotion_redemptions", {
+  id: integer("id").primaryKey({ autoIncrement:true }),
+  promotionId: integer("promotion_id").notNull().references(() => promotions.id, { onDelete:"restrict" }),
+  orderId: integer("order_id").notNull().unique().references(() => orders.id, { onDelete:"cascade" }),
+  emailHash: text("email_hash").notNull(),
+  discountAmount: real("discount_amount").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 

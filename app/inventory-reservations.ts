@@ -1,6 +1,7 @@
 import {and,eq,gte,lte,sql} from "drizzle-orm";
 import {getDb} from "../db";
 import {inventoryMovements,orderItems,orders,products,productVariants} from "../db/schema";
+import {releasePromotionClaim} from "./promotions";
 
 type Database=ReturnType<typeof getDb>;
 type Line={productId:number;variantId:number|null;quantity:number;productName:string};
@@ -26,7 +27,7 @@ export async function releaseOrderReservation(db:Database,orderId:number,state="
 }
 
 export async function releaseExpiredReservations(db:Database){
-  const expired=await db.select({id:orders.id}).from(orders).where(and(eq(orders.reservationState,"active"),lte(orders.reservationExpiresAt,new Date().toISOString()))).limit(100);
-  for(const order of expired){if(await releaseOrderReservation(db,order.id,"expired"))await db.update(orders).set({status:"cancelled",internalNote:"24 saatlik stok rezervasyonu otomatik olarak sona erdi.",updatedAt:new Date().toISOString()}).where(eq(orders.id,order.id));}
+  const expired=await db.select({id:orders.id,promotionId:orders.promotionId,paymentStatus:orders.paymentStatus}).from(orders).where(and(eq(orders.reservationState,"active"),lte(orders.reservationExpiresAt,new Date().toISOString()))).limit(100);
+  for(const order of expired){if(await releaseOrderReservation(db,order.id,"expired")){await db.update(orders).set({status:"cancelled",internalNote:"24 saatlik stok rezervasyonu otomatik olarak sona erdi.",updatedAt:new Date().toISOString()}).where(eq(orders.id,order.id));if(order.promotionId&&order.paymentStatus!=="paid")await releasePromotionClaim(db,{orderId:order.id,promotionId:order.promotionId});}}
   return expired.length;
 }

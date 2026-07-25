@@ -469,7 +469,7 @@ test("captures immutable billing data without issuing a premature invoice", asyn
   assert.match(invoice, /Bu ekran mali belge üretmez/);
   assert.match(invoice, /Sipariş anındaki satıcı şirket bilgileri/);
   assert.doesNotMatch(tracking, /billingTaxNumber|sellerSnapshotJson/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 5/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 6/);
 });
 
 test("manages mixed sourcing and records auditable inventory movements", async () => {
@@ -502,7 +502,7 @@ test("manages mixed sourcing and records auditable inventory movements", async (
   assert.match(reservations, /movementType:"reservation_release"/);
   assert.match(readiness, /Stok ve tedarik/);
   assert.match(backup, /"inventoryMovements"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 5/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 6/);
   assert.match(exportApi, /inventoryMovementRows/);
   assert.match(adminPage, /\/admin\/stok/);
   assert.match(productsApi, /Ürün düzenleyicisinden stok düzeltmesi/);
@@ -533,5 +533,49 @@ test("snapshots order costs and reports finance estimates without false accounti
   assert.match(center, /Global ürün maliyetleri avro bazında tanımlanmadığı/);
   assert.match(readiness, /Kârlılık kontrolü/);
   assert.match(adminPage, /\/admin\/finans/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 5/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 6/);
+});
+
+test("applies server-authoritative promotions with safe limits and inactive defaults", async () => {
+  const [schema,migration,helper,validateApi,adminApi,orders,checkout,center,finance,backup,exportApi,trackingApi,trackingPage,reservations] = await Promise.all([
+    source("db/schema.ts"),
+    source("drizzle/0028_romantic_rictor.sql"),
+    source("app/promotions.ts"),
+    source("app/api/promotions/validate/route.ts"),
+    source("app/api/promotions/route.ts"),
+    source("app/api/orders/route.ts"),
+    source("app/teslimat/page.tsx"),
+    source("app/admin/kampanyalar/promotion-center.tsx"),
+    source("app/api/finance-summary/route.ts"),
+    source("app/backup-format.ts"),
+    source("app/api/export/route.ts"),
+    source("app/api/order-tracking/route.ts"),
+    source("app/siparis-takip/page.tsx"),
+    source("app/inventory-reservations.ts"),
+  ]);
+  assert.match(schema, /promotionRedemptions/);
+  assert.match(schema, /discountAmount/);
+  assert.match(migration, /CREATE TABLE `promotions`/);
+  assert.match(migration, /CREATE TABLE `promotion_redemptions`/);
+  assert.match(helper, /usageLimit>0&&promotion\.usedCount>=promotion\.usageLimit/);
+  assert.match(helper, /Math\.min\(Math\.max\(capped,0\),input\.subtotal\)/);
+  assert.match(validateApi, /scope:"promotion_validate"/);
+  assert.match(validateApi, /innerJoin\(products/);
+  assert.match(adminApi, /active:false/);
+  assert.match(adminApi, /Süresi dolmuş kampanya etkinleştirilemez/);
+  assert.match(orders, /lt\(promotions\.usedCount,promo\.usageLimit\)/);
+  assert.match(orders, /await reservation\.rollback\(\)/);
+  assert.match(orders, /promotionRedemptions/);
+  assert.match(orders, /existing\.paymentStatus!=="paid"/);
+  assert.match(orders, /releasePromotionClaim/);
+  assert.match(checkout, /İNDİRİM KODU/);
+  assert.match(center, /Yeni kampanyalar daima pasif oluşturulur/);
+  assert.match(finance, /order\.subtotal-order\.discountAmount/);
+  assert.match(backup, /"promotionRedemptions"/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 6/);
+  assert.match(exportApi, /promotionRedemptionRows/);
+  assert.match(trackingApi, /discountAmount: order\.discountAmount/);
+  assert.match(trackingPage, /İNDİRİM/);
+  assert.match(reservations, /paymentStatus:orders\.paymentStatus/);
+  assert.match(reservations, /releasePromotionClaim/);
 });

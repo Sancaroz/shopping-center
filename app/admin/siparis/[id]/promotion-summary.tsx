@@ -1,0 +1,3 @@
+"use client";
+
+export default function PromotionSummary({order}:{order:{market:string;promoCode:string;discountAmount:number;subtotal:number;total:number}}){if(!order.promoCode||order.discountAmount<=0)return null;const money=(value:number)=>order.market==="TR"?`${value.toLocaleString("tr-TR")} TL`:`€${value.toLocaleString("en-US")}`;return <section className="order-paper" style={{borderLeft:"5px solid #7f4f3f"}}><p style={{fontSize:8,letterSpacing:".15em"}}>KAMPANYA</p><h2>{order.promoCode}</h2><p>Ürün ara toplamı {money(order.subtotal)} · indirim −{money(order.discountAmount)} · sipariş toplamı {money(order.total)}</p></section>}

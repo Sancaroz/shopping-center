@@ -1,5 +1,5 @@
 export const BACKUP_FORMAT = "mysa-store-backup";
-export const BACKUP_SCHEMA_VERSION = 5;
+export const BACKUP_SCHEMA_VERSION = 6;
 
 export const backupTableNames = [
   "settings",
@@ -14,6 +14,8 @@ export const backupTableNames = [
   "orderItems",
   "shipmentEvents",
   "inventoryMovements",
+  "promotions",
+  "promotionRedemptions",
   "notificationOutbox",
   "returnRequests",
   "auditLogs",
@@ -113,6 +115,7 @@ export async function verifyBackupEnvelope(input: unknown) {
   const cartIds = rowIds(completeData.carts);
   const orderIds = rowIds(completeData.orders);
   const variantIds = rowIds(completeData.variants);
+  const promotionIds=rowIds(completeData.promotions);
   const checks = [
     checkReferences(completeData.products, "categoryId", categoryIds, "Ürün-kategori", true),
     checkReferences(completeData.variants, "productId", productIds, "Varyant-ürün"),
@@ -124,6 +127,8 @@ export async function verifyBackupEnvelope(input: unknown) {
     checkReferences(completeData.inventoryMovements, "productId", productIds, "Stok hareketi-ürün"),
     checkReferences(completeData.inventoryMovements, "variantId", variantIds, "Stok hareketi-varyant", true),
     checkReferences(completeData.inventoryMovements, "orderId", orderIds, "Stok hareketi-sipariş", true),
+    checkReferences(completeData.promotionRedemptions, "promotionId", promotionIds, "Kampanya kullanımı-kampanya"),
+    checkReferences(completeData.promotionRedemptions, "orderId", orderIds, "Kampanya kullanımı-sipariş"),
     checkReferences(completeData.notificationOutbox, "orderId", orderIds, "Bildirim-sipariş"),
     checkReferences(completeData.returnRequests, "orderId", orderIds, "İade-sipariş"),
   ].filter(Boolean);
