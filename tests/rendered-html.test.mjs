@@ -147,3 +147,17 @@ test("records authenticated audit history for critical order and return changes"
   assert.match(returns, /action:"return_request.update"/);
   assert.match(auditPage, /salt okunurdur/);
 });
+
+test("provides an authenticated daily operations priority view", async () => {
+  const [summaryApi, operationsPage] = await Promise.all([
+    source("app/api/operations-summary/route.ts"),
+    source("app/admin/operasyon/operations-center.tsx"),
+  ]);
+  assert.match(summaryApi, /Yetkisiz erişim/);
+  assert.match(summaryApi, /hours\(order\.createdAt\)>=24/);
+  assert.match(summaryApi, /hours\(order\.updatedAt\)>=48/);
+  assert.match(summaryApi, /draftNotifications/);
+  assert.match(summaryApi, /activeProductIds/);
+  assert.match(operationsPage, /Bugün ilgilenilecekler/);
+  assert.match(operationsPage, /Verileri yenile/);
+});

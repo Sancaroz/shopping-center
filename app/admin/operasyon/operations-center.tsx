@@ -1,0 +1,26 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+type Metrics={activeOrders:number;newOrders:number;preparingOrders:number;lowStock:number;outOfStock:number;openReturns:number;newReturns:number;openMessages:number;newMessages:number;draftNotifications:number};
+type Alert={key:string;level:"urgent"|"warning"|"info";title:string;detail:string;href:string};
+type Stock={key:string;name:string;stock:number;href:string};
+type RecentOrder={id:number;orderNumber:string;status:string;customerName:string;total:number;market:string;createdAt:string};
+type Summary={generatedAt:string;metrics:Metrics;alerts:Alert[];lowStock:Stock[];recentOrders:RecentOrder[]};
+const orderLabels:Record<string,string>={new:"Yeni",confirmed:"Onaylandı",preparing:"Hazırlanıyor",shipped:"Kargoda"};
+
+export default function OperationsCenter() {
+  const[data,setData]=useState<Summary|null>(null);const[message,setMessage]=useState("Yükleniyor…");const[refreshing,setRefreshing]=useState(false);
+  const load=async()=>{setRefreshing(true);const response=await fetch("/api/operations-summary");const result=await response.json();if(response.ok){setData(result);setMessage("");}else setMessage(result.error??"Operasyon özeti yüklenemedi.");setRefreshing(false);};
+  useEffect(()=>{void load();},[]);
+  return <main className="admin-shell operations-shell"><header className="admin-header"><div><p>GÜNLÜK YÖNETİM</p><h1>Operasyon merkezi</h1></div><div><button className="operations-refresh" onClick={load} disabled={refreshing}>{refreshing?"Yenileniyor…":"Verileri yenile"}</button><a href="/admin">Panele dön ↗</a></div></header>
+    {!data?<section className="admin-card operations-loading">{message}</section>:<>
+      <section className="operations-overview"><article><b>{data.metrics.newOrders}</b><span>Yeni sipariş</span><small>{data.metrics.activeOrders} aktif sipariş</small></article><article className={data.metrics.outOfStock?"urgent":""}><b>{data.metrics.lowStock}</b><span>Kritik stok</span><small>{data.metrics.outOfStock} tükenen</small></article><article><b>{data.metrics.openReturns}</b><span>Açık iade talebi</span><small>{data.metrics.newReturns} yeni</small></article><article><b>{data.metrics.openMessages}</b><span>Açık mesaj</span><small>{data.metrics.newMessages} yeni</small></article><article><b>{data.metrics.draftNotifications}</b><span>Bildirim taslağı</span><small>Sağlayıcı bekliyor</small></article></section>
+      <section className="operations-grid">
+        <article className="admin-card priority-card"><div className="list-title"><div><p className="section-kicker">ÖNCELİK SIRASI</p><h2>Bugün ilgilenilecekler</h2></div><span>{data.alerts.length} uyarı</span></div>{data.alerts.length===0?<p className="healthy-state">Gecikmiş veya acil işlem görünmüyor.</p>:<div className="priority-list">{data.alerts.map(alert=><a className={alert.level} href={alert.href} key={alert.key}><i>{alert.level==="urgent"?"!":"•"}</i><span><b>{alert.title}</b><small>{alert.detail}</small></span><strong>İncele →</strong></a>)}</div>}</article>
+        <aside><section className="admin-card operations-links"><p className="section-kicker">HIZLI İŞLEMLER</p><h2>Yönetim alanları</h2><nav><a href="/admin">Siparişler <span>→</span></a><a href="/admin/iade-talepleri">İade ve iptal <span>→</span></a><a href="/admin/bildirimler">Bildirimler <span>→</span></a><a href="/admin/islem-gecmisi">İşlem geçmişi <span>→</span></a><a href="/admin/yayina-hazirlik">Yayına hazırlık <span>→</span></a></nav></section><section className="admin-card stock-mini"><div className="list-title"><h2>Stok alarmı</h2><span>5 ve altı</span></div>{data.lowStock.slice(0,8).map(item=><a href={item.href} key={item.key}><span>{item.name}</span><b className={item.stock===0?"out":""}>{item.stock===0?"Tükendi":item.stock} →</b></a>)}</section></aside>
+      </section>
+      <section className="admin-card active-order-table"><div className="list-title"><div><p className="section-kicker">AKTİF SİPARİŞLER</p><h2>Son gelenler</h2></div><span>{new Date(data.generatedAt).toLocaleTimeString("tr-TR")} itibarıyla</span></div>{data.recentOrders.length===0?<p className="empty">Aktif sipariş bulunmuyor.</p>:data.recentOrders.map(order=><a href={`/admin/siparis/${order.id}`} key={order.id}><b>{order.orderNumber}</b><span>{order.customerName}</span><span>{orderLabels[order.status]??order.status}</span><strong>{order.market==="TR"?`${order.total.toLocaleString("tr-TR")} TL`:`€${order.total.toLocaleString("en-US")}`}</strong><time>{new Date(order.createdAt).toLocaleDateString("tr-TR")}</time></a>)}</section>
+    </>}
+  </main>;
+}
