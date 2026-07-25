@@ -2,6 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { orders, returnRequests } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
+import { recordAudit } from "../../audit-log";
 
 export const dynamic="force-dynamic";
 
@@ -40,11 +41,15 @@ export async function POST(request:Request) {
 }
 
 export async function PATCH(request:Request) {
-  if (!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401});
+  const user=await getChatGPTUser();
+  if (!user)return Response.json({error:"Yetkisiz erişim"},{status:401});
   const body=await request.json() as {id?:number;status?:string;adminNote?:string};
   const id=Number(body.id);const status=String(body.status??"");
   if(!id||!["new","reviewing","approved","rejected","completed"].includes(status))return Response.json({error:"Geçersiz talep durumu."},{status:400});
-  const[row]=await getDb().update(returnRequests).set({status,adminNote:String(body.adminNote??"").trim().slice(0,2000),updatedAt:new Date().toISOString()}).where(eq(returnRequests.id,id)).returning();
+  const db=getDb();const[existing]=await db.select().from(returnRequests).where(eq(returnRequests.id,id)).limit(1);
+  if(!existing)return Response.json({error:"Talep bulunamadı."},{status:404});
+  const[row]=await db.update(returnRequests).set({status,adminNote:String(body.adminNote??"").trim().slice(0,2000),updatedAt:new Date().toISOString()}).where(eq(returnRequests.id,id)).returning();
   if(!row)return Response.json({error:"Talep bulunamadı."},{status:404});
+  await recordAudit({user,action:"return_request.update",entityType:"return_request",entityId:row.id,summary:`${row.requestNumber} talebi ${status} durumuna alındı.`,before:{status:existing.status,adminNote:existing.adminNote},after:{status:row.status,adminNote:row.adminNote}});
   return Response.json({request:row});
 }

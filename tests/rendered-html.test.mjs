@@ -131,3 +131,19 @@ test("supports verified return and cancellation requests without automatic refun
   assert.match(customerPage, /otomatik para iadesi başlatmaz/);
   assert.match(adminPage, /İade ve iptal talepleri/);
 });
+
+test("records authenticated audit history for critical order and return changes", async () => {
+  const [auditHelper, auditApi, orders, returns, auditPage] = await Promise.all([
+    source("app/audit-log.ts"),
+    source("app/api/audit-logs/route.ts"),
+    source("app/api/orders/route.ts"),
+    source("app/api/return-requests/route.ts"),
+    source("app/admin/islem-gecmisi/audit-log-center.tsx"),
+  ]);
+  assert.match(auditHelper, /actorEmail:input\.user\.email/);
+  assert.match(auditHelper, /safeJson/);
+  assert.match(auditApi, /Yetkisiz erişim/);
+  assert.match(orders, /action:"order.update"/);
+  assert.match(returns, /action:"return_request.update"/);
+  assert.match(auditPage, /salt okunurdur/);
+});

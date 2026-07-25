@@ -150,6 +150,19 @@ export const returnRequests = sqliteTable("return_requests", {
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const auditLogs = sqliteTable("audit_logs", {
+  id: integer("id").primaryKey({ autoIncrement:true }),
+  actorEmail: text("actor_email").notNull(),
+  actorName: text("actor_name").notNull(),
+  action: text("action").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull().default(""),
+  summary: text("summary").notNull(),
+  beforeJson: text("before_json").notNull().default("{}"),
+  afterJson: text("after_json").notNull().default("{}"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const contactMessages = sqliteTable("contact_messages", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),

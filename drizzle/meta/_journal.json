@@ -141,6 +141,13 @@
       "when": 1784988155538,
       "tag": "0019_fixed_squadron_supreme",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1784989185752,
+      "tag": "0020_wandering_blink",
+      "breakpoints": true
     }
   ]
 }

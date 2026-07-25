@@ -3,6 +3,7 @@ import { getDb } from "../../../db";
 import { cartItems, carts, notificationOutbox, orderItems, orders, products, productVariants, storeSettings } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { buildOrderNotification, type NotificationEvent } from "../../order-notifications";
+import { recordAudit } from "../../audit-log";
 
 const COOKIE = "store_cart";
 const tokenFrom = (request:Request) => request.headers.get("cookie")?.split(";").map(value => value.trim()).find(value => value.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1) ?? null;
@@ -77,7 +78,8 @@ export async function POST(request:Request) {
 }
 
 export async function PATCH(request:Request) {
-  if (!(await getChatGPTUser())) return Response.json({ error:"Yetkisiz erişim" }, { status:401 });
+  const user=await getChatGPTUser();
+  if (!user) return Response.json({ error:"Yetkisiz erişim" }, { status:401 });
   const body = await request.json() as { id?:number; status?:string; paymentStatus?:string; paymentProvider?:string; paymentReference?:string; shippingCarrier?:string; trackingNumber?:string; internalNote?:string };
   const allowed = ["new", "confirmed", "preparing", "shipped", "completed", "cancelled"];
   const paymentStatuses=["pending","paid","failed","refunded","not_required"];
@@ -100,5 +102,6 @@ export async function PATCH(request:Request) {
   const notificationEvents:Partial<Record<string,NotificationEvent>>={confirmed:"confirmed",shipped:"shipped",cancelled:"cancelled"};
   const notificationEvent=body.status!==undefined&&nextStatus!==existing.status?notificationEvents[nextStatus]:undefined;
   if(notificationEvent)await queueNotification(order,notificationEvent);
+  await recordAudit({user,action:"order.update",entityType:"order",entityId:order.id,summary:`${order.orderNumber} siparişi güncellendi.`,before:{status:existing.status,paymentStatus:existing.paymentStatus,shippingCarrier:existing.shippingCarrier,trackingNumber:existing.trackingNumber},after:{status:order.status,paymentStatus:order.paymentStatus,shippingCarrier:order.shippingCarrier,trackingNumber:order.trackingNumber}});
   return Response.json({order});
 }
