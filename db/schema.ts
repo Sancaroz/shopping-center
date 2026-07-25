@@ -163,6 +163,14 @@ export const auditLogs = sqliteTable("audit_logs", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const requestThrottles = sqliteTable("request_throttles", {
+  keyHash: text("key_hash").primaryKey(),
+  scope: text("scope").notNull(),
+  requestCount: integer("request_count").notNull().default(0),
+  windowStartedAt: text("window_started_at").notNull(),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const contactMessages = sqliteTable("contact_messages", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),

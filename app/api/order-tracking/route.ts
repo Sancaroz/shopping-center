@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { orderItems, orders } from "../../../db/schema";
+import { enforceRateLimit } from "../../rate-limit";
 
 const noStoreHeaders = { "Cache-Control": "no-store, max-age=0" };
 
@@ -11,6 +12,7 @@ export async function POST(request: Request) {
   if (!orderNumber || !email.includes("@")) {
     return Response.json({ error: "Sipariş numarası ve e-posta adresi gereklidir." }, { status: 400, headers: noStoreHeaders });
   }
+  const limited=await enforceRateLimit(request,{scope:"order_tracking",identifier:email,limit:20,windowMinutes:15});if(limited)return limited;
 
   const db = getDb();
   const [order] = await db.select().from(orders).where(eq(orders.orderNumber, orderNumber)).limit(1);

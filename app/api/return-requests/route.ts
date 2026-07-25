@@ -3,6 +3,7 @@ import { getDb } from "../../../db";
 import { orders, returnRequests } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { recordAudit } from "../../audit-log";
+import { enforceRateLimit } from "../../rate-limit";
 
 export const dynamic="force-dynamic";
 
@@ -29,6 +30,7 @@ export async function POST(request:Request) {
   const reason=String(body.reason??"").trim().slice(0,120);
   const details=String(body.details??"").trim().slice(0,2000);
   if(!orderNumber||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!["cancellation","return","exchange"].includes(requestType)||!reason)return Response.json({error:"Zorunlu bilgileri eksiksiz girin."},{status:400});
+  const limited=await enforceRateLimit(request,{scope:"return_request",identifier:email,limit:5,windowMinutes:60});if(limited)return limited;
   const db=getDb();
   const[order]=await db.select().from(orders).where(and(eq(orders.orderNumber,orderNumber),eq(orders.email,email))).limit(1);
   if(!order)return Response.json({error:"Sipariş bilgileri doğrulanamadı."},{status:404});

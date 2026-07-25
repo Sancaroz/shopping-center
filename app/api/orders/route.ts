@@ -4,6 +4,7 @@ import { cartItems, carts, notificationOutbox, orderItems, orders, products, pro
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { buildOrderNotification, type NotificationEvent } from "../../order-notifications";
 import { recordAudit } from "../../audit-log";
+import { enforceRateLimit } from "../../rate-limit";
 
 const COOKIE = "store_cart";
 const tokenFrom = (request:Request) => request.headers.get("cookie")?.split(";").map(value => value.trim()).find(value => value.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1) ?? null;
@@ -39,6 +40,7 @@ export async function POST(request:Request) {
   const consent=body.privacyConsent===true||body.privacyConsent==="on";
   const termsConsent=body.termsConsent===true||body.termsConsent==="on";
   if (!customerName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || phone.replace(/\D/g,"").length<7 || !address || !city || !consent || !termsConsent || !/^[a-f0-9-]{20,80}$/i.test(requestKey)) return Response.json({ error:"Lütfen zorunlu teslimat ve onay bilgilerini eksiksiz girin." }, { status:400 });
+  const limited=await enforceRateLimit(request,{scope:"order_create",identifier:email,limit:10,windowMinutes:60});if(limited)return limited;
 
   const db = getDb();
   const[duplicate]=await db.select().from(orders).where(eq(orders.requestKey,requestKey)).limit(1);

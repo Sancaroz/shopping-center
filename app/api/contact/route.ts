@@ -2,6 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { contactMessages } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
+import { enforceRateLimit } from "../../rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export async function POST(request:Request) {
   const message=String(body.message??"").trim().slice(0,4000);
   const orderNumber=String(body.orderNumber??"").trim().toUpperCase().slice(0,40);
   if(!name||!email.includes("@")||!subject||message.length<10)return Response.json({error:"Lütfen zorunlu alanları eksiksiz doldurun."},{status:400});
+  const limited=await enforceRateLimit(request,{scope:"contact",identifier:email,limit:5,windowMinutes:60});if(limited)return limited;
   await getDb().insert(contactMessages).values({name,email,subject,message,orderNumber});
   return Response.json({ok:true},{status:201});
 }

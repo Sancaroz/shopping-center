@@ -161,3 +161,22 @@ test("provides an authenticated daily operations priority view", async () => {
   assert.match(operationsPage, /Bugün ilgilenilecekler/);
   assert.match(operationsPage, /Verileri yenile/);
 });
+
+test("rate limits public forms with hashed durable identifiers", async () => {
+  const [rateLimit, orders, tracking, contact, newsletter, returns] = await Promise.all([
+    source("app/rate-limit.ts"),
+    source("app/api/orders/route.ts"),
+    source("app/api/order-tracking/route.ts"),
+    source("app/api/contact/route.ts"),
+    source("app/api/newsletter/route.ts"),
+    source("app/api/return-requests/route.ts"),
+  ]);
+  assert.match(rateLimit, /crypto\.subtle\.digest\("SHA-256"/);
+  assert.match(rateLimit, /"Retry-After"/);
+  assert.doesNotMatch(rateLimit, /insert\(requestThrottles\).*rawKey/);
+  assert.match(orders, /scope:"order_create"/);
+  assert.match(tracking, /scope:"order_tracking"/);
+  assert.match(contact, /scope:"contact"/);
+  assert.match(newsletter, /scope:"newsletter"/);
+  assert.match(returns, /scope:"return_request"/);
+});
