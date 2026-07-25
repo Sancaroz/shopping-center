@@ -95,6 +95,8 @@ export const orders = sqliteTable("orders", {
   total: real("total").notNull().default(0),
   requestKey: text("request_key").unique(),
   privacyConsentAt: text("privacy_consent_at"),
+  termsConsentAt: text("terms_consent_at"),
+  termsVersion: text("terms_version").notNull().default("order-request-v1"),
   paymentStatus: text("payment_status").notNull().default("pending"),
   paymentProvider: text("payment_provider").notNull().default(""),
   paymentReference: text("payment_reference").notNull().default(""),

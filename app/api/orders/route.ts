@@ -34,7 +34,8 @@ export async function POST(request:Request) {
   const city = String(body.city ?? "").trim().slice(0,120);
   const requestKey=String(body.requestKey??"").trim().slice(0,80);
   const consent=body.privacyConsent===true||body.privacyConsent==="on";
-  if (!customerName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || phone.replace(/\D/g,"").length<7 || !address || !city || !consent || !/^[a-f0-9-]{20,80}$/i.test(requestKey)) return Response.json({ error:"Lütfen zorunlu teslimat ve onay bilgilerini eksiksiz girin." }, { status:400 });
+  const termsConsent=body.termsConsent===true||body.termsConsent==="on";
+  if (!customerName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || phone.replace(/\D/g,"").length<7 || !address || !city || !consent || !termsConsent || !/^[a-f0-9-]{20,80}$/i.test(requestKey)) return Response.json({ error:"Lütfen zorunlu teslimat ve onay bilgilerini eksiksiz girin." }, { status:400 });
 
   const db = getDb();
   const[duplicate]=await db.select().from(orders).where(eq(orders.requestKey,requestKey)).limit(1);
@@ -62,7 +63,7 @@ export async function POST(request:Request) {
   const [order] = await db.insert(orders).values({
     orderNumber, market:cart.market, customerName, email, phone, address, city,
     postalCode:String(body.postalCode ?? "").trim().slice(0,30), country:String(body.country ?? "Türkiye").trim().slice(0,100) || "Türkiye",
-    note:String(body.note ?? "").trim().slice(0,1000), subtotal, shippingAmount, total,requestKey,privacyConsentAt:new Date().toISOString(),
+    note:String(body.note ?? "").trim().slice(0,1000), subtotal, shippingAmount, total,requestKey,privacyConsentAt:new Date().toISOString(),termsConsentAt:new Date().toISOString(),termsVersion:"order-request-v1",
   }).returning();
   await db.insert(orderItems).values(priced.map(line => ({
     orderId:order.id, productId:line.productId, variantId:line.variantId, productName:cart.market==="GLOBAL"?(line.productNameEn||line.productName):line.productName,

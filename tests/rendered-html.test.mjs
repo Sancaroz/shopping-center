@@ -70,3 +70,19 @@ test("keeps incomplete catalog items in draft and guards publication", async () 
   assert.match(adminPanel, /Satışa hazır değil/);
   assert.match(adminPanel, /Satışa hazır ✓/);
 });
+
+test("prepares legal business details and records policy acknowledgement", async () => {
+  const [settings, policies, checkout, orders] = await Promise.all([
+    source("app/api/settings/route.ts"),
+    source("app/politikalar/page.tsx"),
+    source("app/teslimat/page.tsx"),
+    source("app/api/orders/route.ts"),
+  ]);
+  assert.match(settings, /legalStatus:"draft"/);
+  assert.match(settings, /Yayına hazır durumu için eksik alanlar/);
+  assert.match(policies, /settings\.legalStatus==="complete"/);
+  assert.match(policies, /Şirket ve ödeme altyapısı henüz tamamlanmadığı/);
+  assert.match(checkout, /name="termsConsent"/);
+  assert.match(orders, /termsConsentAt/);
+  assert.match(orders, /termsVersion:"order-request-v1"/);
+});

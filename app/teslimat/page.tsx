@@ -26,7 +26,7 @@ export default function CheckoutPage() {
 
   async function submit(event:FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage("");
-    const values=Object.fromEntries(new FormData(event.currentTarget));const response = await fetch("/api/orders", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({...values,requestKey,privacyConsent:values.privacyConsent==="on"}) });
+    const values=Object.fromEntries(new FormData(event.currentTarget));const response = await fetch("/api/orders", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({...values,requestKey,privacyConsent:values.privacyConsent==="on",termsConsent:values.termsConsent==="on"}) });
     const data = await response.json();
     if (response.ok) { setResult(data); setItems([]); window.scrollTo({ top:0, behavior:"smooth" }); }
     else setMessage(data.error ?? (market==="GLOBAL"?"Your order request could not be created.":"Sipariş talebi oluşturulamadı."));
@@ -50,6 +50,7 @@ export default function CheckoutPage() {
           <label>{market==="GLOBAL"?"Postal code":"Posta kodu"}<input name="postalCode" autoComplete="postal-code"/></label>
           <label className="wide">{market==="GLOBAL"?"Order note":"Sipariş notu"} <small>{market==="GLOBAL"?"Optional":"İsteğe bağlı"}</small><textarea name="note" rows={3}/></label>
           <label className="checkout-consent wide"><input name="privacyConsent" type="checkbox" required/> <span>{market==="GLOBAL"?<>I agree that my information may be stored to process this order request. <a href="/politikalar#gizlilik" target="_blank">Privacy notice ↗</a></>:<>Bilgilerimin bu sipariş talebinin işlenmesi için kaydedilmesini kabul ediyorum. <a href="/politikalar#gizlilik" target="_blank">Gizlilik açıklaması ↗</a></>}</span></label>
+          <label className="checkout-consent wide"><input name="termsConsent" type="checkbox" required/> <span>{market==="GLOBAL"?<>I have read the delivery, returns and order-request information. <a href="/politikalar" target="_blank">Review information ↗</a></>:<>Teslimat, iade ve sipariş talebi bilgilendirmesini okudum. <a href="/politikalar" target="_blank">Bilgilendirmeyi incele ↗</a></>}</span></label>
           {message && <p className="checkout-error wide" role="alert">{message}</p>}
           <button className="wide" disabled={busy}>{busy ? (market==="GLOBAL"?"Saving…":"Kaydediliyor…") : (market==="GLOBAL"?"Create order request":"Sipariş talebini oluştur")}</button>
         </form>
