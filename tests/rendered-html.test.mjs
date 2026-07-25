@@ -469,7 +469,7 @@ test("captures immutable billing data without issuing a premature invoice", asyn
   assert.match(invoice, /Bu ekran mali belge üretmez/);
   assert.match(invoice, /Sipariş anındaki satıcı şirket bilgileri/);
   assert.doesNotMatch(tracking, /billingTaxNumber|sellerSnapshotJson/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 6/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 7/);
 });
 
 test("manages mixed sourcing and records auditable inventory movements", async () => {
@@ -502,7 +502,7 @@ test("manages mixed sourcing and records auditable inventory movements", async (
   assert.match(reservations, /movementType:"reservation_release"/);
   assert.match(readiness, /Stok ve tedarik/);
   assert.match(backup, /"inventoryMovements"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 6/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 7/);
   assert.match(exportApi, /inventoryMovementRows/);
   assert.match(adminPage, /\/admin\/stok/);
   assert.match(productsApi, /Ürün düzenleyicisinden stok düzeltmesi/);
@@ -533,7 +533,7 @@ test("snapshots order costs and reports finance estimates without false accounti
   assert.match(center, /Global ürün maliyetleri avro bazında tanımlanmadığı/);
   assert.match(readiness, /Kârlılık kontrolü/);
   assert.match(adminPage, /\/admin\/finans/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 6/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 7/);
 });
 
 test("applies server-authoritative promotions with safe limits and inactive defaults", async () => {
@@ -572,7 +572,7 @@ test("applies server-authoritative promotions with safe limits and inactive defa
   assert.match(center, /Yeni kampanyalar daima pasif oluşturulur/);
   assert.match(finance, /order\.subtotal-order\.discountAmount/);
   assert.match(backup, /"promotionRedemptions"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 6/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 7/);
   assert.match(exportApi, /promotionRedemptionRows/);
   assert.match(trackingApi, /discountAmount: order\.discountAmount/);
   assert.match(trackingPage, /İNDİRİM/);
@@ -597,4 +597,27 @@ test("provides a privacy-conscious authenticated customer operations center", as
   assert.match(center, /Tekrar gelen/);
   assert.match(center, /Doğrulama bekleyen/);
   assert.match(adminPage, /\/admin\/musteriler/);
+});
+
+test("requires an audited fulfillment checklist before shipment", async () => {
+  const [schema,api,orders,component,backup,exportApi,operations] = await Promise.all([
+    source("db/schema.ts"),
+    source("app/api/fulfillment-checklist/route.ts"),
+    source("app/api/orders/route.ts"),
+    source("app/admin/siparis/[id]/packing-checklist.tsx"),
+    source("app/backup-format.ts"),
+    source("app/api/export/route.ts"),
+    source("app/api/operations-summary/route.ts"),
+  ]);
+  assert.match(schema, /fulfillmentChecklists/);
+  assert.match(api, /getChatGPTUser/);
+  assert.match(api, /fulfillment\.checklist\.update/);
+  assert.match(api, /\["confirmed","preparing"\]/);
+  assert.match(orders, /Kargoya vermeden önce paketleme kontrol listesinin tamamı/);
+  assert.match(component, /Kalite kontrolü/);
+  assert.match(component, /Adres ve etiket/);
+  assert.match(backup, /"fulfillmentChecklists"/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 7/);
+  assert.match(exportApi, /fulfillmentChecklistRows/);
+  assert.match(operations, /packingIncomplete/);
 });

@@ -153,6 +153,20 @@ export const orderItems = sqliteTable("order_items", {
   unitCostSnapshot: real("unit_cost_snapshot").notNull().default(0),
 });
 
+export const fulfillmentChecklists = sqliteTable("fulfillment_checklists", {
+  id: integer("id").primaryKey({ autoIncrement:true }),
+  orderId: integer("order_id").notNull().unique().references(() => orders.id, { onDelete:"cascade" }),
+  productChecked: integer("product_checked", { mode:"boolean" }).notNull().default(false),
+  quantityChecked: integer("quantity_checked", { mode:"boolean" }).notNull().default(false),
+  qualityChecked: integer("quality_checked", { mode:"boolean" }).notNull().default(false),
+  packageChecked: integer("package_checked", { mode:"boolean" }).notNull().default(false),
+  addressChecked: integer("address_checked", { mode:"boolean" }).notNull().default(false),
+  completedAt: text("completed_at"),
+  actorEmail: text("actor_email").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const shipmentEvents = sqliteTable("shipment_events", {
   id: integer("id").primaryKey({ autoIncrement:true }),
   orderId: integer("order_id").notNull().references(() => orders.id, { onDelete:"cascade" }),

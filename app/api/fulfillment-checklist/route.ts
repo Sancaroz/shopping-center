@@ -1,0 +1,16 @@
+import {eq} from "drizzle-orm";
+import {getDb} from "../../../db";
+import {fulfillmentChecklists,orders} from "../../../db/schema";
+import {recordAudit} from "../../audit-log";
+import {getChatGPTUser} from "../../chatgpt-auth";
+
+const fields=["productChecked","quantityChecked","qualityChecked","packageChecked","addressChecked"] as const;
+const empty=(orderId:number)=>({orderId,productChecked:false,quantityChecked:false,qualityChecked:false,packageChecked:false,addressChecked:false,completedAt:null,actorEmail:"",createdAt:null,updatedAt:null});
+
+export async function GET(request:Request){
+  if(!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401});const orderId=Number(new URL(request.url).searchParams.get("orderId"));if(!orderId)return Response.json({error:"Geçersiz sipariş"},{status:400});const db=getDb();const[order]=await db.select({id:orders.id,status:orders.status,shippedAt:orders.shippedAt}).from(orders).where(eq(orders.id,orderId)).limit(1);if(!order)return Response.json({error:"Sipariş bulunamadı"},{status:404});const[row]=await db.select().from(fulfillmentChecklists).where(eq(fulfillmentChecklists.orderId,orderId)).limit(1);return Response.json({checklist:row??empty(orderId),locked:Boolean(order.shippedAt)||["shipped","completed","cancelled"].includes(order.status)},{headers:{"Cache-Control":"no-store"}});
+}
+
+export async function PATCH(request:Request){
+  const user=await getChatGPTUser();if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401});const body=await request.json().catch(()=>null) as Record<string,unknown>|null;const orderId=Number(body?.orderId);if(!orderId||fields.some(field=>typeof body?.[field]!=="boolean"))return Response.json({error:"Hazırlık kontrolü eksik veya geçersiz."},{status:400});const db=getDb();const[order]=await db.select({id:orders.id,orderNumber:orders.orderNumber,status:orders.status,shippedAt:orders.shippedAt}).from(orders).where(eq(orders.id,orderId)).limit(1);if(!order)return Response.json({error:"Sipariş bulunamadı"},{status:404});if(order.shippedAt||!["confirmed","preparing"].includes(order.status))return Response.json({error:order.status==="new"?"Hazırlık listesi için sipariş önce onaylanmalıdır.":"Kargoya çıkan, tamamlanan veya iptal edilen siparişin hazırlık kaydı değiştirilemez."},{status:409});const[before]=await db.select().from(fulfillmentChecklists).where(eq(fulfillmentChecklists.orderId,orderId)).limit(1);const values=Object.fromEntries(fields.map(field=>[field,body[field] as boolean])) as Record<typeof fields[number],boolean>;const complete=fields.every(field=>values[field]);const now=new Date().toISOString();const completedAt=complete?(before?.completedAt??now):null;const[row]=await db.insert(fulfillmentChecklists).values({orderId,...values,completedAt,actorEmail:user.email,updatedAt:now}).onConflictDoUpdate({target:fulfillmentChecklists.orderId,set:{...values,completedAt,actorEmail:user.email,updatedAt:now}}).returning();await recordAudit({user,action:"fulfillment.checklist.update",entityType:"order",entityId:orderId,summary:`${order.orderNumber} hazırlık listesi ${complete?"tamamlandı":"güncellendi"}.`,before:before?Object.fromEntries(fields.map(field=>[field,before[field]])):{},after:{...values,complete}});return Response.json({checklist:row,complete});
+}
