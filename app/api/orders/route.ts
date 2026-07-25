@@ -1,6 +1,6 @@
 import { asc, desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { cartItems, carts, notificationOutbox, orderItems, orders, products, productVariants, shipmentEvents, storeSettings } from "../../../db/schema";
+import { cartItems, carts, inventoryMovements, notificationOutbox, orderItems, orders, products, productVariants, shipmentEvents, storeSettings } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { buildOrderNotification, type NotificationEvent } from "../../order-notifications";
 import { recordAudit } from "../../audit-log";
@@ -96,6 +96,7 @@ export async function POST(request:Request) {
     orderId:order.id, productId:line.productId, variantId:line.variantId, productName:cart.market==="GLOBAL"?(line.productNameEn||line.productName):line.productName,
     variantLabel:line.optionValue ? (cart.market==="GLOBAL"?`${line.optionNameEn||line.optionName}: ${line.optionValueEn||line.optionValue}`:`${line.optionName}: ${line.optionValue}`) : "", quantity:line.quantity, unitPrice:line.unitPrice,
   })));
+  for(const line of priced){const[current]=line.variantId?await db.select({stock:productVariants.stock}).from(productVariants).where(eq(productVariants.id,line.variantId)).limit(1):await db.select({stock:products.stock}).from(products).where(eq(products.id,line.productId)).limit(1);if(!current)throw new Error("reserved stock missing");await db.insert(inventoryMovements).values({productId:line.productId,variantId:line.variantId,orderId:order.id,movementType:"reservation",quantityDelta:-line.quantity,previousStock:current.stock+line.quantity,nextStock:current.stock,reason:"Sipariş talebi için 24 saatlik stok rezervasyonu",reference:order.orderNumber,actorEmail:"system"});}
   await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));}catch{if(order?.id)await db.delete(orders).where(eq(orders.id,order.id));await reservation.rollback();return Response.json({error:"Sipariş talebi kaydedilemedi; ayrılan stok geri bırakıldı."},{status:500});}
   if(!order){await reservation.rollback();return Response.json({error:"Sipariş talebi kaydedilemedi; ayrılan stok geri bırakıldı."},{status:500});}
   await queueNotification(order,"verification",`https://mysa-objets-store.robologai.chatgpt.site/siparis-dogrula?token=${verificationToken}`).catch(()=>undefined);

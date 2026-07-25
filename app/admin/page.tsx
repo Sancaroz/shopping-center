@@ -7,5 +7,5 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
   const user = await requireChatGPTUser("/admin");
-  return <><AdminPanel userName={user.displayName} /><a className="bulk-import-fab" href="/admin/toplu-urun">CSV ile ürün aktar</a></>;
+  return <><AdminPanel userName={user.displayName} /><a className="bulk-import-fab" href="/admin/toplu-urun">CSV ile ürün aktar</a><a className="inventory-fab" href="/admin/stok">Stok ve tedarik</a></>;
 }

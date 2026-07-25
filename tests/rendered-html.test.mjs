@@ -469,5 +469,43 @@ test("captures immutable billing data without issuing a premature invoice", asyn
   assert.match(invoice, /Bu ekran mali belge üretmez/);
   assert.match(invoice, /Sipariş anındaki satıcı şirket bilgileri/);
   assert.doesNotMatch(tracking, /billingTaxNumber|sellerSnapshotJson/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 3/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 4/);
+});
+
+test("manages mixed sourcing and records auditable inventory movements", async () => {
+  const [schema,migration,inventoryApi,center,orders,reservations,readiness,backup,exportApi,adminPage,productsApi,variantsApi] = await Promise.all([
+    source("db/schema.ts"),
+    source("drizzle/0026_ordinary_silk_fever.sql"),
+    source("app/api/inventory/route.ts"),
+    source("app/admin/stok/inventory-center.tsx"),
+    source("app/api/orders/route.ts"),
+    source("app/inventory-reservations.ts"),
+    source("app/api/launch-readiness/route.ts"),
+    source("app/backup-format.ts"),
+    source("app/api/export/route.ts"),
+    source("app/admin/page.tsx"),
+    source("app/api/products/route.ts"),
+    source("app/api/variants/route.ts"),
+  ]);
+  assert.match(schema, /sourcingType/);
+  assert.match(schema, /inventoryMovements/);
+  assert.match(migration, /CREATE TABLE `inventory_movements`/);
+  assert.match(migration, /sourcing_type/);
+  assert.match(inventoryApi, /Yetkisiz erişim/);
+  assert.match(inventoryApi, /gte\(productVariants\.stock,-delta\)/);
+  assert.match(inventoryApi, /Stok hareketi için kısa bir açıklama zorunludur/);
+  assert.match(inventoryApi, /inventory\.adjust/);
+  assert.match(center, /Fabrika \/ tedarik ürünü/);
+  assert.match(center, /El işçiliği \/ atölye üretimi/);
+  assert.match(center, /Stok sıfırın altına indirilemez/);
+  assert.match(orders, /movementType:"reservation"/);
+  assert.match(reservations, /movementType:"reservation_release"/);
+  assert.match(readiness, /Stok ve tedarik/);
+  assert.match(backup, /"inventoryMovements"/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 4/);
+  assert.match(exportApi, /inventoryMovementRows/);
+  assert.match(adminPage, /\/admin\/stok/);
+  assert.match(productsApi, /Ürün düzenleyicisinden stok düzeltmesi/);
+  assert.match(variantsApi, /Varyant düzenleyicisinden stok düzeltmesi/);
+  assert.match(variantsApi, /Varyant açılış stoğu/);
 });

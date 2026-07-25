@@ -1,6 +1,6 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { categories, productImages, products, productVariants } from "../../../db/schema";
+import { categories, inventoryMovements, productImages, products, productVariants } from "../../../db/schema";
 import { catalogQuality } from "../../catalog-quality";
 import { getChatGPTUser } from "../../chatgpt-auth";
 
@@ -26,7 +26,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!(await getChatGPTUser())) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
+  const user=await getChatGPTUser();if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
   const body = await request.json() as Record<string, unknown>;
   const duplicateId = Number(body.duplicateId);
   if (duplicateId) {
@@ -38,6 +38,7 @@ export async function POST(request: Request) {
       nameTr: `${source.nameTr} (Kopya)`, nameEn: source.nameEn ? `${source.nameEn} (Copy)` : "", slug: `${source.slug}-kopya-${suffix}`,
       descriptionTr: source.descriptionTr, descriptionEn: source.descriptionEn, categoryId: source.categoryId, imageUrl: source.imageUrl,
       priceTr: source.priceTr, priceGlobal: source.priceGlobal, currencyGlobal: source.currencyGlobal, stock: 0,
+      sourcingType:source.sourcingType,supplierName:source.supplierName,supplierContact:source.supplierContact,supplierSku:source.supplierSku,unitCost:source.unitCost,leadTimeDays:source.leadTimeDays,reorderPoint:source.reorderPoint,
       marketTr: source.marketTr, marketGlobal: source.marketGlobal, featured: false, active: false,
     }).returning();
     const [images, variants] = await Promise.all([
@@ -66,11 +67,12 @@ export async function POST(request: Request) {
     marketGlobal: Boolean(body.marketGlobal),
     active: false,
   }).returning();
+  if(product.stock>0)await db.insert(inventoryMovements).values({productId:product.id,movementType:"opening",quantityDelta:product.stock,previousStock:0,nextStock:product.stock,reason:"Ürün açılış stoğu",reference:"product-create",actorEmail:user.email});
   return Response.json({ product }, { status: 201 });
 }
 
 export async function PATCH(request: Request) {
-  if (!(await getChatGPTUser())) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
+  const user=await getChatGPTUser();if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
   const body = await request.json() as Record<string, unknown>;
   const ids = Array.isArray(body.ids) ? body.ids.map(Number).filter(Number.isInteger).filter(id => id > 0).slice(0, 500) : [];
   if (ids.length) {
@@ -103,6 +105,7 @@ export async function PATCH(request: Request) {
   const id = Number(body.id);
   if (!id) return Response.json({ error: "Geçersiz ürün" }, { status: 400 });
   const db = getDb();
+  const[currentBefore]=await db.select().from(products).where(eq(products.id,id)).limit(1);if(!currentBefore)return Response.json({error:"Ürün bulunamadı."},{status:404});
   const updates: Partial<typeof products.$inferInsert> = { updatedAt: new Date().toISOString() };
   if (body.nameTr !== undefined) updates.nameTr = String(body.nameTr).trim();
   if (body.nameEn !== undefined) updates.nameEn = String(body.nameEn).trim();
@@ -113,7 +116,7 @@ export async function PATCH(request: Request) {
   if (body.imageUrl !== undefined) updates.imageUrl = String(body.imageUrl);
   if (body.priceTr !== undefined) updates.priceTr = Number(body.priceTr);
   if (body.priceGlobal !== undefined) updates.priceGlobal = Number(body.priceGlobal);
-  if (body.stock !== undefined) updates.stock = Number(body.stock);
+  if (body.stock !== undefined){const stock=Number(body.stock);if(!Number.isInteger(stock)||stock<0)return Response.json({error:"Stok sıfır veya pozitif tam sayı olmalıdır."},{status:400});updates.stock=stock;}
   if (body.marketTr !== undefined) updates.marketTr = Boolean(body.marketTr);
   if (body.marketGlobal !== undefined) updates.marketGlobal = Boolean(body.marketGlobal);
   if (body.featured !== undefined) updates.featured = Boolean(body.featured);
@@ -131,6 +134,7 @@ export async function PATCH(request: Request) {
     }, { status: 409 });
   }
   const [product] = await db.update(products).set(updates).where(eq(products.id, id)).returning();
+  if(product&&updates.stock!==undefined&&updates.stock!==currentBefore.stock)await db.insert(inventoryMovements).values({productId:id,movementType:"correction",quantityDelta:updates.stock-currentBefore.stock,previousStock:currentBefore.stock,nextStock:updates.stock,reason:"Ürün düzenleyicisinden stok düzeltmesi",reference:"product-editor",actorEmail:user.email});
   return Response.json({ product });
 }
 

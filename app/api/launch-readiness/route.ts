@@ -28,8 +28,10 @@ export async function GET() {
   );
   const globalShippingRequired=productRows.some(product=>product.marketGlobal);
   const globalShippingReady=!globalShippingRequired||(settings.shippingGlobalEnabled==="true"&&String(settings.shippingGlobalCountries??"").split(",").some(country=>country.trim()));
+  const sourcingIssues=productRows.filter(product=>!product.supplierName.trim()||product.unitCost<=0);
   const checks=[
     {key:"catalog",label:"Ürün kataloğu",ready:productRows.length>0&&catalogIssues.length===0,detail:productRows.length===0?"Yayında ürün yok.":catalogIssues.length?`${catalogIssues.length} yayındaki üründe eksik var.`:`${productRows.length} ürün yayına hazır.`},
+    {key:"inventory",label:"Stok ve tedarik",ready:productRows.length>0&&sourcingIssues.length===0,detail:productRows.length===0?"Yayında ürün yok.":sourcingIssues.length?`${sourcingIssues.length} yayındaki üründe tedarikçi veya maliyet eksik.`:"Yayındaki ürünlerin tedarik profilleri tamamlandı."},
     {key:"pricing",label:"Fiyat ve vergi sunumu",ready:settings.taxDisplayMode==="tax_included",detail:settings.taxDisplayMode==="tax_included"?"Tüketici fiyatlarının vergiler dâhil olduğu onaylandı.":"Şirket ve mali müşavir onayı bekleniyor; fiyatlar taslak kabul edilir."},
     {key:"legal",label:"Şirket bilgileri",ready:settings.legalStatus==="complete"&&!legalMissing.length,detail:settings.legalStatus!=="complete"?"Taslak modunda.":legalMissing.length?`${legalMissing.length} zorunlu alan eksik.`:"Şirket bilgileri tamamlandı."},
     {key:"contracts",label:"Hukuki metinler",ready:settings.legalStatus==="complete"&&!String(settings.preliminaryInformationTr??"").startsWith("TASLAK")&&!String(settings.distanceSalesTermsTr??"").startsWith("TASLAK"),detail:settings.legalStatus==="complete"?"Metin durumu kontrol edildi.":"Uzman onayı bekleniyor."},

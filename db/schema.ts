@@ -35,6 +35,13 @@ export const products = sqliteTable("products", {
   marketGlobal: integer("market_global", { mode: "boolean" }).notNull().default(false),
   featured: integer("featured", { mode: "boolean" }).notNull().default(false),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
+  sourcingType: text("sourcing_type").notNull().default("factory"),
+  supplierName: text("supplier_name").notNull().default(""),
+  supplierContact: text("supplier_contact").notNull().default(""),
+  supplierSku: text("supplier_sku").notNull().default(""),
+  unitCost: real("unit_cost").notNull().default(0),
+  leadTimeDays: integer("lead_time_days").notNull().default(0),
+  reorderPoint: integer("reorder_point").notNull().default(5),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
@@ -153,6 +160,21 @@ export const shipmentEvents = sqliteTable("shipment_events", {
   occurredAt: text("occurred_at").notNull(),
   visibleToCustomer: integer("visible_to_customer", { mode:"boolean" }).notNull().default(true),
   actorEmail: text("actor_email").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const inventoryMovements = sqliteTable("inventory_movements", {
+  id: integer("id").primaryKey({ autoIncrement:true }),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete:"cascade" }),
+  variantId: integer("variant_id").references(() => productVariants.id, { onDelete:"cascade" }),
+  orderId: integer("order_id").references(() => orders.id, { onDelete:"cascade" }),
+  movementType: text("movement_type").notNull(),
+  quantityDelta: integer("quantity_delta").notNull(),
+  previousStock: integer("previous_stock").notNull(),
+  nextStock: integer("next_stock").notNull(),
+  reason: text("reason").notNull().default(""),
+  reference: text("reference").notNull().default(""),
+  actorEmail: text("actor_email").notNull().default("system"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
