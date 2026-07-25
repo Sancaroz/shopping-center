@@ -1,5 +1,5 @@
 export const BACKUP_FORMAT = "mysa-store-backup";
-export const BACKUP_SCHEMA_VERSION = 8;
+export const BACKUP_SCHEMA_VERSION = 9;
 
 export const backupTableNames = [
   "settings",
@@ -136,6 +136,7 @@ export async function verifyBackupEnvelope(input: unknown) {
     checkReferences(completeData.promotionRedemptions, "orderId", orderIds, "Kampanya kullanımı-sipariş"),
     checkReferences(completeData.notificationOutbox, "orderId", orderIds, "Bildirim-sipariş"),
     checkReferences(completeData.returnRequests, "orderId", orderIds, "İade-sipariş"),
+    checkReferences(completeData.contactMessages, "orderId", orderIds, "Destek-sipariş", true),
   ].filter(Boolean);
   errors.push(...checks);
 

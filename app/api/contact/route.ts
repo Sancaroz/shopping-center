@@ -1,6 +1,7 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { contactMessages } from "../../../db/schema";
+import { contactMessages, orders } from "../../../db/schema";
+import { recordAudit } from "../../audit-log";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { enforceRateLimit } from "../../rate-limit";
 
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   if (!(await getChatGPTUser())) return Response.json({ error:"Yetkisiz erişim" }, { status:401 });
   const messages=await getDb().select().from(contactMessages).orderBy(desc(contactMessages.id));
-  return Response.json({ messages });
+  return Response.json({ messages },{headers:{"Cache-Control":"no-store"}});
 }
 
 export async function POST(request:Request) {
@@ -22,14 +23,12 @@ export async function POST(request:Request) {
   const orderNumber=String(body.orderNumber??"").trim().toUpperCase().slice(0,40);
   if(!name||!email.includes("@")||!subject||message.length<10)return Response.json({error:"Lütfen zorunlu alanları eksiksiz doldurun."},{status:400});
   const limited=await enforceRateLimit(request,{scope:"contact",identifier:email,limit:5,windowMinutes:60});if(limited)return limited;
-  await getDb().insert(contactMessages).values({name,email,subject,message,orderNumber});
+  const db=getDb();const[matchedOrder]=orderNumber?await db.select({id:orders.id}).from(orders).where(and(eq(orders.orderNumber,orderNumber),eq(orders.email,email))).limit(1):[];
+  await db.insert(contactMessages).values({name,email,subject,message,orderNumber,orderId:matchedOrder?.id??null});
   return Response.json({ok:true},{status:201});
 }
 
 export async function PATCH(request:Request) {
-  if (!(await getChatGPTUser())) return Response.json({ error:"Yetkisiz erişim" }, { status:401 });
-  const body=await request.json() as {id?:number;status?:string};const id=Number(body.id);const status=String(body.status);
-  if(!id||!["new","read","resolved"].includes(status))return Response.json({error:"Geçersiz mesaj durumu"},{status:400});
-  const[message]=await getDb().update(contactMessages).set({status,updatedAt:new Date().toISOString()}).where(eq(contactMessages.id,id)).returning();
-  return message?Response.json({message}):Response.json({error:"Mesaj bulunamadı"},{status:404});
+  const user=await getChatGPTUser();if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401});
+  const body=await request.json().catch(()=>null) as Record<string,unknown>|null;const id=Number(body?.id);const status=String(body?.status??"");const priorityInput=body?.priority===undefined?"":String(body.priority);if(!id||!["new","read","resolved"].includes(status)||(priorityInput&&!['low','normal','high','urgent'].includes(priorityInput)))return Response.json({error:"Geçersiz destek kaydı"},{status:400});const db=getDb();const[before]=await db.select().from(contactMessages).where(eq(contactMessages.id,id)).limit(1);if(!before)return Response.json({error:"Mesaj bulunamadı"},{status:404});const now=new Date().toISOString();const priority=priorityInput||before.priority;const assignedTo=body.assignedTo===undefined?before.assignedTo:String(body.assignedTo).trim().slice(0,180);const adminNote=body.adminNote===undefined?before.adminNote:String(body.adminNote).trim().slice(0,2000);const[message]=await db.update(contactMessages).set({status,priority,assignedTo,adminNote,resolvedAt:status==="resolved"?(before.resolvedAt??now):null,updatedAt:now}).where(eq(contactMessages.id,id)).returning();await recordAudit({user,action:"support.update",entityType:"contact_message",entityId:id,summary:`${before.subject} destek kaydı güncellendi.`,before:{status:before.status,priority:before.priority,assignedTo:before.assignedTo},after:{status,priority,assignedTo,resolvedAt:message.resolvedAt}});return Response.json({message});
 }

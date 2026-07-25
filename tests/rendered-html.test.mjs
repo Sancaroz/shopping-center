@@ -469,7 +469,7 @@ test("captures immutable billing data without issuing a premature invoice", asyn
   assert.match(invoice, /Bu ekran mali belge üretmez/);
   assert.match(invoice, /Sipariş anındaki satıcı şirket bilgileri/);
   assert.doesNotMatch(tracking, /billingTaxNumber|sellerSnapshotJson/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 8/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 9/);
 });
 
 test("manages mixed sourcing and records auditable inventory movements", async () => {
@@ -502,7 +502,7 @@ test("manages mixed sourcing and records auditable inventory movements", async (
   assert.match(reservations, /movementType:"reservation_release"/);
   assert.match(readiness, /Stok ve tedarik/);
   assert.match(backup, /"inventoryMovements"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 8/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 9/);
   assert.match(exportApi, /inventoryMovementRows/);
   assert.match(adminPage, /\/admin\/stok/);
   assert.match(productsApi, /Ürün düzenleyicisinden stok düzeltmesi/);
@@ -533,7 +533,7 @@ test("snapshots order costs and reports finance estimates without false accounti
   assert.match(center, /Global ürün maliyetleri avro bazında tanımlanmadığı/);
   assert.match(readiness, /Kârlılık kontrolü/);
   assert.match(adminPage, /\/admin\/finans/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 8/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 9/);
 });
 
 test("applies server-authoritative promotions with safe limits and inactive defaults", async () => {
@@ -572,7 +572,7 @@ test("applies server-authoritative promotions with safe limits and inactive defa
   assert.match(center, /Yeni kampanyalar daima pasif oluşturulur/);
   assert.match(finance, /order\.subtotal-order\.discountAmount/);
   assert.match(backup, /"promotionRedemptions"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 8/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 9/);
   assert.match(exportApi, /promotionRedemptionRows/);
   assert.match(trackingApi, /discountAmount: order\.discountAmount/);
   assert.match(trackingPage, /İNDİRİM/);
@@ -617,7 +617,7 @@ test("requires an audited fulfillment checklist before shipment", async () => {
   assert.match(component, /Kalite kontrolü/);
   assert.match(component, /Adres ve etiket/);
   assert.match(backup, /"fulfillmentChecklists"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 8/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 9/);
   assert.match(exportApi, /fulfillmentChecklistRows/);
   assert.match(operations, /packingIncomplete/);
 });
@@ -643,6 +643,34 @@ test("tracks replenishments without sending suppliers and receives stock once", 
   assert.match(inventory, /\/admin\/tedarik/);
   assert.match(operations, /overdueReplenishments/);
   assert.match(backup, /"replenishments"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 8/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 9/);
   assert.match(exportApi, /replenishmentRows/);
+});
+
+test("runs authenticated auditable support tickets with safe order matching", async () => {
+  const [schema,api,center,page,operations,panel,backup,auditCenter] = await Promise.all([
+    source("db/schema.ts"),
+    source("app/api/contact/route.ts"),
+    source("app/admin/destek/support-center.tsx"),
+    source("app/admin/destek/page.tsx"),
+    source("app/api/operations-summary/route.ts"),
+    source("app/admin/panel.tsx"),
+    source("app/backup-format.ts"),
+    source("app/admin/islem-gecmisi/audit-log-center.tsx"),
+  ]);
+  assert.match(schema, /assignedTo/);
+  assert.match(schema, /resolvedAt/);
+  assert.match(api, /eq\(orders\.email,email\)/);
+  assert.match(api, /support\.update/);
+  assert.match(api, /before\.resolvedAt\?\?now/);
+  assert.match(api, /body\.assignedTo===undefined\?before\.assignedTo/);
+  assert.match(center, /Yanıtlar otomatik gönderilmez/);
+  assert.match(center, /İç destek notu/);
+  assert.match(page, /requireChatGPTUser\("\/admin\/destek"\)/);
+  assert.match(operations, /message-urgent/);
+  assert.match(panel, /\/admin\/destek/);
+  assert.match(backup, /Destek-sipariş/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 9/);
+  assert.match(auditCenter, /Destek kaydı güncellemesi/);
+  assert.match(auditCenter, /contact_message","Destek/);
 });
