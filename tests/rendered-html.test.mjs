@@ -215,3 +215,18 @@ test("keeps lint rules aligned with the Vinext and dynamic-media architecture", 
   assert.match(orderDetail, /useEffect\(\(\)=>\{void load\(\);\},\[load\]\)/);
   assert.match(productEditor, /useCallback/);
 });
+
+test("keeps cart cookies secure in production and usable in local rehearsals", async () => {
+  const cart = await source("app/api/cart/route.ts");
+  assert.match(cart, /new URL\(request\.url\)\.protocol==="https:"/);
+  assert.match(cart, /\?"; Secure":""/);
+  assert.match(cart, /SameSite=Lax/);
+  assert.match(cart, /HttpOnly/);
+});
+
+test("never presents sample catalog cards as purchasable inventory", async () => {
+  const home = await source("app/page.tsx");
+  assert.match(home, /!product\.id \|\| catalogSource !== "live"/);
+  assert.match(home, /catalogSource==="live"&&product\.id/);
+  assert.match(home, /Ürün kataloğu hazırlanıyor/);
+});

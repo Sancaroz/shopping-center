@@ -101,10 +101,9 @@ export default function Home() {
   };
 
   const addToCart = async (product: StoreProduct) => {
-    if (product.id) {
-      const response = await fetch("/api/cart", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ productId:product.id, quantity:1, market }) });
-      if (!response.ok) { const data=await response.json();setNotice(data.error??(market==="GLOBAL"?"Product could not be added":"Ürün eklenemedi")); return; }
-    }
+    if (!product.id || catalogSource !== "live") { setNotice(market==="GLOBAL"?"Catalog is being prepared.":"Ürün kataloğu hazırlanıyor."); return; }
+    const response = await fetch("/api/cart", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ productId:product.id, quantity:1, market }) });
+    if (!response.ok) { const data=await response.json();setNotice(data.error??(market==="GLOBAL"?"Product could not be added":"Ürün eklenemedi")); return; }
     setCartCount((count) => count + 1);
     setNotice(market === "TR" ? `${product.name} çantanıza eklendi` : `${product.nameGlobal || product.name} added to your bag`);
     window.setTimeout(() => setNotice(""), 2200);
@@ -193,7 +192,7 @@ export default function Home() {
                 {product.slug && <a className="product-detail-link" href={`/urun/${encodeURIComponent(product.slug)}`} aria-label={`${market === "TR" ? product.name : product.nameGlobal || product.name} detaylarını aç`}></a>}
                 <img src={product.image} alt={market === "TR" ? product.alt : product.nameGlobal || product.alt} />
                 {product.badge && <span>{badgeText(product.badge)}</span>}
-                {(product.stock??1)>0&&<button onClick={() => addToCart(product)} aria-label={`${market === "TR" ? product.name : product.nameGlobal || product.name} ürününü çantaya ekle`}>+</button>}
+                {catalogSource==="live"&&product.id&&(product.stock??0)>0?<button onClick={() => addToCart(product)} aria-label={`${market === "TR" ? product.name : product.nameGlobal || product.name} ürününü çantaya ekle`}>+</button>:<span className="product-preview-badge">{isGlobal?"PREVIEW":"ÖNİZLEME"}</span>}
               </div>
               <div className="product-meta">
                 <div><h3>{product.slug?<a href={`/urun/${encodeURIComponent(product.slug)}`}>{market === "TR" ? product.name : product.nameGlobal || product.name}</a>:market === "TR" ? product.name : product.nameGlobal || product.name}</h3><p>{market === "TR" ? product.description : product.descriptionGlobal || product.description}</p></div>
