@@ -59,13 +59,14 @@ test("supports payment and shipment operations without exposing internal notes",
 });
 
 test("keeps incomplete catalog items in draft and guards publication", async () => {
-  const [productsApi, adminPanel] = await Promise.all([
+  const [productsApi, adminPanel, quality] = await Promise.all([
     source("app/api/products/route.ts"),
     source("app/admin/panel.tsx"),
+    source("app/catalog-quality.ts"),
   ]);
   assert.match(productsApi, /function publicationIssues/);
   assert.match(productsApi, /active: false/);
-  assert.match(productsApi, /satılabilir stok/);
+  assert.match(quality, /Satılabilir stok yok/);
   assert.match(productsApi, /Ürün yayınlanmadan önce tamamlanmalı/);
   assert.match(adminPanel, /Satışa hazır değil/);
   assert.match(adminPanel, /Satışa hazır ✓/);
@@ -309,4 +310,24 @@ test("publishes truthful search metadata without enabling unconsented tracking",
   assert.doesNotMatch(sitemap, /lastModified:new Date\(\)/);
   assert.match(shopMetadata, /canonical:"\/magaza"/);
   assert.match(cartMetadata, /index:false/);
+});
+
+test("provides an authenticated catalog quality center with actionable blockers", async () => {
+  const [helper,api,page,center,launch] = await Promise.all([
+    source("app/catalog-quality.ts"),
+    source("app/api/catalog-quality/route.ts"),
+    source("app/admin/katalog-kalitesi/page.tsx"),
+    source("app/admin/katalog-kalitesi/catalog-quality-center.tsx"),
+    source("app/admin/yayina-hazirlik/launch-readiness.tsx"),
+  ]);
+  assert.match(helper, /Satılabilir stok yok/);
+  assert.match(helper, /Kategori yayında değil/);
+  assert.match(helper, /İkinci ürün görseli önerilir/);
+  assert.match(api, /Yetkisiz erişim/);
+  assert.match(api, /summary:/);
+  assert.match(page, /requireChatGPTUser/);
+  assert.match(center, /Katalog kalite merkezi/);
+  assert.match(center, /Yayın engelleri/);
+  assert.match(center, /Ürünü düzenle/);
+  assert.match(launch, /\/admin\/katalog-kalitesi/);
 });

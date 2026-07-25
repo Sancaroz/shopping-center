@@ -1,27 +1,15 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { productImages, products, productVariants } from "../../../db/schema";
+import { categories, productImages, products, productVariants } from "../../../db/schema";
+import { catalogQuality } from "../../catalog-quality";
 import { getChatGPTUser } from "../../chatgpt-auth";
 
 export const dynamic = "force-dynamic";
 
 type ProductRecord = typeof products.$inferSelect;
 
-function publicationIssues(product: ProductRecord, variants: Array<typeof productVariants.$inferSelect>) {
-  const issues:string[] = [];
-  if (!product.nameTr.trim()) issues.push("Türkçe ürün adı");
-  if (!product.descriptionTr.trim()) issues.push("Türkçe açıklama");
-  if (!product.slug.trim()) issues.push("ürün kodu");
-  if (!product.categoryId) issues.push("kategori");
-  if (!product.imageUrl.trim()) issues.push("kapak görseli");
-  if (!product.marketTr && !product.marketGlobal) issues.push("satış pazarı");
-  if (product.marketTr && product.priceTr <= 0) issues.push("Türkiye fiyatı");
-  if (product.marketGlobal && product.priceGlobal <= 0) issues.push("global fiyat");
-  if (product.marketGlobal && !product.nameEn.trim()) issues.push("İngilizce ürün adı");
-  if (product.marketGlobal && !product.descriptionEn.trim()) issues.push("İngilizce açıklama");
-  const availableStock = variants.length ? variants.some(variant => variant.stock > 0) : product.stock > 0;
-  if (!availableStock) issues.push("satılabilir stok");
-  return issues;
+function publicationIssues(product: ProductRecord, variants: Array<typeof productVariants.$inferSelect>, categoryActive?:boolean) {
+  return catalogQuality(product,variants,[],categoryActive).blockers;
 }
 
 export async function GET() {
@@ -94,13 +82,15 @@ export async function PATCH(request: Request) {
     if (Object.keys(bulkUpdates).length === 1) return Response.json({ error: "Toplu işlem seçilmedi." }, { status: 400 });
     if (bulkUpdates.active === true) {
       const db = getDb();
-      const [selectedProducts, selectedVariants] = await Promise.all([
+      const [selectedProducts, selectedVariants, categoryRows] = await Promise.all([
         db.select().from(products).where(inArray(products.id, ids)),
         db.select().from(productVariants).where(inArray(productVariants.productId, ids)),
+        db.select().from(categories),
       ]);
+      const categoryState=new Map(categoryRows.map(category=>[category.id,category.active]));
       const incomplete = selectedProducts.map(product => ({
         product,
-        issues: publicationIssues(product, selectedVariants.filter(variant => variant.productId === product.id)),
+        issues: publicationIssues(product, selectedVariants.filter(variant => variant.productId === product.id),product.categoryId?categoryState.get(product.categoryId):undefined),
       })).filter(item => item.issues.length);
       if (incomplete.length) return Response.json({
         error: `${incomplete.length} ürün satışa hazır değil.`,
@@ -131,9 +121,10 @@ export async function PATCH(request: Request) {
   if (updates.active === true) {
     const [current] = await db.select().from(products).where(eq(products.id, id)).limit(1);
     if (!current) return Response.json({ error: "Ürün bulunamadı." }, { status: 404 });
-    const variants = await db.select().from(productVariants).where(eq(productVariants.productId, id));
+    const [variants,categoryRows] = await Promise.all([db.select().from(productVariants).where(eq(productVariants.productId, id)),db.select().from(categories)]);
+    const categoryState=new Map(categoryRows.map(category=>[category.id,category.active]));
     const candidate = { ...current, ...updates } as ProductRecord;
-    const issues = publicationIssues(candidate, variants);
+    const issues = publicationIssues(candidate, variants,candidate.categoryId?categoryState.get(candidate.categoryId):undefined);
     if (issues.length) return Response.json({
       error: `Ürün yayınlanmadan önce tamamlanmalı: ${issues.join(", ")}.`,
       issues,
