@@ -93,6 +93,8 @@ export const orders = sqliteTable("orders", {
   subtotal: real("subtotal").notNull(),
   shippingAmount: real("shipping_amount").notNull().default(0),
   total: real("total").notNull().default(0),
+  requestKey: text("request_key").unique(),
+  privacyConsentAt: text("privacy_consent_at"),
   inventoryApplied: integer("inventory_applied", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),

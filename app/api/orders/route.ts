@@ -23,15 +23,22 @@ export async function GET(request:Request) {
 export async function POST(request:Request) {
   const token = tokenFrom(request);
   if (!token) return Response.json({ error:"Çantanız bulunamadı." }, { status:400 });
-  const body = await request.json() as Record<string, unknown>;
-  const customerName = String(body.customerName ?? "").trim();
-  const email = String(body.email ?? "").trim();
-  const phone = String(body.phone ?? "").trim();
-  const address = String(body.address ?? "").trim();
-  const city = String(body.city ?? "").trim();
-  if (!customerName || !email.includes("@") || !phone || !address || !city) return Response.json({ error:"Lütfen zorunlu teslimat bilgilerini eksiksiz girin." }, { status:400 });
+  const contentLength=Number(request.headers.get("content-length")??0);
+  if(contentLength>20_000)return Response.json({error:"Gönderilen bilgiler çok uzun."},{status:413});
+  const body = await request.json().catch(()=>null) as Record<string, unknown>|null;
+  if(!body)return Response.json({error:"Geçersiz sipariş bilgisi."},{status:400});
+  const customerName = String(body.customerName ?? "").trim().slice(0,120);
+  const email = String(body.email ?? "").trim().toLocaleLowerCase("en-US").slice(0,180);
+  const phone = String(body.phone ?? "").trim().slice(0,40);
+  const address = String(body.address ?? "").trim().slice(0,600);
+  const city = String(body.city ?? "").trim().slice(0,120);
+  const requestKey=String(body.requestKey??"").trim().slice(0,80);
+  const consent=body.privacyConsent===true||body.privacyConsent==="on";
+  if (!customerName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || phone.replace(/\D/g,"").length<7 || !address || !city || !consent || !/^[a-f0-9-]{20,80}$/i.test(requestKey)) return Response.json({ error:"Lütfen zorunlu teslimat ve onay bilgilerini eksiksiz girin." }, { status:400 });
 
   const db = getDb();
+  const[duplicate]=await db.select().from(orders).where(eq(orders.requestKey,requestKey)).limit(1);
+  if(duplicate)return Response.json({orderNumber:duplicate.orderNumber,subtotal:duplicate.subtotal,shippingAmount:duplicate.shippingAmount,total:duplicate.total,market:duplicate.market},{status:200});
   const [cart] = await db.select().from(carts).where(eq(carts.token, token)).limit(1);
   if (!cart) return Response.json({ error:"Çantanız bulunamadı." }, { status:400 });
   const lines = await db.select({
@@ -47,13 +54,15 @@ export async function POST(request:Request) {
   if (insufficient) return Response.json({ error:`${cart.market==="GLOBAL"?(insufficient.productNameEn||insufficient.productName):insufficient.productName} için yeterli stok bulunmuyor.` }, { status:409 });
 
   const priced = lines.map(line => ({ ...line, unitPrice:(cart.market === "GLOBAL" ? line.priceGlobal : line.priceTr) + Number(line.priceAdjustment ?? 0) }));
+  const invalidPrice=priced.find(line=>!Number.isFinite(line.unitPrice)||line.unitPrice<=0);
+  if(invalidPrice)return Response.json({error:cart.market==="GLOBAL"?`${invalidPrice.productNameEn||invalidPrice.productName} is not on sale yet.`:`${invalidPrice.productName} henüz satışa açılmadı.`},{status:409});
   const subtotal = priced.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
   const settingRows=await db.select().from(storeSettings);const settings=Object.fromEntries(settingRows.map(row=>[row.key,row.value]));const shippingFee=Number(cart.market==="GLOBAL"?(settings.shippingGlobal??15):(settings.shippingTr??99));const freeLimit=Number(cart.market==="GLOBAL"?(settings.freeShippingGlobal??150):(settings.freeShippingTr??1500));const shippingAmount=subtotal>=freeLimit?0:shippingFee;const total=subtotal+shippingAmount;
   const orderNumber = `MS-${new Date().toISOString().slice(0,10).replaceAll("-","")}-${crypto.randomUUID().slice(0,6).toUpperCase()}`;
   const [order] = await db.insert(orders).values({
     orderNumber, market:cart.market, customerName, email, phone, address, city,
-    postalCode:String(body.postalCode ?? "").trim(), country:String(body.country ?? "Türkiye").trim() || "Türkiye",
-    note:String(body.note ?? "").trim(), subtotal, shippingAmount, total,
+    postalCode:String(body.postalCode ?? "").trim().slice(0,30), country:String(body.country ?? "Türkiye").trim().slice(0,100) || "Türkiye",
+    note:String(body.note ?? "").trim().slice(0,1000), subtotal, shippingAmount, total,requestKey,privacyConsentAt:new Date().toISOString(),
   }).returning();
   await db.insert(orderItems).values(priced.map(line => ({
     orderId:order.id, productId:line.productId, variantId:line.variantId, productName:cart.market==="GLOBAL"?(line.productNameEn||line.productName):line.productName,
