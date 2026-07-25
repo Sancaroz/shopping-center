@@ -6,6 +6,7 @@ import { buildOrderNotification, type NotificationEvent } from "../../order-noti
 import { recordAudit } from "../../audit-log";
 import { enforceRateLimit } from "../../rate-limit";
 import { shippingQuote } from "../../shipping-rules";
+import { releaseExpiredReservations, releaseOrderReservation, reserveInventory } from "../../inventory-reservations";
 
 const COOKIE = "store_cart";
 const tokenFrom = (request:Request) => request.headers.get("cookie")?.split(";").map(value => value.trim()).find(value => value.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1) ?? null;
@@ -14,6 +15,7 @@ async function queueNotification(order:typeof orders.$inferSelect,event:Notifica
 export async function GET(request:Request) {
   if (!(await getChatGPTUser())) return Response.json({ error:"Yetkisiz erişim" }, { status:401 });
   const db = getDb();
+  await releaseExpiredReservations(db);
   const id = Number(new URL(request.url).searchParams.get("id"));
   if (id) {
     const [order] = await db.select().from(orders).where(eq(orders.id,id)).limit(1);
@@ -70,18 +72,21 @@ export async function POST(request:Request) {
   const quote=shippingQuote({market:cart.market==="GLOBAL"?"GLOBAL":"TR",country,subtotal,settings});
   if(!quote.ok)return Response.json({error:quote.error},{status:409});
   const shippingAmount=quote.shippingAmount;const total=quote.total;
+  const reservation=await reserveInventory(db,priced.map(line=>({productId:line.productId,variantId:line.variantId,quantity:line.quantity,productName:cart.market==="GLOBAL"?(line.productNameEn||line.productName):line.productName})));
+  if(!reservation.ok)return Response.json({error:reservation.error},{status:409});
   const orderNumber = `MS-${new Date().toISOString().slice(0,10).replaceAll("-","")}-${crypto.randomUUID().slice(0,6).toUpperCase()}`;
-  const [order] = await db.insert(orders).values({
+  let order:typeof orders.$inferSelect|undefined;try{[order] = await db.insert(orders).values({
     orderNumber, market:cart.market, customerName, email, phone, address, city,
     postalCode:String(body.postalCode ?? "").trim().slice(0,30), country:quote.country,
-    note:String(body.note ?? "").trim().slice(0,1000), subtotal, shippingAmount, total,requestKey,privacyConsentAt:new Date().toISOString(),termsConsentAt:new Date().toISOString(),termsVersion:"order-request-v1",
+    note:String(body.note ?? "").trim().slice(0,1000), subtotal, shippingAmount, total,requestKey,privacyConsentAt:new Date().toISOString(),termsConsentAt:new Date().toISOString(),termsVersion:"order-request-v1",inventoryApplied:true,reservationState:"active",reservationExpiresAt:new Date(Date.now()+24*60*60*1000).toISOString(),
   }).returning();
   await db.insert(orderItems).values(priced.map(line => ({
     orderId:order.id, productId:line.productId, variantId:line.variantId, productName:cart.market==="GLOBAL"?(line.productNameEn||line.productName):line.productName,
     variantLabel:line.optionValue ? (cart.market==="GLOBAL"?`${line.optionNameEn||line.optionName}: ${line.optionValueEn||line.optionValue}`:`${line.optionName}: ${line.optionValue}`) : "", quantity:line.quantity, unitPrice:line.unitPrice,
   })));
-  await queueNotification(order,"received");
-  await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));
+  await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));}catch{if(order?.id)await db.delete(orders).where(eq(orders.id,order.id));await reservation.rollback();return Response.json({error:"Sipariş talebi kaydedilemedi; ayrılan stok geri bırakıldı."},{status:500});}
+  if(!order){await reservation.rollback();return Response.json({error:"Sipariş talebi kaydedilemedi; ayrılan stok geri bırakıldı."},{status:500});}
+  await queueNotification(order,"received").catch(()=>undefined);
   return Response.json({ orderNumber, subtotal, shippingAmount, total, market:cart.market }, { status:201 });
 }
 
@@ -96,9 +101,11 @@ export async function PATCH(request:Request) {
   if(body.paymentStatus!==undefined&&!paymentStatuses.includes(String(body.paymentStatus)))return Response.json({error:"Geçersiz ödeme durumu"},{status:400});
   const db=getDb();const orderId=Number(body.id);const[existing]=await db.select().from(orders).where(eq(orders.id,orderId)).limit(1);if(!existing)return Response.json({error:"Sipariş bulunamadı"},{status:404});const lines=await db.select().from(orderItems).where(eq(orderItems.orderId,orderId));const nextStatus=body.status===undefined?existing.status:String(body.status);const needsInventory=["confirmed","preparing","shipped","completed"].includes(nextStatus);
   if(needsInventory&&!existing.inventoryApplied){const checks=[] as Array<{kind:"variant"|"product";id:number;quantity:number;stock:number}>;for(const line of lines){if(line.variantId){const[row]=await db.select().from(productVariants).where(eq(productVariants.id,line.variantId)).limit(1);if(!row||row.stock<line.quantity)return Response.json({error:`${line.productName} için yeterli varyant stoğu yok.`},{status:409});checks.push({kind:"variant",id:row.id,quantity:line.quantity,stock:row.stock});}else if(line.productId){const[row]=await db.select().from(products).where(eq(products.id,line.productId)).limit(1);if(!row||row.stock<line.quantity)return Response.json({error:`${line.productName} için yeterli stok yok.`},{status:409});checks.push({kind:"product",id:row.id,quantity:line.quantity,stock:row.stock});}else return Response.json({error:`${line.productName} artık katalogda bulunmuyor.`},{status:409});}for(const item of checks){if(item.kind==="variant")await db.update(productVariants).set({stock:item.stock-item.quantity}).where(eq(productVariants.id,item.id));else await db.update(products).set({stock:item.stock-item.quantity,updatedAt:new Date().toISOString()}).where(eq(products.id,item.id));}}
-  if(body.status!==undefined&&nextStatus==="cancelled"&&existing.inventoryApplied){for(const line of lines){if(line.variantId){const[row]=await db.select().from(productVariants).where(eq(productVariants.id,line.variantId)).limit(1);if(row)await db.update(productVariants).set({stock:row.stock+line.quantity}).where(eq(productVariants.id,row.id));}else if(line.productId){const[row]=await db.select().from(products).where(eq(products.id,line.productId)).limit(1);if(row)await db.update(products).set({stock:row.stock+line.quantity,updatedAt:new Date().toISOString()}).where(eq(products.id,row.id));}}}
+  if(body.status!==undefined&&nextStatus==="cancelled"&&existing.reservationState==="active")await releaseOrderReservation(db,orderId);
   const inventoryApplied=needsInventory?true:nextStatus==="cancelled"?false:existing.inventoryApplied;
   const updates:Partial<typeof orders.$inferInsert>={status:nextStatus,inventoryApplied,updatedAt:new Date().toISOString()};
+  if(needsInventory&&existing.reservationState==="active"){updates.reservationState="committed";updates.reservationExpiresAt=null;}
+  if(nextStatus==="cancelled"){updates.reservationState=existing.reservationState==="active"?"released":existing.reservationState;updates.reservationExpiresAt=null;}
   if(body.paymentStatus!==undefined)updates.paymentStatus=String(body.paymentStatus);
   if(body.paymentProvider!==undefined)updates.paymentProvider=String(body.paymentProvider).trim().slice(0,80);
   if(body.paymentReference!==undefined)updates.paymentReference=String(body.paymentReference).trim().slice(0,160);

@@ -356,3 +356,23 @@ test("enforces server-authoritative shipping regions and keeps global delivery c
   assert.match(readiness, /globalShippingReady/);
   assert.match(readiness, /Fiyat ve vergi sunumu/);
 });
+
+test("atomically reserves stock and safely releases abandoned order requests", async () => {
+  const [schema,reservations,orders,migration,detail] = await Promise.all([
+    source("db/schema.ts"),
+    source("app/inventory-reservations.ts"),
+    source("app/api/orders/route.ts"),
+    source("drizzle/0022_curvy_johnny_storm.sql"),
+    source("app/admin/siparis/[id]/order-detail.tsx"),
+  ]);
+  assert.match(schema, /reservationExpiresAt/);
+  assert.match(reservations, /gte\(productVariants\.stock,line\.quantity\)/);
+  assert.match(reservations, /releaseExpiredReservations/);
+  assert.match(reservations, /24 saatlik stok rezervasyonu otomatik olarak sona erdi/);
+  assert.match(orders, /reserveInventory/);
+  assert.match(orders, /reservationState:"active"/);
+  assert.match(orders, /Date\.now\(\)\+24\*60\*60\*1000/);
+  assert.match(orders, /await reservation\.rollback\(\)/);
+  assert.match(migration, /reservation_expires_at/);
+  assert.match(detail, /Stok/);
+});

@@ -41,6 +41,8 @@ export async function POST(request: Request) {
       shippedAt: order.shippedAt,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
+      reservationState: order.reservationState,
+      reservationExpiresAt: order.reservationExpiresAt,
     },
     items,
   }, { headers: noStoreHeaders });
