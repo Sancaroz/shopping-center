@@ -3,3 +3,4 @@
 .inventory-fab{position:fixed;right:22px;bottom:76px;z-index:20;background:#5c6f58;color:white;padding:13px 17px;font-size:9px;text-transform:uppercase;letter-spacing:.1em;box-shadow:0 5px 18px rgba(28,36,29,.18)}
 .finance-fab{position:fixed;right:22px;bottom:130px;z-index:20;background:#7a5d43;color:white;padding:13px 17px;font-size:9px;text-transform:uppercase;letter-spacing:.1em;box-shadow:0 5px 18px rgba(28,36,29,.18)}
 .promotion-fab{position:fixed;right:22px;bottom:184px;z-index:20;background:#7f4f3f;color:white;padding:13px 17px;font-size:9px;text-transform:uppercase;letter-spacing:.1em;box-shadow:0 5px 18px rgba(28,36,29,.18)}
+.customer-fab{position:fixed;right:22px;bottom:238px;z-index:20;background:#536b62;color:white;padding:13px 17px;font-size:9px;text-transform:uppercase;letter-spacing:.1em;box-shadow:0 5px 18px rgba(28,36,29,.18)}

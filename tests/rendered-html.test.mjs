@@ -579,3 +579,22 @@ test("applies server-authoritative promotions with safe limits and inactive defa
   assert.match(reservations, /paymentStatus:orders\.paymentStatus/);
   assert.match(reservations, /releasePromotionClaim/);
 });
+
+test("provides a privacy-conscious authenticated customer operations center", async () => {
+  const [api,page,center,adminPage] = await Promise.all([
+    source("app/api/customers/route.ts"),
+    source("app/admin/musteriler/page.tsx"),
+    source("app/admin/musteriler/customer-center.tsx"),
+    source("app/admin/page.tsx"),
+  ]);
+  assert.match(api, /getChatGPTUser/);
+  assert.match(api, /Yetkisiz erişim/);
+  assert.match(api, /toLocaleLowerCase\("en-US"\)/);
+  assert.match(api, /maskPhone/);
+  assert.doesNotMatch(api, /billingTaxNumber|billingAddress|internalNote/);
+  assert.match(page, /requireChatGPTUser\("\/admin\/musteriler"\)/);
+  assert.match(center, /Bu ekran bir pazarlama listesi değildir/);
+  assert.match(center, /Tekrar gelen/);
+  assert.match(center, /Doğrulama bekleyen/);
+  assert.match(adminPage, /\/admin\/musteriler/);
+});
