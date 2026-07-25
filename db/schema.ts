@@ -196,6 +196,27 @@ export const inventoryMovements = sqliteTable("inventory_movements", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const replenishments = sqliteTable("replenishments", {
+  id: integer("id").primaryKey({ autoIncrement:true }),
+  reference: text("reference").notNull().unique(),
+  productId: integer("product_id").references(() => products.id, { onDelete:"set null" }),
+  variantId: integer("variant_id").references(() => productVariants.id, { onDelete:"set null" }),
+  productName: text("product_name").notNull(),
+  variantLabel: text("variant_label").notNull().default(""),
+  sourcingType: text("sourcing_type").notNull(),
+  supplierName: text("supplier_name").notNull().default(""),
+  quantity: integer("quantity").notNull(),
+  unitCost: real("unit_cost").notNull().default(0),
+  status: text("status").notNull().default("draft"),
+  expectedAt: text("expected_at"),
+  orderedAt: text("ordered_at"),
+  receivedAt: text("received_at"),
+  note: text("note").notNull().default(""),
+  actorEmail: text("actor_email").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const promotions = sqliteTable("promotions", {
   id: integer("id").primaryKey({ autoIncrement:true }),
   code: text("code").notNull().unique(),

@@ -19,6 +19,7 @@ const tableLabels: Record<string, string> = {
   fulfillmentChecklists: "Paketleme kontrolleri",
   shipmentEvents: "Kargo hareketleri",
   inventoryMovements: "Stok hareketleri",
+  replenishments: "Tedarik kayıtları",
   promotions: "Kampanyalar",
   promotionRedemptions: "Kampanya kullanımları",
   notificationOutbox: "Bildirimler",
