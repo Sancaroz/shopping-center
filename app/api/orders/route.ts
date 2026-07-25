@@ -45,6 +45,8 @@ export async function POST(request:Request) {
   const db = getDb();
   const[duplicate]=await db.select().from(orders).where(eq(orders.requestKey,requestKey)).limit(1);
   if(duplicate)return Response.json({orderNumber:duplicate.orderNumber,subtotal:duplicate.subtotal,shippingAmount:duplicate.shippingAmount,total:duplicate.total,market:duplicate.market},{status:200});
+  const settingRows=await db.select().from(storeSettings);const settings=Object.fromEntries(settingRows.map(row=>[row.key,row.value]));
+  if(settings.orderIntakeStatus==="paused")return Response.json({error:"Sipariş talepleri kısa süreliğine durduruldu. Lütfen daha sonra yeniden deneyin."},{status:503,headers:{"Retry-After":"900","Cache-Control":"no-store"}});
   const [cart] = await db.select().from(carts).where(eq(carts.token, token)).limit(1);
   if (!cart) return Response.json({ error:"Çantanız bulunamadı." }, { status:400 });
   const lines = await db.select({
@@ -63,7 +65,7 @@ export async function POST(request:Request) {
   const invalidPrice=priced.find(line=>!Number.isFinite(line.unitPrice)||line.unitPrice<=0);
   if(invalidPrice)return Response.json({error:cart.market==="GLOBAL"?`${invalidPrice.productNameEn||invalidPrice.productName} is not on sale yet.`:`${invalidPrice.productName} henüz satışa açılmadı.`},{status:409});
   const subtotal = priced.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
-  const settingRows=await db.select().from(storeSettings);const settings=Object.fromEntries(settingRows.map(row=>[row.key,row.value]));const shippingFee=Number(cart.market==="GLOBAL"?(settings.shippingGlobal??15):(settings.shippingTr??99));const freeLimit=Number(cart.market==="GLOBAL"?(settings.freeShippingGlobal??150):(settings.freeShippingTr??1500));const shippingAmount=subtotal>=freeLimit?0:shippingFee;const total=subtotal+shippingAmount;
+  const shippingFee=Number(cart.market==="GLOBAL"?(settings.shippingGlobal??15):(settings.shippingTr??99));const freeLimit=Number(cart.market==="GLOBAL"?(settings.freeShippingGlobal??150):(settings.freeShippingTr??1500));const shippingAmount=subtotal>=freeLimit?0:shippingFee;const total=subtotal+shippingAmount;
   const orderNumber = `MS-${new Date().toISOString().slice(0,10).replaceAll("-","")}-${crypto.randomUUID().slice(0,6).toUpperCase()}`;
   const [order] = await db.insert(orders).values({
     orderNumber, market:cart.market, customerName, email, phone, address, city,

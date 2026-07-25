@@ -106,6 +106,7 @@ const defaults = {
   preliminaryInformationTr:"TASLAK — Sipariş öncesinde ürünün temel nitelikleri, vergiler dâhil toplam fiyatı, teslimat masrafları, satıcı bilgileri, cayma hakkı ve başvuru yolları müşteriye açıkça gösterilecektir. Şirket ve ödeme altyapısı kesinleştiğinde uzman kontrolüyle tamamlanacaktır.",
   distanceSalesTermsTr:"TASLAK — Mesafeli satış sözleşmesi; satıcı ve alıcı bilgileri, ürünler, toplam bedel, ödeme, teslimat, cayma hakkı, iade süreci, uyuşmazlık çözümü ve yürürlük hükümleriyle şirket kurulduktan sonra tamamlanacaktır.",
   salesMode:"order_request",
+  orderIntakeStatus:"open",
   paymentProviderStatus:"not_started",
   paymentProviderName:"",
 };

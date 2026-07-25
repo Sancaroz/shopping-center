@@ -230,3 +230,22 @@ test("never presents sample catalog cards as purchasable inventory", async () =>
   assert.match(home, /catalogSource==="live"&&product\.id/);
   assert.match(home, /Ürün kataloğu hazırlanıyor/);
 });
+
+test("provides launch-day health checks and audited emergency controls", async () => {
+  const [readinessApi,operationsApi,readinessPage,orders,checkout] = await Promise.all([
+    source("app/api/launch-readiness/route.ts"),
+    source("app/api/launch-operations/route.ts"),
+    source("app/admin/yayina-hazirlik/launch-readiness.tsx"),
+    source("app/api/orders/route.ts"),
+    source("app/teslimat/page.tsx"),
+  ]);
+  assert.match(readinessApi, /staleOrders/);
+  assert.match(readinessApi, /backup\.create/);
+  assert.match(operationsApi, /launch\.intake\.pause/);
+  assert.match(operationsApi, /launch\.safe_mode/);
+  assert.match(readinessPage, /4 adımlık müdahale planı/);
+  assert.match(readinessPage, /Sipariş alımını durdur/);
+  assert.match(orders, /orderIntakeStatus==="paused"/);
+  assert.match(orders, /"Retry-After":"900"/);
+  assert.match(checkout, /Sipariş alımı durduruldu/);
+});

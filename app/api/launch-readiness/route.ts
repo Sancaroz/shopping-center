@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { products, storeSettings } from "../../../db/schema";
+import { auditLogs, notificationOutbox, orders, products, returnRequests, storeSettings } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
 
 export const dynamic = "force-dynamic";
@@ -8,9 +8,13 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   if (!(await getChatGPTUser())) return Response.json({ error:"Yetkisiz erişim" }, { status:401 });
   const db=getDb();
-  const [settingsRows,productRows]=await Promise.all([
+  const [settingsRows,productRows,orderRows,returnRows,notificationRows,auditRows]=await Promise.all([
     db.select().from(storeSettings),
     db.select().from(products).where(eq(products.active,true)),
+    db.select().from(orders).orderBy(desc(orders.id)).limit(500),
+    db.select().from(returnRequests).orderBy(desc(returnRequests.id)).limit(300),
+    db.select().from(notificationOutbox).orderBy(desc(notificationOutbox.id)).limit(500),
+    db.select().from(auditLogs).orderBy(desc(auditLogs.id)).limit(300),
   ]);
   const settings=Object.fromEntries(settingsRows.map(row=>[row.key,row.value]));
   const legalFields=["legalName","legalBusinessType","legalAddress","legalTaxOffice","legalTaxNumber","legalEmail","legalPhone"];
@@ -29,5 +33,31 @@ export async function GET() {
     {key:"etbis",label:"ETBİS",ready:settings.etbisStatus==="complete",detail:settings.etbisStatus==="complete"?"Kayıt tamamlandı.":"Şirket kurulduktan sonra tamamlanacak."},
   ];
   const readyCount=checks.filter(check=>check.ready).length;
-  return Response.json({salesMode:settings.salesMode??"order_request",checks,readyCount,total:checks.length,readyForLive:readyCount===checks.length});
+  const now=Date.now();const hoursSince=(value:string)=>(now-new Date(value).getTime())/3_600_000;
+  const activeOrders=orderRows.filter(order=>!["completed","cancelled"].includes(order.status));
+  const staleOrders=activeOrders.filter(order=>hoursSince(order.updatedAt)>=24);
+  const staleReturns=returnRows.filter(item=>["new","reviewing","approved"].includes(item.status)&&hoursSince(item.updatedAt)>=24);
+  const latestBackup=auditRows.find(row=>row.action==="backup.create");
+  const backupAgeHours=latestBackup?hoursSince(latestBackup.createdAt):null;
+  const draftNotifications=notificationRows.filter(item=>item.status==="draft");
+  const orderIntakeStatus=settings.orderIntakeStatus==="paused"?"paused":"open";
+  const operations={
+    generatedAt:new Date().toISOString(),
+    orderIntakeStatus,
+    metrics:{
+      newOrders24h:orderRows.filter(order=>hoursSince(order.createdAt)<=24).length,
+      activeOrders:activeOrders.length,
+      staleOrders:staleOrders.length,
+      staleReturns:staleReturns.length,
+      draftNotifications:draftNotifications.length,
+    },
+    health:[
+      {key:"database",level:"healthy",label:"Veri altyapısı",detail:"Mağaza veritabanı okunabiliyor."},
+      {key:"intake",level:orderIntakeStatus==="open"?"healthy":"paused",label:"Sipariş alımı",detail:orderIntakeStatus==="open"?"Müşteri taleplerine açık.":"Acil durum anahtarıyla durduruldu."},
+      {key:"backup",level:backupAgeHours!==null&&backupAgeHours<=168?"healthy":"warning",label:"Son yedek",detail:backupAgeHours===null?"Henüz kayıtlı tam yedek yok.":backupAgeHours<=24?"Son 24 saat içinde oluşturuldu.":`${Math.floor(backupAgeHours/24)} gün önce oluşturuldu.`},
+      {key:"workload",level:staleOrders.length||staleReturns.length?"warning":"healthy",label:"Geciken işlemler",detail:staleOrders.length||staleReturns.length?`${staleOrders.length} sipariş ve ${staleReturns.length} iade 24 saati aştı.`:"24 saati aşan açık işlem yok."},
+      {key:"notifications",level:"info",label:"Bildirim kuyruğu",detail:`${draftNotifications.length} gönderim taslağı bekliyor; sağlayıcı bağlanana kadar otomatik gönderim kapalı.`},
+    ],
+  };
+  return Response.json({salesMode:settings.salesMode??"order_request",checks,readyCount,total:checks.length,readyForLive:readyCount===checks.length,operations});
 }
