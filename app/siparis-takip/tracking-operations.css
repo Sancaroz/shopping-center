@@ -1,0 +1,9 @@
+.tracking-progress {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+@media (max-width: 800px) {
+  .tracking-progress {
+    grid-template-columns: 1fr;
+  }
+}

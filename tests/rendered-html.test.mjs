@@ -39,3 +39,21 @@ test("includes production failure states and security headers", async () => {
   assert.match(config, /X-Content-Type-Options/);
   assert.match(config, /frame-ancestors 'none'/);
 });
+
+test("supports payment and shipment operations without exposing internal notes", async () => {
+  const [orders, trackingApi, orderDetail, trackingPage, migration] = await Promise.all([
+    source("app/api/orders/route.ts"),
+    source("app/api/order-tracking/route.ts"),
+    source("app/admin/siparis/[id]/order-detail.tsx"),
+    source("app/siparis-takip/page.tsx"),
+    source("drizzle/0016_soft_mephistopheles.sql"),
+  ]);
+  assert.match(orders, /paymentStatus/);
+  assert.match(orders, /internalNote/);
+  assert.match(orderDetail, /Operasyon bilgilerini kaydet/);
+  assert.match(trackingApi, /trackingNumber/);
+  assert.doesNotMatch(trackingApi, /internalNote/);
+  assert.match(trackingPage, /key:"shipped"/);
+  assert.match(migration, /ADD `payment_status`/);
+  assert.match(migration, /ADD `tracking_number`/);
+});
