@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { orderItems, orders } from "../../../db/schema";
+import { orderItems, orders, shipmentEvents } from "../../../db/schema";
 import { enforceRateLimit } from "../../rate-limit";
 
 const noStoreHeaders = { "Cache-Control": "no-store, max-age=0" };
@@ -27,6 +27,7 @@ export async function POST(request: Request) {
     quantity: orderItems.quantity,
     unitPrice: orderItems.unitPrice,
   }).from(orderItems).where(eq(orderItems.orderId, order.id));
+  const events=await db.select({id:shipmentEvents.id,status:shipmentEvents.status,titleTr:shipmentEvents.titleTr,titleEn:shipmentEvents.titleEn,detail:shipmentEvents.detail,location:shipmentEvents.location,occurredAt:shipmentEvents.occurredAt}).from(shipmentEvents).where(and(eq(shipmentEvents.orderId,order.id),eq(shipmentEvents.visibleToCustomer,true))).orderBy(asc(shipmentEvents.occurredAt));
 
   return Response.json({
     order: {
@@ -39,11 +40,14 @@ export async function POST(request: Request) {
       shippingCarrier: order.shippingCarrier,
       trackingNumber: order.trackingNumber,
       shippedAt: order.shippedAt,
+      deliveryStatus:order.deliveryStatus,
+      estimatedDeliveryAt:order.estimatedDeliveryAt,
+      deliveredAt:order.deliveredAt,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
       reservationState: order.reservationState,
       reservationExpiresAt: order.reservationExpiresAt,
     },
-    items,
+    items,events,
   }, { headers: noStoreHeaders });
 }

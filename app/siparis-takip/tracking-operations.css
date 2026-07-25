@@ -2,8 +2,11 @@
   grid-template-columns: repeat(5, 1fr);
 }
 
+.shipment-summary{display:grid;grid-template-columns:repeat(3,1fr);background:#1c241d;color:white;margin:-20px 0 45px}.shipment-summary div{padding:22px 25px;border-right:1px solid rgba(255,255,255,.18)}.shipment-summary div:last-child{border:0}.shipment-summary span,.shipment-summary b{display:block}.shipment-summary span{font-size:8px;letter-spacing:.15em;color:#bfc7bc}.shipment-summary b{font:400 17px Georgia,serif;margin-top:8px;overflow-wrap:anywhere}.shipment-history{margin:0 0 55px;padding:32px;background:#e8e3d8}.shipment-history>p{font-size:8px;letter-spacing:.18em}.shipment-history h3{font:400 28px Georgia,serif;margin:8px 0 25px}.shipment-history ol{list-style:none;padding:0;margin:0}.shipment-history li{display:grid;grid-template-columns:28px 1fr;gap:13px;padding:15px 0;border-top:1px solid rgba(28,36,29,.14)}.shipment-history i{width:25px;height:25px;border-radius:50%;display:grid;place-items:center;background:#faf8f3;font-size:9px;font-style:normal}.shipment-history li.latest i{background:#1c241d;color:white}.shipment-history b,.shipment-history span,.shipment-history small{display:block}.shipment-history b{font:400 16px Georgia,serif}.shipment-history span{font:12px/1.5 Georgia,serif;color:#596157;margin-top:5px}.shipment-history small{font-size:9px;color:#737970;margin-top:7px}
+
 @media (max-width: 800px) {
   .tracking-progress {
     grid-template-columns: 1fr;
   }
+  .shipment-summary{grid-template-columns:1fr}.shipment-summary div{border-right:0;border-bottom:1px solid rgba(255,255,255,.18)}
 }

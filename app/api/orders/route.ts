@@ -1,6 +1,6 @@
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { cartItems, carts, notificationOutbox, orderItems, orders, products, productVariants, storeSettings } from "../../../db/schema";
+import { cartItems, carts, notificationOutbox, orderItems, orders, products, productVariants, shipmentEvents, storeSettings } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { buildOrderNotification, type NotificationEvent } from "../../order-notifications";
 import { recordAudit } from "../../audit-log";
@@ -21,8 +21,8 @@ export async function GET(request:Request) {
   if (id) {
     const [order] = await db.select().from(orders).where(eq(orders.id,id)).limit(1);
     if (!order) return Response.json({ error:"Sipariş bulunamadı" }, { status:404 });
-    const items = await db.select().from(orderItems).where(eq(orderItems.orderId,id));
-    return Response.json({ order, items });
+    const [items,events] = await Promise.all([db.select().from(orderItems).where(eq(orderItems.orderId,id)),db.select().from(shipmentEvents).where(eq(shipmentEvents.orderId,id)).orderBy(asc(shipmentEvents.occurredAt))]);
+    return Response.json({ order, items, events });
   }
   const rows = await db.select().from(orders).orderBy(desc(orders.id));
   return Response.json({ orders:rows });
@@ -96,7 +96,7 @@ export async function POST(request:Request) {
 export async function PATCH(request:Request) {
   const user=await getChatGPTUser();
   if (!user) return Response.json({ error:"Yetkisiz erişim" }, { status:401 });
-  const body = await request.json() as { id?:number; status?:string; paymentStatus?:string; paymentProvider?:string; paymentReference?:string; shippingCarrier?:string; trackingNumber?:string; internalNote?:string };
+  const body = await request.json() as { id?:number; status?:string; paymentStatus?:string; paymentProvider?:string; paymentReference?:string; shippingCarrier?:string; trackingNumber?:string; estimatedDeliveryAt?:string; internalNote?:string };
   const allowed = ["new", "confirmed", "preparing", "shipped", "completed", "cancelled"];
   const paymentStatuses=["pending","paid","failed","refunded","not_required"];
   if (!body.id) return Response.json({ error:"Geçersiz sipariş" }, { status:400 });
@@ -104,6 +104,8 @@ export async function PATCH(request:Request) {
   if(body.paymentStatus!==undefined&&!paymentStatuses.includes(String(body.paymentStatus)))return Response.json({error:"Geçersiz ödeme durumu"},{status:400});
   const db=getDb();const orderId=Number(body.id);const[existing]=await db.select().from(orders).where(eq(orders.id,orderId)).limit(1);if(!existing)return Response.json({error:"Sipariş bulunamadı"},{status:404});const lines=await db.select().from(orderItems).where(eq(orderItems.orderId,orderId));const nextStatus=body.status===undefined?existing.status:String(body.status);const needsInventory=["confirmed","preparing","shipped","completed"].includes(nextStatus);
   if(needsInventory&&!existing.emailVerifiedAt)return Response.json({error:"Müşteri e-posta adresini doğrulamadan sipariş onaylanamaz."},{status:409});
+  const effectiveCarrier=body.shippingCarrier===undefined?existing.shippingCarrier:String(body.shippingCarrier).trim();const effectiveTracking=body.trackingNumber===undefined?existing.trackingNumber:String(body.trackingNumber).trim();
+  if(body.status==="shipped"&&(!effectiveCarrier||!effectiveTracking))return Response.json({error:"Kargoya verildi durumundan önce kargo firması ve takip numarası kaydedilmelidir."},{status:409});
   if(needsInventory&&!existing.inventoryApplied){const checks=[] as Array<{kind:"variant"|"product";id:number;quantity:number;stock:number}>;for(const line of lines){if(line.variantId){const[row]=await db.select().from(productVariants).where(eq(productVariants.id,line.variantId)).limit(1);if(!row||row.stock<line.quantity)return Response.json({error:`${line.productName} için yeterli varyant stoğu yok.`},{status:409});checks.push({kind:"variant",id:row.id,quantity:line.quantity,stock:row.stock});}else if(line.productId){const[row]=await db.select().from(products).where(eq(products.id,line.productId)).limit(1);if(!row||row.stock<line.quantity)return Response.json({error:`${line.productName} için yeterli stok yok.`},{status:409});checks.push({kind:"product",id:row.id,quantity:line.quantity,stock:row.stock});}else return Response.json({error:`${line.productName} artık katalogda bulunmuyor.`},{status:409});}for(const item of checks){if(item.kind==="variant")await db.update(productVariants).set({stock:item.stock-item.quantity}).where(eq(productVariants.id,item.id));else await db.update(products).set({stock:item.stock-item.quantity,updatedAt:new Date().toISOString()}).where(eq(products.id,item.id));}}
   if(body.status!==undefined&&nextStatus==="cancelled"&&existing.reservationState==="active")await releaseOrderReservation(db,orderId);
   const inventoryApplied=needsInventory?true:nextStatus==="cancelled"?false:existing.inventoryApplied;
@@ -115,6 +117,7 @@ export async function PATCH(request:Request) {
   if(body.paymentReference!==undefined)updates.paymentReference=String(body.paymentReference).trim().slice(0,160);
   if(body.shippingCarrier!==undefined)updates.shippingCarrier=String(body.shippingCarrier).trim().slice(0,80);
   if(body.trackingNumber!==undefined)updates.trackingNumber=String(body.trackingNumber).trim().slice(0,160);
+  if(body.estimatedDeliveryAt!==undefined){const value=String(body.estimatedDeliveryAt).trim();if(value&&Number.isNaN(new Date(value).getTime()))return Response.json({error:"Tahmini teslim tarihi geçersiz."},{status:400});updates.estimatedDeliveryAt=value?new Date(value).toISOString():null;}
   if(body.internalNote!==undefined)updates.internalNote=String(body.internalNote).trim().slice(0,2000);
   if(body.status==="shipped"&&!existing.shippedAt)updates.shippedAt=new Date().toISOString();
   const[order]=await db.update(orders).set(updates).where(eq(orders.id,orderId)).returning();

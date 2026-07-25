@@ -407,3 +407,41 @@ test("uses one-time hashed email verification before order approval", async () =
   assert.match(detail, /data\.error/);
   assert.match(migration, /verification_token_hash/);
 });
+
+test("tracks durable shipment events and warns about delayed delivery", async () => {
+  const [schema,migration,shipmentApi,orders,trackingApi,trackingPage,adminManager,operations,notifications,backup,exportApi] = await Promise.all([
+    source("db/schema.ts"),
+    source("drizzle/0024_fresh_ultron.sql"),
+    source("app/api/shipment-events/route.ts"),
+    source("app/api/orders/route.ts"),
+    source("app/api/order-tracking/route.ts"),
+    source("app/siparis-takip/page.tsx"),
+    source("app/admin/siparis/[id]/shipment-manager.tsx"),
+    source("app/api/operations-summary/route.ts"),
+    source("app/admin/bildirimler/notification-center.tsx"),
+    source("app/backup-format.ts"),
+    source("app/api/export/route.ts"),
+  ]);
+  assert.match(schema, /shipmentEvents/);
+  assert.match(schema, /lastShipmentEventAt/);
+  assert.match(migration, /CREATE TABLE `shipment_events`/);
+  assert.match(shipmentApi, /Yetkisiz erişim/);
+  assert.match(shipmentApi, /E-postası doğrulanmamış siparişe kargo hareketi eklenemez/);
+  assert.match(shipmentApi, /Önce kargo firması ve takip numarasını kaydedin/);
+  assert.match(shipmentApi, /gelecekte bir tarihe kaydedilemez/);
+  assert.match(shipmentApi, /Teslim edilmiş gönderiye yalnızca geri dönüş hareketi/);
+  assert.match(shipmentApi, /visibleToCustomer/);
+  assert.match(shipmentApi, /shipment_update/);
+  assert.match(orders, /Kargoya verildi durumundan önce kargo firması ve takip numarası/);
+  assert.match(orders, /estimatedDeliveryAt/);
+  assert.match(trackingApi, /eq\(shipmentEvents\.visibleToCustomer,true\)/);
+  assert.match(trackingPage, /TESLİMAT HAREKETLERİ/);
+  assert.match(trackingPage, /TAHMİNİ TESLİM/);
+  assert.match(adminManager, /Müşteri takip ekranında göster/);
+  assert.match(operations, />=72/);
+  assert.match(operations, /teslimat sorunu/);
+  assert.match(notifications, /shipment_update/);
+  assert.match(backup, /"shipmentEvents"/);
+  assert.match(backup, /Kargo hareketi-sipariş/);
+  assert.match(exportApi, /shipmentEventRows/);
+});

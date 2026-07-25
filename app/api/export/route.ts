@@ -15,6 +15,7 @@ import {
   products,
   productVariants,
   returnRequests,
+  shipmentEvents,
   storeSettings,
 } from "../../../db/schema";
 import { recordAudit } from "../../audit-log";
@@ -63,6 +64,7 @@ export async function GET(request: Request) {
       cartItemRows,
       orderRows,
       orderItemRows,
+      shipmentEventRows,
       notificationRows,
       returnRows,
       auditRows,
@@ -79,6 +81,7 @@ export async function GET(request: Request) {
       db.select().from(cartItems),
       db.select().from(orders),
       db.select().from(orderItems),
+      db.select().from(shipmentEvents),
       db.select().from(notificationOutbox),
       db.select().from(returnRequests),
       db.select().from(auditLogs),
@@ -96,6 +99,7 @@ export async function GET(request: Request) {
       cartItems: cartItemRows,
       orders: orderRows,
       orderItems: orderItemRows,
+      shipmentEvents:shipmentEventRows,
       notificationOutbox: notificationRows,
       returnRequests: returnRows,
       auditLogs: auditRows,

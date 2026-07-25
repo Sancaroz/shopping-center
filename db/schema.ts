@@ -103,6 +103,10 @@ export const orders = sqliteTable("orders", {
   shippingCarrier: text("shipping_carrier").notNull().default(""),
   trackingNumber: text("tracking_number").notNull().default(""),
   shippedAt: text("shipped_at"),
+  deliveryStatus: text("delivery_status").notNull().default("pending"),
+  estimatedDeliveryAt: text("estimated_delivery_at"),
+  deliveredAt: text("delivered_at"),
+  lastShipmentEventAt: text("last_shipment_event_at"),
   internalNote: text("internal_note").notNull().default(""),
   inventoryApplied: integer("inventory_applied", { mode: "boolean" }).notNull().default(false),
   reservationState: text("reservation_state").notNull().default("none"),
@@ -123,6 +127,20 @@ export const orderItems = sqliteTable("order_items", {
   variantLabel: text("variant_label").notNull().default(""),
   quantity: integer("quantity").notNull(),
   unitPrice: real("unit_price").notNull(),
+});
+
+export const shipmentEvents = sqliteTable("shipment_events", {
+  id: integer("id").primaryKey({ autoIncrement:true }),
+  orderId: integer("order_id").notNull().references(() => orders.id, { onDelete:"cascade" }),
+  status: text("status").notNull(),
+  titleTr: text("title_tr").notNull(),
+  titleEn: text("title_en").notNull(),
+  detail: text("detail").notNull().default(""),
+  location: text("location").notNull().default(""),
+  occurredAt: text("occurred_at").notNull(),
+  visibleToCustomer: integer("visible_to_customer", { mode:"boolean" }).notNull().default(true),
+  actorEmail: text("actor_email").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const notificationOutbox = sqliteTable("notification_outbox", {
