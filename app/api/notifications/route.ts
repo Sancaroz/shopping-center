@@ -2,6 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { notificationOutbox, orders } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
+import { getIntegrationStatus } from "../../integrations/runtime";
 
 export const dynamic="force-dynamic";
 
@@ -13,7 +14,8 @@ export async function GET() {
     status:notificationOutbox.status,attempts:notificationOutbox.attempts,lastError:notificationOutbox.lastError,
     sentAt:notificationOutbox.sentAt,createdAt:notificationOutbox.createdAt,orderNumber:orders.orderNumber,
   }).from(notificationOutbox).innerJoin(orders,eq(notificationOutbox.orderId,orders.id)).orderBy(desc(notificationOutbox.id)).limit(200);
-  return Response.json({notifications:rows,providerConnected:false});
+  const integration=getIntegrationStatus();
+  return Response.json({notifications:rows,providerConnected:false,providerConfigured:integration.email.credentialsConfigured,emailMode:integration.email.mode});
 }
 
 export async function PATCH(request:Request) {

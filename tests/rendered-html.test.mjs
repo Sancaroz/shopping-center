@@ -249,3 +249,26 @@ test("provides launch-day health checks and audited emergency controls", async (
   assert.match(orders, /"Retry-After":"900"/);
   assert.match(checkout, /Sipariş alımı durduruldu/);
 });
+
+test("prepares provider integrations without exposing secrets or mutating orders", async () => {
+  const [runtime,signature,webhook,statusApi,center,notifications] = await Promise.all([
+    source("app/integrations/runtime.ts"),
+    source("app/integrations/webhook-signature.ts"),
+    source("app/api/webhooks/payment/route.ts"),
+    source("app/api/integrations/status/route.ts"),
+    source("app/admin/entegrasyonlar/integration-center.tsx"),
+    source("app/api/notifications/route.ts"),
+  ]);
+  assert.match(runtime, /PAYMENT_WEBHOOK_SECRET/);
+  assert.match(runtime, /keys:paymentKeys/);
+  assert.doesNotMatch(statusApi, /PAYMENT_SECRET_KEY|PAYMENT_WEBHOOK_SECRET|EMAIL_API_KEY/);
+  assert.match(signature, /HMAC/);
+  assert.match(signature, /MAX_AGE_SECONDS=300/);
+  assert.match(signature, /constantTimeEqual/);
+  assert.match(webhook, /processed:false/);
+  assert.doesNotMatch(webhook, /update\(orders\)|paymentStatus/);
+  assert.match(statusApi, /Yetkisiz erişim/);
+  assert.match(center, /Gizli anahtarlar yönetim ekranında gösterilmez/);
+  assert.match(center, /Test modu doğrulanmadan canlı moda geçilmez/);
+  assert.match(notifications, /providerConfigured/);
+});
