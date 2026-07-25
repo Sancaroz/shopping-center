@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 type Notification={id:number;orderId:number;orderNumber:string;eventType:string;recipient:string;subject:string;body:string;status:string;attempts:number;lastError:string;sentAt:string|null;createdAt:string};
-const labels:Record<string,string>={received:"Sipariş talebi alındı",confirmed:"Sipariş onaylandı",shipped:"Kargoya verildi",cancelled:"Sipariş iptal edildi"};
+const labels:Record<string,string>={verification:"E-posta doğrulama",received:"Sipariş talebi alındı",confirmed:"Sipariş onaylandı",shipped:"Kargoya verildi",cancelled:"Sipariş iptal edildi"};
 
 export default function NotificationCenter() {
   const [items,setItems]=useState<Notification[]>([]);

@@ -376,3 +376,34 @@ test("atomically reserves stock and safely releases abandoned order requests", a
   assert.match(migration, /reservation_expires_at/);
   assert.match(detail, /Stok/);
 });
+
+test("uses one-time hashed email verification before order approval", async () => {
+  const [schema,helper,orders,notifications,verification,layout,readiness,detail,migration] = await Promise.all([
+    source("db/schema.ts"),
+    source("app/order-verification.ts"),
+    source("app/api/orders/route.ts"),
+    source("app/order-notifications.ts"),
+    source("app/siparis-dogrula/page.tsx"),
+    source("app/siparis-dogrula/layout.tsx"),
+    source("app/api/launch-readiness/route.ts"),
+    source("app/admin/siparis/[id]/order-detail.tsx"),
+    source("drizzle/0023_nostalgic_gideon.sql"),
+  ]);
+  assert.match(schema, /verificationTokenHash/);
+  assert.match(schema, /emailVerifiedAt/);
+  assert.match(helper, /SHA-256/);
+  assert.match(orders, /verificationTokenHash=await hashVerificationToken\(verificationToken\)/);
+  assert.doesNotMatch(orders, /verificationToken,/);
+  assert.match(orders, /queueNotification\(order,"verification"/);
+  assert.match(orders, /Müşteri e-posta adresini doğrulamadan sipariş onaylanamaz/);
+  assert.match(orders, /updates\.verificationTokenHash=""/);
+  assert.match(notifications, /24 saat içinde doğrulayın/);
+  assert.match(verification, /releaseOrderReservation/);
+  assert.match(verification, /verificationExpiresAt:null/);
+  assert.match(layout, /index:false/);
+  assert.match(readiness, /E-posta doğrulama/);
+  assert.match(readiness, /adapterConnected/);
+  assert.match(detail, /Doğrulama bekliyor/);
+  assert.match(detail, /data\.error/);
+  assert.match(migration, /verification_token_hash/);
+});

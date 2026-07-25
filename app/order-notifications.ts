@@ -1,15 +1,19 @@
 import type { orders } from "../db/schema";
 
 type Order=typeof orders.$inferSelect;
-export type NotificationEvent="received"|"confirmed"|"shipped"|"cancelled";
+export type NotificationEvent="verification"|"received"|"confirmed"|"shipped"|"cancelled";
 
-export function buildOrderNotification(order:Order,event:NotificationEvent) {
+export function buildOrderNotification(order:Order,event:NotificationEvent,verificationUrl="") {
   const en=order.market==="GLOBAL";
   const name=order.customerName;
   const tracking=order.trackingNumber
     ? `\n${en?"Carrier":"Kargo firması"}: ${order.shippingCarrier||"-"}\n${en?"Tracking number":"Takip numarası"}: ${order.trackingNumber}`
     : "";
   const templates={
+    verification:{
+      subject:en?`Confirm your email · ${order.orderNumber}`:`E-posta adresinizi doğrulayın · ${order.orderNumber}`,
+      body:en?`Hello ${name},\n\nConfirm your email within 24 hours to keep the stock reservation for ${order.orderNumber}:\n${verificationUrl}\n\nNo payment has been collected.`:`Merhaba ${name},\n\n${order.orderNumber} numaralı talebiniz için ayrılan stoğu korumak üzere e-posta adresinizi 24 saat içinde doğrulayın:\n${verificationUrl}\n\nHenüz ödeme alınmadı.`,
+    },
     received:{
       subject:en?`We received your order request · ${order.orderNumber}`:`Sipariş talebinizi aldık · ${order.orderNumber}`,
       body:en?`Hello ${name},\n\nWe securely received your order request ${order.orderNumber}. No payment has been collected. We will contact you after reviewing availability and delivery details.`:`Merhaba ${name},\n\n${order.orderNumber} numaralı sipariş talebinizi güvenle aldık. Henüz ödeme alınmadı. Stok ve teslimat bilgilerini kontrol ettikten sonra sizinle iletişime geçeceğiz.`,

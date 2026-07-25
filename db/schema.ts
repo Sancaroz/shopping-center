@@ -107,6 +107,9 @@ export const orders = sqliteTable("orders", {
   inventoryApplied: integer("inventory_applied", { mode: "boolean" }).notNull().default(false),
   reservationState: text("reservation_state").notNull().default("none"),
   reservationExpiresAt: text("reservation_expires_at"),
+  emailVerifiedAt: text("email_verified_at"),
+  verificationTokenHash: text("verification_token_hash").notNull().default(""),
+  verificationExpiresAt: text("verification_expires_at"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
