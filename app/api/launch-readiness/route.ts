@@ -26,12 +26,15 @@ export async function GET() {
     (!product.marketTr&&!product.marketGlobal) || (product.marketTr&&product.priceTr<=0) ||
     (product.marketGlobal&&(!product.nameEn.trim()||!product.descriptionEn.trim()||product.priceGlobal<=0))
   );
+  const globalShippingRequired=productRows.some(product=>product.marketGlobal);
+  const globalShippingReady=!globalShippingRequired||(settings.shippingGlobalEnabled==="true"&&String(settings.shippingGlobalCountries??"").split(",").some(country=>country.trim()));
   const checks=[
     {key:"catalog",label:"Ürün kataloğu",ready:productRows.length>0&&catalogIssues.length===0,detail:productRows.length===0?"Yayında ürün yok.":catalogIssues.length?`${catalogIssues.length} yayındaki üründe eksik var.`:`${productRows.length} ürün yayına hazır.`},
+    {key:"pricing",label:"Fiyat ve vergi sunumu",ready:settings.taxDisplayMode==="tax_included",detail:settings.taxDisplayMode==="tax_included"?"Tüketici fiyatlarının vergiler dâhil olduğu onaylandı.":"Şirket ve mali müşavir onayı bekleniyor; fiyatlar taslak kabul edilir."},
     {key:"legal",label:"Şirket bilgileri",ready:settings.legalStatus==="complete"&&!legalMissing.length,detail:settings.legalStatus!=="complete"?"Taslak modunda.":legalMissing.length?`${legalMissing.length} zorunlu alan eksik.`:"Şirket bilgileri tamamlandı."},
     {key:"contracts",label:"Hukuki metinler",ready:settings.legalStatus==="complete"&&!String(settings.preliminaryInformationTr??"").startsWith("TASLAK")&&!String(settings.distanceSalesTermsTr??"").startsWith("TASLAK"),detail:settings.legalStatus==="complete"?"Metin durumu kontrol edildi.":"Uzman onayı bekleniyor."},
     {key:"payment",label:"Ödeme sağlayıcısı",ready:false,detail:integrations.payment.credentialsConfigured?`${integrations.payment.provider||settings.paymentProviderName||"Sağlayıcı"} kimlik bilgileri hazır; adaptör ve test işlemi bekleniyor.`:settings.paymentProviderStatus==="active"?`${settings.paymentProviderName||"Sağlayıcı"} seçildi; güvenli ortam anahtarları bekleniyor.`:"Şirket kurulduktan sonra bağlanacak."},
-    {key:"shipping",label:"Kargo ve iade",ready:Boolean(String(settings.returnAddress??"").trim()&&String(settings.returnCarrier??"").trim()),detail:settings.returnCarrier?`${settings.returnCarrier} tanımlı.`:"İade adresi ve anlaşmalı kargo bekleniyor."},
+    {key:"shipping",label:"Kargo ve iade",ready:Boolean(String(settings.returnAddress??"").trim()&&String(settings.returnCarrier??"").trim()&&globalShippingReady),detail:!settings.returnCarrier?"İade adresi ve anlaşmalı kargo bekleniyor.":!globalShippingReady?"Global ürünler için desteklenen teslimat ülkeleri bekleniyor.":`${settings.returnCarrier} ve teslimat bölgeleri tanımlı.`},
     {key:"etbis",label:"ETBİS",ready:settings.etbisStatus==="complete",detail:settings.etbisStatus==="complete"?"Kayıt tamamlandı.":"Şirket kurulduktan sonra tamamlanacak."},
   ];
   const readyCount=checks.filter(check=>check.ready).length;

@@ -13,6 +13,8 @@ type PolicySettings = {
   legalTaxNumber:string; legalMersisNumber:string; legalEmail:string; legalPhone:string;
   returnAddress:string; returnCarrier:string; etbisStatus:string;
   preliminaryInformationTr:string; distanceSalesTermsTr:string;
+  shippingGlobalEnabled:string; shippingGlobalCountries:string;
+  taxDisplayMode:string;
 };
 
 const defaults:PolicySettings = {
@@ -28,6 +30,8 @@ const defaults:PolicySettings = {
   legalTaxOffice:"", legalTaxNumber:"", legalMersisNumber:"", legalEmail:"",
   legalPhone:"", returnAddress:"", returnCarrier:"", etbisStatus:"not_started",
   preliminaryInformationTr:"", distanceSalesTermsTr:"",
+  shippingGlobalEnabled:"false", shippingGlobalCountries:"",
+  taxDisplayMode:"pending",
 };
 
 export default function PoliciesPage() {
@@ -61,7 +65,7 @@ export default function PoliciesPage() {
         <a href="/iletisim">{isTr?"Destek talebi":"Support request"} →</a>
       </aside>
       <div className="policies-content">
-        <article><span>01</span><div><h2>{isTr?"Teslimat":"Shipping"}</h2><p>{isTr?settings.shippingPolicyTr:settings.shippingPolicyGlobal}</p><dl><div><dt>{isTr?"Standart kargo":"Standard shipping"}</dt><dd>{isTr?`${Number(settings.shippingTr).toLocaleString("tr-TR")} TL`:`€${Number(settings.shippingGlobal).toLocaleString("en-US")}`}</dd></div><div><dt>{isTr?"Ücretsiz kargo sınırı":"Free shipping threshold"}</dt><dd>{isTr?`${Number(settings.freeShippingTr).toLocaleString("tr-TR")} TL`:`€${Number(settings.freeShippingGlobal).toLocaleString("en-US")}`}</dd></div></dl></div></article>
+        <article><span>01</span><div><h2>{isTr?"Teslimat":"Shipping"}</h2><p>{isTr?settings.shippingPolicyTr:settings.shippingPolicyGlobal}</p><small>{isTr?(settings.taxDisplayMode==="tax_included"?"Gösterilen tüketici fiyatları vergiler dâhildir.":"Şirket ve mali onay tamamlanana kadar fiyatların vergi durumu taslaktır."):(settings.shippingGlobalEnabled==="true"?`Currently supported destinations: ${settings.shippingGlobalCountries}. The final shipping fee is calculated after selecting the delivery country.`:"Global delivery requests are not open yet. Supported destinations will be listed here when service begins.")}</small><dl><div><dt>{isTr?"Standart kargo":"Standard shipping"}</dt><dd>{isTr?`${Number(settings.shippingTr).toLocaleString("tr-TR")} TL`:settings.shippingGlobalEnabled==="true"?`€${Number(settings.shippingGlobal).toLocaleString("en-US")}`:"Not active"}</dd></div><div><dt>{isTr?"Ücretsiz kargo sınırı":"Free shipping threshold"}</dt><dd>{isTr?`${Number(settings.freeShippingTr).toLocaleString("tr-TR")} TL`:settings.shippingGlobalEnabled==="true"?`€${Number(settings.freeShippingGlobal).toLocaleString("en-US")}`:"Not active"}</dd></div></dl></div></article>
         <article><span>02</span><div><h2>{isTr?"İade ve değişim":"Returns & exchanges"}</h2><p>{isTr?settings.returnsPolicyTr:settings.returnsPolicyGlobal}</p><a href="/iletisim">{isTr?"Destek talebi oluştur":"Contact support"} →</a></div></article>
         <article id="gizlilik"><span>03</span><div><h2>{isTr?"Gizlilik açıklaması":"Privacy notice"}</h2><p>{isTr?settings.privacyPolicy:settings.privacyPolicyGlobal}</p><small>{isTr?"Bu sayfa genel operasyonel bilgilendirmedir. Nihai hukuki metinler işletme bilgileriniz kesinleştiğinde uzman kontrolünden geçirilmelidir.":"This page provides general operational information. Final legal texts should be professionally reviewed when the business details are confirmed."}</small></div></article>
         <article id="cerezler"><span>04</span><div><h2>{isTr?"Çerezler ve ölçüm":"Cookies and measurement"}</h2><p>{isTr?"Site şu anda yalnızca çanta oturumunu ve mağaza tercihini sürdürebilmek için gerekli teknik kayıtları kullanır. Reklam, profil oluşturma veya üçüncü taraf ziyaretçi analizi çalıştırılmaz. İsteğe bağlı ölçüm araçları ileride eklenirse, çalıştırılmadan önce açık tercih sunulacak ve bu açıklama güncellenecektir.":"The site currently uses only the technical storage needed to retain the bag session and store preference. Advertising, profiling and third-party visitor analytics are not active. If optional measurement tools are added later, a clear choice will be provided before they run and this notice will be updated."}</p></div></article>

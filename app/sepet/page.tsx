@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import "./sepet.css";
 import "./cart-controls.css";
 import {getPreferredMarket,setPreferredMarket} from "../market-preference";
+import {shippingQuote} from "../shipping-rules";
 
 type CartItem = {
   id: number;
@@ -64,7 +65,7 @@ export default function CartPage() {
 
   const money = (value: number) => market === "TR" ? `${value.toLocaleString("tr-TR")} TL` : `€${value.toLocaleString("en-US")}`;
   const unavailableItems=items.filter(item=>!item.active||(market==="TR"?!item.marketTr:!item.marketGlobal));
-  const shippingFee=market==="TR"?shippingSettings.shippingTr:shippingSettings.shippingGlobal;const freeLimit=market==="TR"?shippingSettings.freeShippingTr:shippingSettings.freeShippingGlobal;const shipping=total>=freeLimit?0:shippingFee;const grandTotal=total+shipping;
+  const trQuote=shippingQuote({market:"TR",country:"Türkiye",subtotal:total,settings:shippingSettings});const shipping=market==="TR"&&trQuote.ok?trQuote.shippingAmount:0;const freeLimit=shippingSettings.freeShippingTr;const grandTotal=total+shipping;
 
   return <main className="cart-page">
     <header className="cart-header"><a className="cart-brand" href="/">{brand.brandName} <span>{brand.brandSuffix}</span></a><a href="/">{market==="GLOBAL"?"Continue shopping":"Alışverişe devam"} ↗</a></header>
@@ -79,7 +80,7 @@ export default function CartPage() {
             <strong>{money(unit * item.quantity)}</strong>
           </article>;
         })}</div>
-        <aside className="cart-summary"><p>{market==="GLOBAL"?"ORDER SUMMARY":"SİPARİŞ ÖZETİ"}</p><div><span>{market==="GLOBAL"?"Subtotal":"Ara toplam"}</span><strong>{money(total)}</strong></div><div><span>{market==="GLOBAL"?"Shipping":"Teslimat"}</span><span>{shipping===0?(market==="GLOBAL"?"Free":"Ücretsiz"):money(shipping)}</span></div>{shipping>0&&<small>{market==="GLOBAL"?`Add ${money(Math.max(0,freeLimit-total))} more for free shipping.`:`${money(Math.max(0,freeLimit-total))} daha ekleyin, ücretsiz teslimattan yararlanın.`}</small>}<hr/><div className="cart-total"><span>{market==="GLOBAL"?"Total":"Toplam"}</span><strong>{money(grandTotal)}</strong></div>{unavailableItems.length?<span className="cart-checkout disabled">{market==="GLOBAL"?"Remove unavailable products":"Uygun olmayan ürünleri kaldırın"}</span>:<a className="cart-checkout" href="/teslimat">{market==="GLOBAL"?"Continue to delivery":"Teslimat bilgilerine geç"}</a>}<small>{market==="GLOBAL"?"No payment is collected at this stage. Your order request will be saved for confirmation.":"Bu aşamada ödeme alınmaz. Ön sipariş talebiniz kaydedildikten sonra ödeme sistemi ayrıca bağlanacaktır."}</small></aside>
+        <aside className="cart-summary"><p>{market==="GLOBAL"?"ORDER SUMMARY":"SİPARİŞ ÖZETİ"}</p><div><span>{market==="GLOBAL"?"Subtotal":"Ara toplam"}</span><strong>{money(total)}</strong></div><div><span>{market==="GLOBAL"?"Shipping":"Teslimat"}</span><span>{market==="GLOBAL"?"Calculated after country selection":shipping===0?"Ücretsiz":money(shipping)}</span></div>{market==="TR"&&shipping>0&&<small>{`${money(Math.max(0,freeLimit-total))} daha ekleyin, ücretsiz teslimattan yararlanın.`}</small>}<hr/><div className="cart-total"><span>{market==="GLOBAL"?"Estimated total":"Toplam"}</span><strong>{money(grandTotal)}</strong></div>{unavailableItems.length?<span className="cart-checkout disabled">{market==="GLOBAL"?"Remove unavailable products":"Uygun olmayan ürünleri kaldırın"}</span>:<a className="cart-checkout" href="/teslimat">{market==="GLOBAL"?"Continue to delivery":"Teslimat bilgilerine geç"}</a>}<small>{market==="GLOBAL"?"Select a supported country at delivery. No payment is collected at this stage.":"Bu aşamada ödeme alınmaz. Ön sipariş talebiniz kaydedildikten sonra ödeme sistemi ayrıca bağlanacaktır."}</small></aside>
       </div></>}
     </section>
   </main>;

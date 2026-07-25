@@ -5,6 +5,7 @@ import { getChatGPTUser } from "../../chatgpt-auth";
 import { buildOrderNotification, type NotificationEvent } from "../../order-notifications";
 import { recordAudit } from "../../audit-log";
 import { enforceRateLimit } from "../../rate-limit";
+import { shippingQuote } from "../../shipping-rules";
 
 const COOKIE = "store_cart";
 const tokenFrom = (request:Request) => request.headers.get("cookie")?.split(";").map(value => value.trim()).find(value => value.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1) ?? null;
@@ -36,10 +37,11 @@ export async function POST(request:Request) {
   const phone = String(body.phone ?? "").trim().slice(0,40);
   const address = String(body.address ?? "").trim().slice(0,600);
   const city = String(body.city ?? "").trim().slice(0,120);
+  const country = String(body.country ?? "").trim().slice(0,100);
   const requestKey=String(body.requestKey??"").trim().slice(0,80);
   const consent=body.privacyConsent===true||body.privacyConsent==="on";
   const termsConsent=body.termsConsent===true||body.termsConsent==="on";
-  if (!customerName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || phone.replace(/\D/g,"").length<7 || !address || !city || !consent || !termsConsent || !/^[a-f0-9-]{20,80}$/i.test(requestKey)) return Response.json({ error:"Lütfen zorunlu teslimat ve onay bilgilerini eksiksiz girin." }, { status:400 });
+  if (!customerName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || phone.replace(/\D/g,"").length<7 || !address || !city || !country || !consent || !termsConsent || !/^[a-f0-9-]{20,80}$/i.test(requestKey)) return Response.json({ error:"Lütfen zorunlu teslimat ve onay bilgilerini eksiksiz girin." }, { status:400 });
   const limited=await enforceRateLimit(request,{scope:"order_create",identifier:email,limit:10,windowMinutes:60});if(limited)return limited;
 
   const db = getDb();
@@ -65,11 +67,13 @@ export async function POST(request:Request) {
   const invalidPrice=priced.find(line=>!Number.isFinite(line.unitPrice)||line.unitPrice<=0);
   if(invalidPrice)return Response.json({error:cart.market==="GLOBAL"?`${invalidPrice.productNameEn||invalidPrice.productName} is not on sale yet.`:`${invalidPrice.productName} henüz satışa açılmadı.`},{status:409});
   const subtotal = priced.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
-  const shippingFee=Number(cart.market==="GLOBAL"?(settings.shippingGlobal??15):(settings.shippingTr??99));const freeLimit=Number(cart.market==="GLOBAL"?(settings.freeShippingGlobal??150):(settings.freeShippingTr??1500));const shippingAmount=subtotal>=freeLimit?0:shippingFee;const total=subtotal+shippingAmount;
+  const quote=shippingQuote({market:cart.market==="GLOBAL"?"GLOBAL":"TR",country,subtotal,settings});
+  if(!quote.ok)return Response.json({error:quote.error},{status:409});
+  const shippingAmount=quote.shippingAmount;const total=quote.total;
   const orderNumber = `MS-${new Date().toISOString().slice(0,10).replaceAll("-","")}-${crypto.randomUUID().slice(0,6).toUpperCase()}`;
   const [order] = await db.insert(orders).values({
     orderNumber, market:cart.market, customerName, email, phone, address, city,
-    postalCode:String(body.postalCode ?? "").trim().slice(0,30), country:String(body.country ?? "Türkiye").trim().slice(0,100) || "Türkiye",
+    postalCode:String(body.postalCode ?? "").trim().slice(0,30), country:quote.country,
     note:String(body.note ?? "").trim().slice(0,1000), subtotal, shippingAmount, total,requestKey,privacyConsentAt:new Date().toISOString(),termsConsentAt:new Date().toISOString(),termsVersion:"order-request-v1",
   }).returning();
   await db.insert(orderItems).values(priced.map(line => ({

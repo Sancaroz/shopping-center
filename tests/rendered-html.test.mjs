@@ -331,3 +331,28 @@ test("provides an authenticated catalog quality center with actionable blockers"
   assert.match(center, /Ürünü düzenle/);
   assert.match(launch, /\/admin\/katalog-kalitesi/);
 });
+
+test("enforces server-authoritative shipping regions and keeps global delivery closed by default", async () => {
+  const [rules,orders,settings,checkout,shippingPage,readiness] = await Promise.all([
+    source("app/shipping-rules.ts"),
+    source("app/api/orders/route.ts"),
+    source("app/api/settings/route.ts"),
+    source("app/teslimat/page.tsx"),
+    source("app/admin/teslimat-ayarlari/page.tsx"),
+    source("app/api/launch-readiness/route.ts"),
+  ]);
+  assert.match(rules, /Türkiye mağazası yalnızca Türkiye teslimat adreslerini kabul eder/);
+  assert.match(rules, /Global teslimat henüz siparişe açık değil/);
+  assert.match(rules, /Seçilen ülkeye teslimat şu anda desteklenmiyor/);
+  assert.match(orders, /shippingQuote/);
+  assert.match(orders, /country:quote\.country/);
+  assert.match(settings, /shippingGlobalEnabled:"false"/);
+  assert.match(settings, /en az bir desteklenen ülke/);
+  assert.match(settings, /taxDisplayMode:"pending"/);
+  assert.match(settings, /vergiler dâhil tüketici fiyatı onayı/);
+  assert.match(checkout, /Select a delivery country/);
+  assert.match(checkout, /disabled=\{busy\|\|!intakeOpen\|\|!quote\.ok\}/);
+  assert.match(shippingPage, /requireChatGPTUser/);
+  assert.match(readiness, /globalShippingReady/);
+  assert.match(readiness, /Fiyat ve vergi sunumu/);
+});
