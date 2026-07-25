@@ -117,3 +117,17 @@ test("queues order notifications without sending before a provider is connected"
   assert.doesNotMatch(notificationsApi, /sendEmail|fetch\("https:/);
   assert.match(notificationCenter, /Gönderim kapalı/);
 });
+
+test("supports verified return and cancellation requests without automatic refunds", async () => {
+  const [returnApi, customerPage, adminPage] = await Promise.all([
+    source("app/api/return-requests/route.ts"),
+    source("app/iade-talebi/page.tsx"),
+    source("app/admin/iade-talepleri/return-request-center.tsx"),
+  ]);
+  assert.match(returnApi, /eq\(orders\.email,email\)/);
+  assert.match(returnApi, /aynı türde açık bir talep zaten bulunuyor/);
+  assert.match(returnApi, /cancellation","return","exchange/);
+  assert.doesNotMatch(returnApi, /paymentStatus|refunded|update\(orders\)/);
+  assert.match(customerPage, /otomatik para iadesi başlatmaz/);
+  assert.match(adminPage, /İade ve iptal talepleri/);
+});

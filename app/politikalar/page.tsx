@@ -57,6 +57,7 @@ export default function PoliciesPage() {
       <aside>
         <span>{isTr?"Bu içerikler yönetim panelinden değiştirilebilir.":"These details can be updated from the admin panel."}</span>
         <a href="/siparis-takip">{isTr?"Sipariş takibi":"Track order"} →</a>
+        <a href="/iade-talebi">{isTr?"İade veya iptal talebi":"Return or cancellation"} →</a>
         <a href="/iletisim">{isTr?"Destek talebi":"Support request"} →</a>
       </aside>
       <div className="policies-content">

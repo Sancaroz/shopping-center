@@ -134,6 +134,13 @@
       "when": 1784987551915,
       "tag": "0018_worried_wonder_man",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1784988155538,
+      "tag": "0019_fixed_squadron_supreme",
+      "breakpoints": true
     }
   ]
 }
