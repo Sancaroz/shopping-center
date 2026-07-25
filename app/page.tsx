@@ -127,11 +127,11 @@ export default function Home() {
       </div>}
 
       <header className="header" style={{top:(settings.showAnnouncement??"true")==="true"?34:0}}>
-        <button className="menu-button" aria-label={isGlobal?"Open menu":"Menüyü aç"} onClick={() => setMenuOpen(!menuOpen)}>
-          <i></i><i></i>
+        <button className="menu-button" type="button" aria-label={isGlobal?(menuOpen?"Close menu":"Open menu"):(menuOpen?"Menüyü kapat":"Menüyü aç")} aria-expanded={menuOpen} aria-controls="store-navigation" onClick={() => setMenuOpen(!menuOpen)}>
+          <i aria-hidden="true"></i><i aria-hidden="true"></i>
         </button>
         <a className={`wordmark${settings.brandLogoUrl?" image-wordmark":""}`} href="#top" aria-label={`${settings.brandName} ana sayfa`}>{settings.brandLogoUrl?<img src={settings.brandLogoUrl} alt={`${settings.brandName} ${settings.brandSuffix}`}/>:<>{settings.brandName}<span>{settings.brandSuffix}</span></>}</a>
-        <nav className={menuOpen ? "nav open" : "nav"} aria-label="Ana menü">
+        <nav id="store-navigation" className={menuOpen ? "nav open" : "nav"} aria-label={isGlobal?"Main navigation":"Ana menü"}>
           <a href={settings.nav1Url || "/magaza"} onClick={() => setMenuOpen(false)}>{isGlobal?settings.nav1LabelGlobal||"Shop":settings.nav1Label||"Mağaza"}</a>
           <a href={settings.nav2Url || "/magaza"} onClick={() => setMenuOpen(false)}>{isGlobal?settings.nav2LabelGlobal||"Collections":settings.nav2Label||"Koleksiyonlar"}</a>
           <a href={settings.nav3Url || "#story"} onClick={() => setMenuOpen(false)}>{isGlobal?settings.nav3LabelGlobal||"Our Story":settings.nav3Label||"Hikâyemiz"}</a>
@@ -164,7 +164,7 @@ export default function Home() {
       {settings.showCategories==="true"&&<section className="category-grid" id="categories" style={{order:sectionPosition("categories")}}>
         {visibleCategories.map((category, index) => (
           <article className={`category-card category-${index + 1}`} key={category.id ?? category.name}>
-            <img src={category.image} alt={category.alt} />
+            <img src={category.image} alt={category.alt} loading="lazy" decoding="async" />
             <div className="category-info">
               <span>0{index + 1}</span>
               <h3>{isGlobal?category.nameGlobal||category.name:category.name}</h3>
@@ -190,7 +190,7 @@ export default function Home() {
             <article className="product-card" key={product.id ?? product.name}>
               <div className="product-image">
                 {product.slug && <a className="product-detail-link" href={`/urun/${encodeURIComponent(product.slug)}`} aria-label={`${market === "TR" ? product.name : product.nameGlobal || product.name} detaylarını aç`}></a>}
-                <img src={product.image} alt={market === "TR" ? product.alt : product.nameGlobal || product.alt} />
+                <img src={product.image} alt={market === "TR" ? product.alt : product.nameGlobal || product.alt} loading="lazy" decoding="async" />
                 {product.badge && <span>{badgeText(product.badge)}</span>}
                 {catalogSource==="live"&&product.id&&(product.stock??0)>0?<button onClick={() => addToCart(product)} aria-label={`${market === "TR" ? product.name : product.nameGlobal || product.name} ürününü çantaya ekle`}>+</button>:<span className="product-preview-badge">{isGlobal?"PREVIEW":"ÖNİZLEME"}</span>}
               </div>
@@ -203,7 +203,7 @@ export default function Home() {
         </div>
       </section>}
 
-      {visibleHomepageBlocks.length>0&&<section className="custom-blocks" style={{order:sectionPosition("custom")}}>{visibleHomepageBlocks.map(block=><article className={block.imagePosition==="right"?"image-right":""} key={block.id}><img src={block.imageUrl} alt={isGlobal?(block.titleEn||block.titleTr):block.titleTr}/><div><p className="section-label">{isGlobal?(block.eyebrowEn||block.eyebrowTr):block.eyebrowTr}</p><h2>{isGlobal?(block.titleEn||block.titleTr):block.titleTr}</h2><p>{isGlobal?(block.copyEn||block.copyTr):block.copyTr}</p><a className="text-link" href={block.buttonUrl}>{isGlobal?(block.buttonEn||block.buttonTr):block.buttonTr} <Arrow/></a></div></article>)}</section>}
+      {visibleHomepageBlocks.length>0&&<section className="custom-blocks" style={{order:sectionPosition("custom")}}>{visibleHomepageBlocks.map(block=><article className={block.imagePosition==="right"?"image-right":""} key={block.id}><img src={block.imageUrl} alt={isGlobal?(block.titleEn||block.titleTr):block.titleTr} loading="lazy" decoding="async"/><div><p className="section-label">{isGlobal?(block.eyebrowEn||block.eyebrowTr):block.eyebrowTr}</p><h2>{isGlobal?(block.titleEn||block.titleTr):block.titleTr}</h2><p>{isGlobal?(block.copyEn||block.copyTr):block.copyTr}</p><a className="text-link" href={block.buttonUrl}>{isGlobal?(block.buttonEn||block.buttonTr):block.buttonTr} <Arrow/></a></div></article>)}</section>}
 
       {(settings.showManifesto??"true")==="true"&&<section className="manifesto" style={{order:sectionPosition("manifesto")}}>
         <p className="eyebrow">{isGlobal?settings.manifestoEyebrowGlobal||"Brand standard":settings.manifestoEyebrow||`${settings.brandName} STANDARDI`}</p>
@@ -228,7 +228,7 @@ export default function Home() {
           <div><a className={`wordmark footer-logo${settings.brandLogoUrl?" image-wordmark":""}`} href="#top">{settings.brandLogoUrl?<img src={settings.brandLogoUrl} alt={`${settings.brandName} ${settings.brandSuffix}`}/>:<>{settings.brandName}<span>{settings.brandSuffix}</span></>}</a><p>{isGlobal?settings.footerTaglineGlobal||"Beautiful things for considered living.":settings.footerTagline||"Beautiful things for considered living."}</p></div>
           <div><h4>{isGlobal?"Explore":"Keşfet"}</h4><a href="/magaza">{isGlobal?"New arrivals":"Yeni gelenler"}</a><a href="/magaza">{isGlobal?"Collections":"Koleksiyonlar"}</a><a href="#journal">Journal</a></div>
           <div><h4>{isGlobal?"Help":"Yardım"}</h4><a href="/siparis-takip">{isGlobal?"Track order":"Sipariş takibi"}</a><a href="/politikalar">{isGlobal?"Shipping & Returns":"Teslimat & İade"}</a><a href="/iletisim">{isGlobal?"Contact us":"Bize ulaşın"}</a></div>
-          <div className="newsletter"><h4>{isGlobal?settings.newsletterTitleGlobal||"Join our letters":settings.newsletterTitle||"Mektuplarımıza katılın"}</h4><p>{isGlobal?settings.newsletterCopyGlobal||"New edits and inspiring stories, delivered occasionally.":settings.newsletterCopy||"Yeni seçkiler ve ilham veren hikâyeler."}</p><form onSubmit={subscribe}><label className="newsletter-email"><span className="sr-only">{isGlobal?"Email address":"E-posta adresi"}</span><input type="email" value={newsletterEmail} onChange={event=>setNewsletterEmail(event.target.value)} placeholder={isGlobal?"Your email address":"E-posta adresiniz"} required/><button aria-label={isGlobal?"Subscribe":"Kaydol"}>→</button></label><label className="newsletter-consent"><input type="checkbox" required/><span>{isGlobal?<><a href="/politikalar#gizlilik">I have read the privacy notice</a> and wish to receive edits and news.</>:<><a href="/politikalar#gizlilik">Gizlilik açıklamasını</a> okudum; seçki ve duyuruları almak istiyorum.</>}</span></label>{newsletterMessage&&<small className="newsletter-message" role="status">{newsletterMessage}</small>}</form></div>
+          <div className="newsletter"><h4>{isGlobal?settings.newsletterTitleGlobal||"Join our letters":settings.newsletterTitle||"Mektuplarımıza katılın"}</h4><p>{isGlobal?settings.newsletterCopyGlobal||"New edits and inspiring stories, delivered occasionally.":settings.newsletterCopy||"Yeni seçkiler ve ilham veren hikâyeler."}</p><form onSubmit={subscribe}><label className="sr-only" htmlFor="newsletter-email">{isGlobal?"Email address":"E-posta adresi"}</label><div className="newsletter-email"><input id="newsletter-email" type="email" value={newsletterEmail} onChange={event=>setNewsletterEmail(event.target.value)} placeholder={isGlobal?"Your email address":"E-posta adresiniz"} autoComplete="email" required/><button type="submit" aria-label={isGlobal?"Subscribe":"Kaydol"}>→</button></div><label className="newsletter-consent"><input type="checkbox" required/><span>{isGlobal?<><a href="/politikalar#gizlilik">I have read the privacy notice</a> and wish to receive edits and news.</>:<><a href="/politikalar#gizlilik">Gizlilik açıklamasını</a> okudum; seçki ve duyuruları almak istiyorum.</>}</span></label>{newsletterMessage&&<small className="newsletter-message" role="status">{newsletterMessage}</small>}</form></div>
         </div>
         <div className="footer-bottom"><span>© 2026 {settings.brandName} {settings.brandSuffix}</span><span>{isGlobal?settings.footerLocationGlobal||"Istanbul · Worldwide":settings.footerLocation||"İstanbul · Dünya"}</span><span>{settings.instagramUrl?<a href={settings.instagramUrl} target="_blank" rel="noreferrer">Instagram</a>:"Instagram"} &nbsp; {settings.pinterestUrl?<a href={settings.pinterestUrl} target="_blank" rel="noreferrer">Pinterest</a>:"Pinterest"}</span></div>
       </footer>

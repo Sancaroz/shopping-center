@@ -272,3 +272,21 @@ test("prepares provider integrations without exposing secrets or mutating orders
   assert.match(center, /Test modu doğrulanmadan canlı moda geçilmez/);
   assert.match(notifications, /providerConfigured/);
 });
+
+test("keeps the storefront keyboard accessible and mobile resilient", async () => {
+  const [layout, home, styles] = await Promise.all([
+    source("app/layout.tsx"),
+    source("app/page.tsx"),
+    source("app/globals.css"),
+  ]);
+  assert.match(layout, /className="skip-link"/);
+  assert.match(layout, /id="main-content"/);
+  assert.match(home, /aria-expanded=\{menuOpen\}/);
+  assert.match(home, /aria-controls="store-navigation"/);
+  assert.match(home, /htmlFor="newsletter-email"/);
+  assert.match(home, /autoComplete="email"/);
+  assert.match(home, /loading="lazy" decoding="async"/);
+  assert.match(styles, /:focus-visible/);
+  assert.match(styles, /prefers-reduced-motion: reduce/);
+  assert.match(styles, /min-width:44px/);
+});
