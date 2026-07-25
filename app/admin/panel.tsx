@@ -78,7 +78,7 @@ export default function AdminPanel({ userName }: { userName:string }) {
   const today=new Date().toLocaleDateString("en-CA");
   const todayOrders=orders.filter(order=>new Date(order.createdAt).toLocaleDateString("en-CA")===today);
   return <main className="admin-shell">
-    <header className="admin-header"><div><p>MAĞAZA YÖNETİMİ</p><h1>İçerik merkezi</h1></div><div><span>{userName}</span><a href="/">Mağazayı gör ↗</a></div></header>
+    <header className="admin-header"><div><p>MAĞAZA YÖNETİMİ</p><h1>İçerik merkezi</h1></div><div><span>{userName}</span><a href="/admin/yayina-hazirlik">Yayına hazırlık ↗</a><a href="/">Mağazayı gör ↗</a></div></header>
     <section className="admin-summary"><article><b>{orders.filter(order=>order.status==="new").length}</b><span>Yeni sipariş</span></article><article><b>{contactMessages.filter(item=>item.status==="new").length}</b><span>Yeni mesaj</span></article><article className={lowStock.length?"summary-warning":""}><b>{lowStock.length}</b><span>Kritik stok</span></article><article><b>{items.filter(item=>item.active).length}</b><span>Yayındaki ürün</span></article></section>
     <section className="dashboard-grid">
       <article className="admin-card stock-watch"><div className="list-title"><div><p className="section-kicker">STOK TAKİBİ</p><h2>Dikkat gerekenler</h2></div><span>5 ve altı</span></div>{lowStock.length===0?<p className="healthy-state">Tüm ürünlerin stok seviyesi iyi görünüyor.</p>:<div className="stock-watch-list">{lowStock.slice(0,8).map(item=><a key={item.key} href={item.href}><span><b>{item.name}</b><small>{item.detail}</small></span><strong className={item.stock===0?"out":""}>{item.stock===0?"Tükendi":`${item.stock} adet`} →</strong></a>)}</div>}</article>

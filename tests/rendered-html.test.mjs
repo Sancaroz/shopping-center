@@ -86,3 +86,18 @@ test("prepares legal business details and records policy acknowledgement", async
   assert.match(orders, /termsConsentAt/);
   assert.match(orders, /termsVersion:"order-request-v1"/);
 });
+
+test("keeps sales in request mode until the full launch gate passes", async () => {
+  const [settings, readinessApi, readinessPage] = await Promise.all([
+    source("app/api/settings/route.ts"),
+    source("app/api/launch-readiness/route.ts"),
+    source("app/admin/yayina-hazirlik/launch-readiness.tsx"),
+  ]);
+  assert.match(settings, /salesMode:"order_request"/);
+  assert.match(settings, /ödeme sağlayıcısı teknik entegrasyonu/);
+  assert.match(settings, /Canlı satış modu için tamamlanmalı/);
+  assert.match(readinessApi, /readyForLive/);
+  assert.match(readinessApi, /ready:false/);
+  assert.match(readinessPage, /Yayına hazırlık merkezi/);
+  assert.match(readinessPage, /Güvenli sipariş-talebi modu/);
+});
