@@ -1,10 +1,12 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { cartItems, carts, orderItems, orders, products, productVariants, storeSettings } from "../../../db/schema";
+import { cartItems, carts, notificationOutbox, orderItems, orders, products, productVariants, storeSettings } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
+import { buildOrderNotification, type NotificationEvent } from "../../order-notifications";
 
 const COOKIE = "store_cart";
 const tokenFrom = (request:Request) => request.headers.get("cookie")?.split(";").map(value => value.trim()).find(value => value.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1) ?? null;
+async function queueNotification(order:typeof orders.$inferSelect,event:NotificationEvent){const message=buildOrderNotification(order,event);await getDb().insert(notificationOutbox).values({orderId:order.id,eventKey:`${order.id}:${event}`,eventType:event,recipient:message.recipient,subject:message.subject,body:message.body,status:"draft"}).onConflictDoNothing({target:notificationOutbox.eventKey});}
 
 export async function GET(request:Request) {
   if (!(await getChatGPTUser())) return Response.json({ error:"Yetkisiz erişim" }, { status:401 });
@@ -69,6 +71,7 @@ export async function POST(request:Request) {
     orderId:order.id, productId:line.productId, variantId:line.variantId, productName:cart.market==="GLOBAL"?(line.productNameEn||line.productName):line.productName,
     variantLabel:line.optionValue ? (cart.market==="GLOBAL"?`${line.optionNameEn||line.optionName}: ${line.optionValueEn||line.optionValue}`:`${line.optionName}: ${line.optionValue}`) : "", quantity:line.quantity, unitPrice:line.unitPrice,
   })));
+  await queueNotification(order,"received");
   await db.delete(cartItems).where(eq(cartItems.cartId, cart.id));
   return Response.json({ orderNumber, subtotal, shippingAmount, total, market:cart.market }, { status:201 });
 }
@@ -93,5 +96,9 @@ export async function PATCH(request:Request) {
   if(body.trackingNumber!==undefined)updates.trackingNumber=String(body.trackingNumber).trim().slice(0,160);
   if(body.internalNote!==undefined)updates.internalNote=String(body.internalNote).trim().slice(0,2000);
   if(body.status==="shipped"&&!existing.shippedAt)updates.shippedAt=new Date().toISOString();
-  const[order]=await db.update(orders).set(updates).where(eq(orders.id,orderId)).returning();return Response.json({order});
+  const[order]=await db.update(orders).set(updates).where(eq(orders.id,orderId)).returning();
+  const notificationEvents:Partial<Record<string,NotificationEvent>>={confirmed:"confirmed",shipped:"shipped",cancelled:"cancelled"};
+  const notificationEvent=body.status!==undefined&&nextStatus!==existing.status?notificationEvents[nextStatus]:undefined;
+  if(notificationEvent)await queueNotification(order,notificationEvent);
+  return Response.json({order});
 }

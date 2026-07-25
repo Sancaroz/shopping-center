@@ -101,3 +101,19 @@ test("keeps sales in request mode until the full launch gate passes", async () =
   assert.match(readinessPage, /Yayına hazırlık merkezi/);
   assert.match(readinessPage, /Güvenli sipariş-talebi modu/);
 });
+
+test("queues order notifications without sending before a provider is connected", async () => {
+  const [orders, templates, notificationsApi, notificationCenter] = await Promise.all([
+    source("app/api/orders/route.ts"),
+    source("app/order-notifications.ts"),
+    source("app/api/notifications/route.ts"),
+    source("app/admin/bildirimler/notification-center.tsx"),
+  ]);
+  assert.match(orders, /queueNotification\(order,"received"\)/);
+  assert.match(orders, /confirmed:"confirmed",shipped:"shipped",cancelled:"cancelled"/);
+  assert.match(orders, /onConflictDoNothing/);
+  assert.match(templates, /Takip numarası/);
+  assert.match(notificationsApi, /providerConnected:false/);
+  assert.doesNotMatch(notificationsApi, /sendEmail|fetch\("https:/);
+  assert.match(notificationCenter, /Gönderim kapalı/);
+});

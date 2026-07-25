@@ -120,6 +120,23 @@ export const orderItems = sqliteTable("order_items", {
   unitPrice: real("unit_price").notNull(),
 });
 
+export const notificationOutbox = sqliteTable("notification_outbox", {
+  id: integer("id").primaryKey({ autoIncrement:true }),
+  orderId: integer("order_id").notNull().references(() => orders.id, { onDelete:"cascade" }),
+  eventKey: text("event_key").notNull().unique(),
+  eventType: text("event_type").notNull(),
+  channel: text("channel").notNull().default("email"),
+  recipient: text("recipient").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  status: text("status").notNull().default("draft"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error").notNull().default(""),
+  sentAt: text("sent_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const contactMessages = sqliteTable("contact_messages", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
