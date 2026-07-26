@@ -977,3 +977,41 @@ test("stores an immutable hashed snapshot of the terms accepted with each order"
   assert.match(migration, /ADD `terms_snapshot_json`/);
   assert.match(migration, /ADD `terms_snapshot_hash`/);
 });
+
+test("accepts only signature-verified raster uploads and serves them defensively", async () => {
+  const [validation,uploads,media,auditCenter,...uploadScreens] = await Promise.all([
+    source("app/media-validation.ts"),
+    source("app/api/uploads/route.ts"),
+    source("app/api/media/[...key]/route.ts"),
+    source("app/admin/islem-gecmisi/audit-log-center.tsx"),
+    source("app/admin/bloklar/blocks-editor.tsx"),
+    source("app/admin/kategori/[id]/category-editor.tsx"),
+    source("app/admin/marka/brand-editor.tsx"),
+    source("app/admin/medya/media-library.tsx"),
+    source("app/admin/panel.tsx"),
+    source("app/admin/seo/seo-editor.tsx"),
+    source("app/admin/urun/[id]/product-editor.tsx"),
+  ]);
+  assert.match(validation, /MAX_MEDIA_BYTES = 8_000_000/);
+  assert.match(validation, /"image\/jpeg"/);
+  assert.match(validation, /"image\/png"/);
+  assert.match(validation, /"image\/webp"/);
+  assert.match(validation, /0xff && bytes\[1\] === 0xd8/);
+  assert.match(validation, /0x89,0x50,0x4e,0x47/);
+  assert.match(validation, /=== "RIFF" && text\(bytes,8,12\) === "WEBP"/);
+  assert.doesNotMatch(validation, /image\/svg\+xml/);
+  assert.match(uploads, /validateUploadedMedia\(file\)/);
+  assert.doesNotMatch(uploads, /file\.type\.startsWith/);
+  assert.match(uploads, /crypto\.randomUUID\(\)/);
+  assert.match(uploads, /action:"media\.upload"/);
+  assert.match(media, /safeContentTypes/);
+  assert.match(media, /objectKey\.includes\("\.\."\)/);
+  assert.match(media, /"X-Content-Type-Options":"nosniff"/);
+  assert.match(media, /"Content-Security-Policy":"default-src 'none'; sandbox"/);
+  assert.match(auditCenter, /Medya yükleme/);
+  for(const screen of uploadScreens) {
+    assert.doesNotMatch(screen, /accept="image\/\*"/);
+    assert.doesNotMatch(screen, /image\/svg\+xml|image\/x-icon/);
+  }
+  assert.match(uploadScreens.join("\n"), /accept="image\/png,image\/jpeg,image\/webp"/);
+});

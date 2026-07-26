@@ -36,7 +36,7 @@ function BlockFields({ block }: BlockFieldsProps) {
     <label>Buton bağlantısı<input name="buttonUrl" defaultValue={block?.buttonUrl || "/magaza"}/></label>
     <label>Görsel konumu<select name="imagePosition" defaultValue={block?.imagePosition || "left"}><option value="left">Sol</option><option value="right">Sağ</option></select></label>
     <div className="checks wide block-markets"><p>GÖSTERİLECEK PAZARLAR</p><label><input name="marketTr" type="checkbox" defaultChecked={block?.marketTr ?? true}/> Türkiye</label><label><input name="marketGlobal" type="checkbox" defaultChecked={block?.marketGlobal ?? true}/> Global</label></div>
-    <label className="wide">Görsel<input name="file" type="file" accept="image/*"/><small>{block ? "Yeni dosya seçmezseniz mevcut görsel korunur." : "veya medya bağlantısı"}</small><input name="imageUrl" defaultValue={block?.imageUrl} placeholder="/api/media/..."/></label>
+    <label className="wide">Görsel<input name="file" type="file" accept="image/png,image/jpeg,image/webp"/><small>{block ? "Yeni dosya seçmezseniz mevcut görsel korunur." : "veya medya bağlantısı"}</small><input name="imageUrl" defaultValue={block?.imageUrl} placeholder="/api/media/..."/></label>
   </>;
 }
 
