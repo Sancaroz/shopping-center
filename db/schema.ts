@@ -7,6 +7,17 @@ export const storeSettings = sqliteTable("store_settings", {
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const adminUsers = sqliteTable("admin_users", {
+  id: integer("id").primaryKey({ autoIncrement:true }),
+  email: text("email").notNull().unique(),
+  displayName: text("display_name").notNull().default(""),
+  role: text("role").notNull().default("admin"),
+  active: integer("active", { mode:"boolean" }).notNull().default(true),
+  createdBy: text("created_by").notNull().default("system"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const categories = sqliteTable("categories", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   nameTr: text("name_tr").notNull(),

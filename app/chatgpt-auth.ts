@@ -1,11 +1,18 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
+import { getDb } from "../db";
+import { adminUsers } from "../db/schema";
 
 export type ChatGPTUser = {
+  adminId: number;
   displayName: string;
   email: string;
   fullName: string | null;
+  role: "owner" | "admin";
 };
+
+export type AuthenticatedChatGPTUser = Omit<ChatGPTUser, "adminId" | "role">;
 
 const USER_EMAIL_HEADER = "oai-authenticated-user-email";
 const USER_FULL_NAME_HEADER = "oai-authenticated-user-full-name";
@@ -16,9 +23,9 @@ const SIGN_IN_PATH = "/signin-with-chatgpt";
 const SIGN_OUT_PATH = "/signout-with-chatgpt";
 const CALLBACK_PATH = "/callback";
 
-export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
+export async function getAuthenticatedChatGPTUser(): Promise<AuthenticatedChatGPTUser | null> {
   const requestHeaders = await headers();
-  const email = requestHeaders.get(USER_EMAIL_HEADER);
+  const email = requestHeaders.get(USER_EMAIL_HEADER)?.trim().toLowerCase();
   if (!email) return null;
 
   const encodedFullName = requestHeaders.get(USER_FULL_NAME_HEADER);
@@ -35,13 +42,55 @@ export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   };
 }
 
+async function authorizeChatGPTUser(user: AuthenticatedChatGPTUser): Promise<ChatGPTUser | null> {
+  const db = getDb();
+  let [member] = await db.select().from(adminUsers).where(eq(adminUsers.email, user.email)).limit(1);
+
+  if (!member) {
+    const [existingMember] = await db.select({ id: adminUsers.id }).from(adminUsers).limit(1);
+    if (!existingMember) {
+      // Private preview access limits bootstrap to the first authenticated operator.
+      [member] = await db.insert(adminUsers).values({
+        email: user.email,
+        displayName: user.displayName,
+        role: "owner",
+        active: true,
+        createdBy: "private-site-bootstrap",
+      }).onConflictDoNothing({ target: adminUsers.email }).returning();
+      if (!member) [member] = await db.select().from(adminUsers).where(eq(adminUsers.email, user.email)).limit(1);
+    }
+  }
+
+  if (!member?.active) return null;
+  return {
+    ...user,
+    adminId: member.id,
+    displayName: member.displayName.trim() || user.displayName,
+    role: member.role === "owner" ? "owner" : "admin",
+  };
+}
+
+export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
+  const user = await getAuthenticatedChatGPTUser();
+  return user ? authorizeChatGPTUser(user) : null;
+}
+
 export async function requireChatGPTUser(
   returnTo: string,
 ): Promise<ChatGPTUser> {
-  const user = await getChatGPTUser();
+  const authenticatedUser = await getAuthenticatedChatGPTUser();
+  if (!authenticatedUser) redirect(chatGPTSignInPath(returnTo));
+
+  const user = await authorizeChatGPTUser(authenticatedUser);
   if (user) return user;
 
-  redirect(chatGPTSignInPath(returnTo));
+  redirect("/admin/erisim-yok");
+}
+
+export async function requireOwner(returnTo: string): Promise<ChatGPTUser> {
+  const user = await requireChatGPTUser(returnTo);
+  if (user.role === "owner") return user;
+  redirect("/admin/erisim-yok?reason=owner");
 }
 
 export function chatGPTSignInPath(returnTo: string): string {

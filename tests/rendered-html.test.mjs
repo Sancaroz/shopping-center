@@ -469,7 +469,7 @@ test("captures immutable billing data without issuing a premature invoice", asyn
   assert.match(invoice, /Bu ekran mali belge üretmez/);
   assert.match(invoice, /Sipariş anındaki satıcı şirket bilgileri/);
   assert.doesNotMatch(tracking, /billingTaxNumber|sellerSnapshotJson/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 13/);
 });
 
 test("manages mixed sourcing and records auditable inventory movements", async () => {
@@ -502,7 +502,7 @@ test("manages mixed sourcing and records auditable inventory movements", async (
   assert.match(reservations, /movementType:"reservation_release"/);
   assert.match(readiness, /Stok ve tedarik/);
   assert.match(backup, /"inventoryMovements"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 13/);
   assert.match(exportApi, /inventoryMovementRows/);
   assert.match(adminPage, /\/admin\/stok/);
   assert.match(productsApi, /Ürün düzenleyicisinden stok düzeltmesi/);
@@ -533,7 +533,7 @@ test("snapshots order costs and reports finance estimates without false accounti
   assert.match(center, /Global ürün maliyetleri avro bazında tanımlanmadığı/);
   assert.match(readiness, /Kârlılık kontrolü/);
   assert.match(adminPage, /\/admin\/finans/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 13/);
 });
 
 test("applies server-authoritative promotions with safe limits and inactive defaults", async () => {
@@ -572,7 +572,7 @@ test("applies server-authoritative promotions with safe limits and inactive defa
   assert.match(center, /Yeni kampanyalar daima pasif oluşturulur/);
   assert.match(finance, /order\.subtotal-order\.discountAmount/);
   assert.match(backup, /"promotionRedemptions"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 13/);
   assert.match(exportApi, /promotionRedemptionRows/);
   assert.match(trackingApi, /discountAmount: order\.discountAmount/);
   assert.match(trackingPage, /İNDİRİM/);
@@ -617,7 +617,7 @@ test("requires an audited fulfillment checklist before shipment", async () => {
   assert.match(component, /Kalite kontrolü/);
   assert.match(component, /Adres ve etiket/);
   assert.match(backup, /"fulfillmentChecklists"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 13/);
   assert.match(exportApi, /fulfillmentChecklistRows/);
   assert.match(operations, /packingIncomplete/);
 });
@@ -643,7 +643,7 @@ test("tracks replenishments without sending suppliers and receives stock once", 
   assert.match(inventory, /\/admin\/tedarik/);
   assert.match(operations, /overdueReplenishments/);
   assert.match(backup, /"replenishments"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 13/);
   assert.match(exportApi, /replenishmentRows/);
 });
 
@@ -670,7 +670,7 @@ test("runs authenticated auditable support tickets with safe order matching", as
   assert.match(operations, /message-urgent/);
   assert.match(panel, /\/admin\/destek/);
   assert.match(backup, /Destek-sipariş/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 13/);
   assert.match(auditCenter, /Destek kaydı güncellemesi/);
   assert.match(auditCenter, /contact_message","Destek/);
 });
@@ -707,7 +707,7 @@ test("reconciles immutable payment and refund records without collecting card da
   assert.match(orderDetail, /Ödeme defteri/);
   assert.match(auditCenter, /Ödeme işlemi kaydı/);
   assert.match(backup, /"paymentTransactions"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 13/);
   assert.match(exportApi, /paymentTransactionRows/);
 });
 
@@ -741,7 +741,7 @@ test("tracks privacy rights requests without automatic deletion or identity docu
   assert.match(panel, /\/admin\/veri-talepleri/);
   assert.match(auditCenter, /Veri talebi güncellemesi/);
   assert.match(backup, /"privacyRequests"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 13/);
   assert.match(exportApi, /privacyRequestRows/);
 });
 
@@ -781,9 +781,49 @@ test("requires newsletter verification and supports one-click unsubscribe", asyn
   assert.match(operations, /draftNewsletter/);
   assert.match(auditCenter, /Bülten aboneliği durdurma/);
   assert.match(backup, /"newsletterOutbox"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 13/);
   assert.match(exportApi, /newsletterOutboxRows/);
   assert.match(migration, /SET `status` = 'pending_verification'/);
   assert.match(notificationsApi, /newsletterOutbox/);
   assert.match(notificationsCenter, /Bülten doğrulama/);
+});
+
+test("protects every admin surface with an owner-managed email allowlist", async () => {
+  const [schema,auth,api,page,center,denied,panel,operations,auditCenter,readiness,backup,exportApi,migration,dataSafety] = await Promise.all([
+    source("db/schema.ts"),
+    source("app/chatgpt-auth.ts"),
+    source("app/api/admin-users/route.ts"),
+    source("app/admin/ekip/page.tsx"),
+    source("app/admin/ekip/team-center.tsx"),
+    source("app/admin/erisim-yok/page.tsx"),
+    source("app/admin/panel.tsx"),
+    source("app/admin/operasyon/operations-center.tsx"),
+    source("app/admin/islem-gecmisi/audit-log-center.tsx"),
+    source("app/api/launch-readiness/route.ts"),
+    source("app/backup-format.ts"),
+    source("app/api/export/route.ts"),
+    source("drizzle/0035_nifty_mauler.sql"),
+    source("app/admin/veri-guvenligi/data-safety-center.tsx"),
+  ]);
+  assert.match(schema, /adminUsers/);
+  assert.match(schema, /email: text\("email"\)\.notNull\(\)\.unique\(\)/);
+  assert.match(auth, /getAuthenticatedChatGPTUser/);
+  assert.match(auth, /private-site-bootstrap/);
+  assert.match(auth, /authorizeChatGPTUser/);
+  assert.match(auth, /\/admin\/erisim-yok/);
+  assert.match(api, /user\?\.role === "owner"/);
+  assert.match(api, /Mağaza sahibi erişimi kapatılamaz/);
+  assert.doesNotMatch(api, /export async function DELETE/);
+  assert.match(page, /requireOwner\("\/admin\/ekip"\)/);
+  assert.match(center, /otomatik davet e-postası gönderilmez/);
+  assert.match(denied, /Bu hesap yönetim listesinde değil/);
+  assert.match(panel, /\/admin\/ekip/);
+  assert.match(operations, /\/admin\/ekip/);
+  assert.match(auditCenter, /Yönetici erişimi güncellemesi/);
+  assert.match(readiness, /Yönetim erişimi/);
+  assert.match(backup, /"adminUsers"/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 13/);
+  assert.match(exportApi, /adminUserRows/);
+  assert.match(migration, /CREATE TABLE `admin_users`/);
+  assert.match(dataSafety, /Yönetim kullanıcıları/);
 });

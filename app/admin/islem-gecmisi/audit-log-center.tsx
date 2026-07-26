@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 type AuditLog={id:number;actorEmail:string;actorName:string;action:string;entityType:string;entityId:string;summary:string;beforeJson:string;afterJson:string;createdAt:string};
-const labels:Record<string,string>={"order.update":"Sipariş güncellemesi","return_request.update":"İade/iptal talebi","support.update":"Destek kaydı güncellemesi","payment_transaction.create":"Ödeme işlemi kaydı","privacy_request.update":"Veri talebi güncellemesi","newsletter.unsubscribe":"Bülten aboneliği durdurma"};
+const labels:Record<string,string>={"order.update":"Sipariş güncellemesi","return_request.update":"İade/iptal talebi","support.update":"Destek kaydı güncellemesi","payment_transaction.create":"Ödeme işlemi kaydı","privacy_request.update":"Veri talebi güncellemesi","newsletter.unsubscribe":"Bülten aboneliği durdurma","admin_user.create":"Yönetici ekleme","admin_user.reactivate":"Yönetici erişimini açma","admin_user.update":"Yönetici erişimi güncellemesi"};
 
 function Changes({log}:{log:AuditLog}) {
   const before=JSON.parse(log.beforeJson||"{}") as Record<string,unknown>;

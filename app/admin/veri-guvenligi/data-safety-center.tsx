@@ -7,6 +7,7 @@ type Verification = { valid: boolean; errors: string[]; counts: Record<string, n
 
 const tableLabels: Record<string, string> = {
   settings: "Mağaza ayarları",
+  adminUsers: "Yönetim kullanıcıları",
   categories: "Kategoriler",
   products: "Ürünler",
   variants: "Varyantlar",

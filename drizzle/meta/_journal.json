@@ -246,6 +246,13 @@
       "when": 1785097594547,
       "tag": "0034_yielding_sentinels",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1785098234102,
+      "tag": "0035_nifty_mauler",
+      "breakpoints": true
     }
   ]
 }

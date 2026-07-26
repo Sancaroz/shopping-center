@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { auditLogs, notificationOutbox, orders, products, returnRequests, storeSettings } from "../../../db/schema";
+import { adminUsers, auditLogs, notificationOutbox, orders, products, returnRequests, storeSettings } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { getIntegrationStatus } from "../../integrations/runtime";
 
@@ -9,8 +9,9 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   if (!(await getChatGPTUser())) return Response.json({ error:"Yetkisiz erişim" }, { status:401 });
   const db=getDb();
-  const [settingsRows,productRows,orderRows,returnRows,notificationRows,auditRows]=await Promise.all([
+  const [settingsRows,adminUserRows,productRows,orderRows,returnRows,notificationRows,auditRows]=await Promise.all([
     db.select().from(storeSettings),
+    db.select().from(adminUsers),
     db.select().from(products).where(eq(products.active,true)),
     db.select().from(orders).orderBy(desc(orders.id)).limit(500),
     db.select().from(returnRequests).orderBy(desc(returnRequests.id)).limit(300),
@@ -30,7 +31,9 @@ export async function GET() {
   const globalShippingReady=!globalShippingRequired||(settings.shippingGlobalEnabled==="true"&&String(settings.shippingGlobalCountries??"").split(",").some(country=>country.trim()));
   const sourcingIssues=productRows.filter(product=>!product.supplierName.trim()||product.unitCost<=0);
   const marginIssues=productRows.filter(product=>product.marketTr&&product.unitCost>0&&product.priceTr<=product.unitCost);
+  const activeOwners=adminUserRows.filter(member=>member.active&&member.role==="owner");
   const checks=[
+    {key:"admin_access",label:"Yönetim erişimi",ready:activeOwners.length>0,detail:activeOwners.length?`${adminUserRows.filter(member=>member.active).length} etkin yönetim hesabı izin listesiyle korunuyor.`:"Etkin mağaza sahibi hesabı bulunamadı."},
     {key:"catalog",label:"Ürün kataloğu",ready:productRows.length>0&&catalogIssues.length===0,detail:productRows.length===0?"Yayında ürün yok.":catalogIssues.length?`${catalogIssues.length} yayındaki üründe eksik var.`:`${productRows.length} ürün yayına hazır.`},
     {key:"inventory",label:"Stok ve tedarik",ready:productRows.length>0&&sourcingIssues.length===0,detail:productRows.length===0?"Yayında ürün yok.":sourcingIssues.length?`${sourcingIssues.length} yayındaki üründe tedarikçi veya maliyet eksik.`:"Yayındaki ürünlerin tedarik profilleri tamamlandı."},
     {key:"margin",label:"Kârlılık kontrolü",ready:productRows.length>0&&marginIssues.length===0,detail:marginIssues.length?`${marginIssues.length} Türkiye ürününde satış fiyatı maliyeti karşılamıyor.`:"Türkiye ürünlerinde fiyat maliyetin üzerinde."},

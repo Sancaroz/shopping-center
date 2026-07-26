@@ -1,6 +1,7 @@
 import { desc } from "drizzle-orm";
 import { getDb } from "../../../db";
 import {
+  adminUsers,
   auditLogs,
   cartItems,
   carts,
@@ -63,6 +64,7 @@ export async function GET(request: Request) {
   if (type === "backup") {
     const [
       settings,
+      adminUserRows,
       categoryRows,
       productRows,
       variantRows,
@@ -88,6 +90,7 @@ export async function GET(request: Request) {
       newsletterOutboxRows,
     ] = await Promise.all([
       db.select().from(storeSettings),
+      db.select().from(adminUsers),
       db.select().from(categories),
       db.select().from(products),
       db.select().from(productVariants),
@@ -114,6 +117,7 @@ export async function GET(request: Request) {
     ]);
     const backup = await buildBackupEnvelope({
       settings,
+      adminUsers: adminUserRows,
       categories: categoryRows,
       products: productRows,
       variants: variantRows,
