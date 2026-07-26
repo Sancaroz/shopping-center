@@ -843,3 +843,26 @@ test("rejects cross-site admin requests before authentication or database writes
   assert.ok(auth.indexOf("isTrustedRequestContext(requestHeaders)") < auth.indexOf("requestHeaders.get(USER_EMAIL_HEADER)"));
   assert.match(securityConfig, /frame-ancestors 'none'/);
 });
+
+test("archives catalog records without destroying order or inventory history", async () => {
+  const [productsApi,categoriesApi,panel,auditCenter,schema] = await Promise.all([
+    source("app/api/products/route.ts"),
+    source("app/api/categories/route.ts"),
+    source("app/admin/panel.tsx"),
+    source("app/admin/islem-gecmisi/audit-log-center.tsx"),
+    source("db/schema.ts"),
+  ]);
+  assert.match(productsApi, /action:"product\.archive"/);
+  assert.match(productsApi, /active:false, marketTr:false, marketGlobal:false, featured:false/);
+  assert.doesNotMatch(productsApi, /delete\(products\)/);
+  assert.match(categoriesApi, /descendantIds/);
+  assert.match(categoriesApi, /inArray\(products\.categoryId,ids\)/);
+  assert.match(categoriesApi, /action:"category\.archive"/);
+  assert.doesNotMatch(categoriesApi, /delete\(categories\)/);
+  assert.match(panel, /Ürün kaydı ve geçmişi korunacak/);
+  assert.match(panel, /Ürünlerle arşivle/);
+  assert.match(panel, /ürününü arşivle/);
+  assert.match(auditCenter, /Ürün arşivleme/);
+  assert.match(auditCenter, /Kategori arşivleme/);
+  assert.match(schema, /onDelete: "set null"/);
+});

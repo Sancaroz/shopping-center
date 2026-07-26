@@ -2,6 +2,7 @@ import { desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { categories, inventoryMovements, productImages, products, productVariants } from "../../../db/schema";
 import { catalogQuality } from "../../catalog-quality";
+import { recordAudit } from "../../audit-log";
 import { getChatGPTUser } from "../../chatgpt-auth";
 
 export const dynamic = "force-dynamic";
@@ -139,9 +140,14 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  if (!(await getChatGPTUser())) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
+  const user = await getChatGPTUser();
+  if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
   const id = Number(new URL(request.url).searchParams.get("id"));
   if (!id) return Response.json({ error: "Geçersiz ürün" }, { status: 400 });
-  await getDb().delete(products).where(eq(products.id, id));
-  return Response.json({ ok: true });
+  const db = getDb();
+  const [before] = await db.select().from(products).where(eq(products.id, id)).limit(1);
+  if (!before) return Response.json({ error: "Ürün bulunamadı." }, { status: 404 });
+  const [product] = await db.update(products).set({ active:false, marketTr:false, marketGlobal:false, featured:false, updatedAt:new Date().toISOString() }).where(eq(products.id, id)).returning();
+  await recordAudit({ user, action:"product.archive", entityType:"product", entityId:id, summary:`${before.nameTr} ürünü geri alınabilir biçimde arşivlendi.`, before:{ active:before.active, marketTr:before.marketTr, marketGlobal:before.marketGlobal, featured:before.featured }, after:{ active:false, marketTr:false, marketGlobal:false, featured:false } });
+  return Response.json({ ok:true, archived:true, product });
 }
