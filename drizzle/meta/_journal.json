@@ -232,6 +232,13 @@
       "when": 1785096462012,
       "tag": "0032_fresh_blur",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1785097212436,
+      "tag": "0033_fresh_changeling",
+      "breakpoints": true
     }
   ]
 }

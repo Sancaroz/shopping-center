@@ -27,6 +27,7 @@ const tableLabels: Record<string, string> = {
   returnRequests: "İade talepleri",
   auditLogs: "İşlem geçmişi",
   contactMessages: "Müşteri mesajları",
+  privacyRequests: "Kişisel veri talepleri",
   newsletterSubscribers: "Bülten aboneleri",
 };
 

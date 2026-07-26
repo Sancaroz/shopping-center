@@ -331,6 +331,27 @@ export const contactMessages = sqliteTable("contact_messages", {
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const privacyRequests = sqliteTable("privacy_requests", {
+  id: integer("id").primaryKey({ autoIncrement:true }),
+  requestNumber: text("request_number").notNull().unique(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone").notNull().default(""),
+  requestType: text("request_type").notNull(),
+  details: text("details").notNull(),
+  orderNumber: text("order_number").notNull().default(""),
+  orderId: integer("order_id").references(() => orders.id, { onDelete:"set null" }),
+  identityStatus: text("identity_status").notNull().default("unverified"),
+  status: text("status").notNull().default("new"),
+  dueAt: text("due_at").notNull(),
+  assignedTo: text("assigned_to").notNull().default(""),
+  adminNote: text("admin_note").notNull().default(""),
+  responseSummary: text("response_summary").notNull().default(""),
+  resolvedAt: text("resolved_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const newsletterSubscribers = sqliteTable("newsletter_subscribers", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   email: text("email").notNull().unique(),

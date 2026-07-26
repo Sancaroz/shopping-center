@@ -469,7 +469,7 @@ test("captures immutable billing data without issuing a premature invoice", asyn
   assert.match(invoice, /Bu ekran mali belge üretmez/);
   assert.match(invoice, /Sipariş anındaki satıcı şirket bilgileri/);
   assert.doesNotMatch(tracking, /billingTaxNumber|sellerSnapshotJson/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 10/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
 });
 
 test("manages mixed sourcing and records auditable inventory movements", async () => {
@@ -502,7 +502,7 @@ test("manages mixed sourcing and records auditable inventory movements", async (
   assert.match(reservations, /movementType:"reservation_release"/);
   assert.match(readiness, /Stok ve tedarik/);
   assert.match(backup, /"inventoryMovements"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 10/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
   assert.match(exportApi, /inventoryMovementRows/);
   assert.match(adminPage, /\/admin\/stok/);
   assert.match(productsApi, /Ürün düzenleyicisinden stok düzeltmesi/);
@@ -533,7 +533,7 @@ test("snapshots order costs and reports finance estimates without false accounti
   assert.match(center, /Global ürün maliyetleri avro bazında tanımlanmadığı/);
   assert.match(readiness, /Kârlılık kontrolü/);
   assert.match(adminPage, /\/admin\/finans/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 10/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
 });
 
 test("applies server-authoritative promotions with safe limits and inactive defaults", async () => {
@@ -572,7 +572,7 @@ test("applies server-authoritative promotions with safe limits and inactive defa
   assert.match(center, /Yeni kampanyalar daima pasif oluşturulur/);
   assert.match(finance, /order\.subtotal-order\.discountAmount/);
   assert.match(backup, /"promotionRedemptions"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 10/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
   assert.match(exportApi, /promotionRedemptionRows/);
   assert.match(trackingApi, /discountAmount: order\.discountAmount/);
   assert.match(trackingPage, /İNDİRİM/);
@@ -617,7 +617,7 @@ test("requires an audited fulfillment checklist before shipment", async () => {
   assert.match(component, /Kalite kontrolü/);
   assert.match(component, /Adres ve etiket/);
   assert.match(backup, /"fulfillmentChecklists"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 10/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
   assert.match(exportApi, /fulfillmentChecklistRows/);
   assert.match(operations, /packingIncomplete/);
 });
@@ -643,7 +643,7 @@ test("tracks replenishments without sending suppliers and receives stock once", 
   assert.match(inventory, /\/admin\/tedarik/);
   assert.match(operations, /overdueReplenishments/);
   assert.match(backup, /"replenishments"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 10/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
   assert.match(exportApi, /replenishmentRows/);
 });
 
@@ -670,7 +670,7 @@ test("runs authenticated auditable support tickets with safe order matching", as
   assert.match(operations, /message-urgent/);
   assert.match(panel, /\/admin\/destek/);
   assert.match(backup, /Destek-sipariş/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 10/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
   assert.match(auditCenter, /Destek kaydı güncellemesi/);
   assert.match(auditCenter, /contact_message","Destek/);
 });
@@ -707,6 +707,40 @@ test("reconciles immutable payment and refund records without collecting card da
   assert.match(orderDetail, /Ödeme defteri/);
   assert.match(auditCenter, /Ödeme işlemi kaydı/);
   assert.match(backup, /"paymentTransactions"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 10/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
   assert.match(exportApi, /paymentTransactionRows/);
+});
+
+test("tracks privacy rights requests without automatic deletion or identity documents", async () => {
+  const [schema,api,publicPage,adminCenter,adminPage,policies,operations,panel,auditCenter,backup,exportApi] = await Promise.all([
+    source("db/schema.ts"),
+    source("app/api/privacy-requests/route.ts"),
+    source("app/veri-talebi/page.tsx"),
+    source("app/admin/veri-talepleri/privacy-request-center.tsx"),
+    source("app/admin/veri-talepleri/page.tsx"),
+    source("app/politikalar/page.tsx"),
+    source("app/api/operations-summary/route.ts"),
+    source("app/admin/panel.tsx"),
+    source("app/admin/islem-gecmisi/audit-log-center.tsx"),
+    source("app/backup-format.ts"),
+    source("app/api/export/route.ts"),
+  ]);
+  assert.match(schema, /privacyRequests/);
+  assert.match(schema, /identityStatus/);
+  assert.match(api, /scope:"privacy_request"/);
+  assert.match(api, /30\*24\*60\*60\*1000/);
+  assert.match(api, /eq\(orders\.email,email\)/);
+  assert.match(api, /privacy_request\.update/);
+  assert.doesNotMatch(api, /delete\(orders\)|delete\(contactMessages\)/);
+  assert.match(publicPage, /Kart bilgisi, parola veya kimlik belgesi yüklemeyin/);
+  assert.match(adminCenter, /Silme veya dışa aktarma otomatik yapılmaz/);
+  assert.match(adminCenter, /Cevap özeti/);
+  assert.match(adminPage, /requireChatGPTUser\("\/admin\/veri-talepleri"\)/);
+  assert.match(policies, /\/veri-talebi/);
+  assert.match(operations, /privacy-/);
+  assert.match(panel, /\/admin\/veri-talepleri/);
+  assert.match(auditCenter, /Veri talebi güncellemesi/);
+  assert.match(backup, /"privacyRequests"/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
+  assert.match(exportApi, /privacyRequestRows/);
 });
