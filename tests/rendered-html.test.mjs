@@ -924,3 +924,24 @@ test("archives variants while preserving inventory history and blocking new sale
   assert.match(migration, /ADD `active` integer DEFAULT true NOT NULL/);
   assert.match(auditCenter, /Varyant arşivleme/);
 });
+
+test("creates carts only on valid add-to-cart and cleans expired anonymous carts", async () => {
+  const [cartApi,backupsApi,dataSafety,schema] = await Promise.all([
+    source("app/api/cart/route.ts"),
+    source("app/api/backups/route.ts"),
+    source("app/admin/veri-guvenligi/data-safety-center.tsx"),
+    source("db/schema.ts"),
+  ]);
+  assert.match(cartApi, /async function lookupCart/);
+  assert.doesNotMatch(cartApi, /async function ensureCart/);
+  assert.match(cartApi, /if\(!cart\)return response\(\{items:\[\],market:"TR"\}/);
+  assert.ok(cartApi.indexOf("if(!body)return response") < cartApi.indexOf("db.insert(carts)"));
+  assert.ok(cartApi.indexOf("if(!session.cart&&quantity>maximum)") < cartApi.indexOf("db.insert(carts)"));
+  assert.match(cartApi, /quantity>100/);
+  assert.match(cartApi, /Cache-Control":"no-store/);
+  assert.match(backupsApi, /35 \* 24 \* 60 \* 60 \* 1000/);
+  assert.match(backupsApi, /delete\(carts\)\.where\(lt\(carts\.updatedAt,cartCutoff\)\)/);
+  assert.match(backupsApi, /deletedCarts/);
+  assert.match(dataSafety, /kullanılmayan sepetler 35 gün/);
+  assert.match(schema, /cartItems.*onDelete: "cascade"/s);
+});

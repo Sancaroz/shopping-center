@@ -1,6 +1,6 @@
 import { desc, lt } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { auditLogs, requestThrottles } from "../../../db/schema";
+import { auditLogs, carts, requestThrottles } from "../../../db/schema";
 import { recordAudit } from "../../audit-log";
 import { verifyBackupEnvelope } from "../../backup-format";
 import { getChatGPTUser } from "../../chatgpt-auth";
@@ -15,7 +15,7 @@ export async function GET() {
     .filter((row) => row.entityType === "backup" || row.action === "data.retention_cleanup")
     .slice(0, 20)
     .map((row) => ({ id: row.id, action: row.action, summary: row.summary, actorName: row.actorName, createdAt: row.createdAt }));
-  return Response.json({ history, retention: { requestThrottleHours: 48 } });
+  return Response.json({ history, retention: { requestThrottleHours: 48, abandonedCartDays: 35 } });
 }
 
 export async function POST(request: Request) {
@@ -46,6 +46,7 @@ export async function DELETE() {
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
   const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const cartCutoff = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString();
   const staleRows = await getDb()
     .select({ keyHash: requestThrottles.keyHash })
     .from(requestThrottles)
@@ -53,12 +54,14 @@ export async function DELETE() {
   if (staleRows.length) {
     await getDb().delete(requestThrottles).where(lt(requestThrottles.updatedAt, cutoff));
   }
+  const staleCarts=await getDb().select({id:carts.id}).from(carts).where(lt(carts.updatedAt,cartCutoff));
+  if(staleCarts.length)await getDb().delete(carts).where(lt(carts.updatedAt,cartCutoff));
   await recordAudit({
     user,
     action: "data.retention_cleanup",
     entityType: "maintenance",
-    summary: `${staleRows.length} süresi dolmuş güvenlik sayacı temizlendi.`,
-    after: { deleted: staleRows.length, cutoff, retentionHours: 48 },
+    summary: `${staleRows.length} güvenlik sayacı ve ${staleCarts.length} süresi dolmuş sepet temizlendi.`,
+    after: { deletedRequestThrottles:staleRows.length, deletedCarts:staleCarts.length, cutoff, cartCutoff, retentionHours:48, abandonedCartDays:35 },
   });
-  return Response.json({ deleted: staleRows.length, cutoff, message: staleRows.length ? "Süresi dolmuş teknik kayıtlar temizlendi." : "Temizlenecek süresi dolmuş kayıt yok." });
+  return Response.json({ deleted:staleRows.length, deletedCarts:staleCarts.length, cutoff, cartCutoff, message:staleRows.length||staleCarts.length?"Süresi dolmuş teknik kayıtlar temizlendi.":"Temizlenecek süresi dolmuş kayıt yok." });
 }
