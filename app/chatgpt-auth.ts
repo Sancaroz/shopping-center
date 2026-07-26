@@ -25,6 +25,7 @@ const CALLBACK_PATH = "/callback";
 
 export async function getAuthenticatedChatGPTUser(): Promise<AuthenticatedChatGPTUser | null> {
   const requestHeaders = await headers();
+  if (!isTrustedRequestContext(requestHeaders)) return null;
   const email = requestHeaders.get(USER_EMAIL_HEADER)?.trim().toLowerCase();
   if (!email) return null;
 
@@ -40,6 +41,29 @@ export async function getAuthenticatedChatGPTUser(): Promise<AuthenticatedChatGP
     email,
     fullName,
   };
+}
+
+function isTrustedRequestContext(requestHeaders: Headers): boolean {
+  const fetchSite = requestHeaders.get("sec-fetch-site");
+  const fetchMode = requestHeaders.get("sec-fetch-mode");
+  if (fetchSite === "cross-site" && fetchMode !== "navigate") return false;
+
+  const origin = requestHeaders.get("origin");
+  if (!origin) return true;
+  if (origin === "null") return false;
+
+  const forwardedHost = requestHeaders.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const host = forwardedHost || requestHeaders.get("host")?.trim();
+  if (!host) return false;
+  const forwardedProtocol = requestHeaders.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const protocol = forwardedProtocol || "https";
+
+  try {
+    const source = new URL(origin);
+    return source.host.toLowerCase() === host.toLowerCase() && source.protocol === `${protocol}:`;
+  } catch {
+    return false;
+  }
 }
 
 async function authorizeChatGPTUser(user: AuthenticatedChatGPTUser): Promise<ChatGPTUser | null> {

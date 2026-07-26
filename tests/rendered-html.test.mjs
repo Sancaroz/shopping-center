@@ -827,3 +827,19 @@ test("protects every admin surface with an owner-managed email allowlist", async
   assert.match(migration, /CREATE TABLE `admin_users`/);
   assert.match(dataSafety, /Yönetim kullanıcıları/);
 });
+
+test("rejects cross-site admin requests before authentication or database writes", async () => {
+  const [auth,securityConfig] = await Promise.all([
+    source("app/chatgpt-auth.ts"),
+    source("next.config.ts"),
+  ]);
+  assert.match(auth, /isTrustedRequestContext\(requestHeaders\)/);
+  assert.match(auth, /sec-fetch-site/);
+  assert.match(auth, /fetchSite === "cross-site"/);
+  assert.match(auth, /origin === "null"/);
+  assert.match(auth, /x-forwarded-host/);
+  assert.match(auth, /x-forwarded-proto/);
+  assert.match(auth, /source\.host\.toLowerCase\(\) === host\.toLowerCase\(\)/);
+  assert.ok(auth.indexOf("isTrustedRequestContext(requestHeaders)") < auth.indexOf("requestHeaders.get(USER_EMAIL_HEADER)"));
+  assert.match(securityConfig, /frame-ancestors 'none'/);
+});
