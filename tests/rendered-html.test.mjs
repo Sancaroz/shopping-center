@@ -469,7 +469,7 @@ test("captures immutable billing data without issuing a premature invoice", asyn
   assert.match(invoice, /Bu ekran mali belge üretmez/);
   assert.match(invoice, /Sipariş anındaki satıcı şirket bilgileri/);
   assert.doesNotMatch(tracking, /billingTaxNumber|sellerSnapshotJson/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
 });
 
 test("manages mixed sourcing and records auditable inventory movements", async () => {
@@ -502,7 +502,7 @@ test("manages mixed sourcing and records auditable inventory movements", async (
   assert.match(reservations, /movementType:"reservation_release"/);
   assert.match(readiness, /Stok ve tedarik/);
   assert.match(backup, /"inventoryMovements"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
   assert.match(exportApi, /inventoryMovementRows/);
   assert.match(adminPage, /\/admin\/stok/);
   assert.match(productsApi, /Ürün düzenleyicisinden stok düzeltmesi/);
@@ -533,7 +533,7 @@ test("snapshots order costs and reports finance estimates without false accounti
   assert.match(center, /Global ürün maliyetleri avro bazında tanımlanmadığı/);
   assert.match(readiness, /Kârlılık kontrolü/);
   assert.match(adminPage, /\/admin\/finans/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
 });
 
 test("applies server-authoritative promotions with safe limits and inactive defaults", async () => {
@@ -572,7 +572,7 @@ test("applies server-authoritative promotions with safe limits and inactive defa
   assert.match(center, /Yeni kampanyalar daima pasif oluşturulur/);
   assert.match(finance, /order\.subtotal-order\.discountAmount/);
   assert.match(backup, /"promotionRedemptions"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
   assert.match(exportApi, /promotionRedemptionRows/);
   assert.match(trackingApi, /discountAmount: order\.discountAmount/);
   assert.match(trackingPage, /İNDİRİM/);
@@ -617,7 +617,7 @@ test("requires an audited fulfillment checklist before shipment", async () => {
   assert.match(component, /Kalite kontrolü/);
   assert.match(component, /Adres ve etiket/);
   assert.match(backup, /"fulfillmentChecklists"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
   assert.match(exportApi, /fulfillmentChecklistRows/);
   assert.match(operations, /packingIncomplete/);
 });
@@ -643,7 +643,7 @@ test("tracks replenishments without sending suppliers and receives stock once", 
   assert.match(inventory, /\/admin\/tedarik/);
   assert.match(operations, /overdueReplenishments/);
   assert.match(backup, /"replenishments"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
   assert.match(exportApi, /replenishmentRows/);
 });
 
@@ -670,7 +670,7 @@ test("runs authenticated auditable support tickets with safe order matching", as
   assert.match(operations, /message-urgent/);
   assert.match(panel, /\/admin\/destek/);
   assert.match(backup, /Destek-sipariş/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
   assert.match(auditCenter, /Destek kaydı güncellemesi/);
   assert.match(auditCenter, /contact_message","Destek/);
 });
@@ -707,7 +707,7 @@ test("reconciles immutable payment and refund records without collecting card da
   assert.match(orderDetail, /Ödeme defteri/);
   assert.match(auditCenter, /Ödeme işlemi kaydı/);
   assert.match(backup, /"paymentTransactions"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
   assert.match(exportApi, /paymentTransactionRows/);
 });
 
@@ -741,6 +741,49 @@ test("tracks privacy rights requests without automatic deletion or identity docu
   assert.match(panel, /\/admin\/veri-talepleri/);
   assert.match(auditCenter, /Veri talebi güncellemesi/);
   assert.match(backup, /"privacyRequests"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 11/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
   assert.match(exportApi, /privacyRequestRows/);
+});
+
+test("requires newsletter verification and supports one-click unsubscribe", async () => {
+  const [schema,api,verifyApi,unsubscribeApi,home,verifyPage,preferencePage,panel,operations,auditCenter,backup,exportApi,migration,notificationsApi,notificationsCenter] = await Promise.all([
+    source("db/schema.ts"),
+    source("app/api/newsletter/route.ts"),
+    source("app/api/newsletter/verify/route.ts"),
+    source("app/api/newsletter/unsubscribe/route.ts"),
+    source("app/page.tsx"),
+    source("app/bulten-dogrula/page.tsx"),
+    source("app/bulten-tercihi/page.tsx"),
+    source("app/admin/panel.tsx"),
+    source("app/api/operations-summary/route.ts"),
+    source("app/admin/islem-gecmisi/audit-log-center.tsx"),
+    source("app/backup-format.ts"),
+    source("app/api/export/route.ts"),
+    source("drizzle/0034_yielding_sentinels.sql"),
+    source("app/api/notifications/route.ts"),
+    source("app/admin/bildirimler/notification-center.tsx"),
+  ]);
+  assert.match(schema, /newsletterOutbox/);
+  assert.match(schema, /verificationTokenHash/);
+  assert.match(schema, /unsubscribeTokenHash/);
+  assert.match(api, /pending_verification/);
+  assert.match(api, /body\.consent!==true/);
+  assert.match(api, /48\*60\*60\*1000/);
+  assert.match(api, /status:"draft"/);
+  assert.match(api, /newsletter\.unsubscribe/);
+  assert.match(verifyApi, /verificationExpiresAt/);
+  assert.match(unsubscribeApi, /status:"unsubscribed"/);
+  assert.match(home, /Doğrulama bağlantınız hazırlandı/);
+  assert.match(home, /consent:true/);
+  assert.match(verifyPage, /Aboneliğiniz aktif/);
+  assert.match(preferencePage, /Abonelikten çık/);
+  assert.doesNotMatch(panel, /Yeniden aktifleştir/);
+  assert.match(operations, /draftNewsletter/);
+  assert.match(auditCenter, /Bülten aboneliği durdurma/);
+  assert.match(backup, /"newsletterOutbox"/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 12/);
+  assert.match(exportApi, /newsletterOutboxRows/);
+  assert.match(migration, /SET `status` = 'pending_verification'/);
+  assert.match(notificationsApi, /newsletterOutbox/);
+  assert.match(notificationsCenter, /Bülten doğrulama/);
 });

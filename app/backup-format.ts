@@ -1,5 +1,5 @@
 export const BACKUP_FORMAT = "mysa-store-backup";
-export const BACKUP_SCHEMA_VERSION = 11;
+export const BACKUP_SCHEMA_VERSION = 12;
 
 export const backupTableNames = [
   "settings",
@@ -25,6 +25,7 @@ export const backupTableNames = [
   "contactMessages",
   "privacyRequests",
   "newsletterSubscribers",
+  "newsletterOutbox",
 ] as const;
 
 type BackupTableName = (typeof backupTableNames)[number];
@@ -120,6 +121,7 @@ export async function verifyBackupEnvelope(input: unknown) {
   const orderIds = rowIds(completeData.orders);
   const variantIds = rowIds(completeData.variants);
   const promotionIds=rowIds(completeData.promotions);
+  const subscriberIds=rowIds(completeData.newsletterSubscribers);
   const checks = [
     checkReferences(completeData.products, "categoryId", categoryIds, "Ürün-kategori", true),
     checkReferences(completeData.variants, "productId", productIds, "Varyant-ürün"),
@@ -141,6 +143,7 @@ export async function verifyBackupEnvelope(input: unknown) {
     checkReferences(completeData.returnRequests, "orderId", orderIds, "İade-sipariş"),
     checkReferences(completeData.contactMessages, "orderId", orderIds, "Destek-sipariş", true),
     checkReferences(completeData.privacyRequests, "orderId", orderIds, "Veri talebi-sipariş", true),
+    checkReferences(completeData.newsletterOutbox, "subscriberId", subscriberIds, "Bülten iletisi-abone"),
   ].filter(Boolean);
   errors.push(...checks);
 

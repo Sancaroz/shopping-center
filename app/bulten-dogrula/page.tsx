@@ -1,0 +1,4 @@
+"use client";
+import {useEffect,useState} from "react";
+import "../bulten-tercihi/bulten-tercihi.css";
+export default function NewsletterVerifyPage(){const[message,setMessage]=useState("E-posta adresiniz doğrulanıyor…");const[ok,setOk]=useState(false);useEffect(()=>{const token=new URLSearchParams(window.location.search).get("token");fetch("/api/newsletter/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})}).then(async response=>({response,body:await response.json()})).then(({response,body})=>{setOk(response.ok);setMessage(response.ok?"E-posta adresiniz doğrulandı. Bülten aboneliğiniz artık aktif.":body.error??"Doğrulama tamamlanamadı.")}).catch(()=>setMessage("Doğrulama tamamlanamadı."))},[]);return <main className="newsletter-choice"><article className={ok?"success":""}><p>MYSA OBJETS</p><h1>{ok?"Aboneliğiniz aktif.":"Bülten doğrulaması"}</h1><span>{message}</span><a href="/">Mağazaya dön →</a></article></main>}

@@ -1,6 +1,6 @@
 import { desc } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { contactMessages, fulfillmentChecklists, notificationOutbox, orders, paymentTransactions, privacyRequests, products, productVariants, replenishments, returnRequests } from "../../../db/schema";
+import { contactMessages, fulfillmentChecklists, newsletterOutbox, notificationOutbox, orders, paymentTransactions, privacyRequests, products, productVariants, replenishments, returnRequests } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
 
 export const dynamic="force-dynamic";
@@ -10,7 +10,7 @@ type Alert={key:string;level:"urgent"|"warning"|"info";title:string;detail:strin
 export async function GET() {
   if (!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401});
   const db=getDb();
-  const [orderRows,productRows,variantRows,returnRows,messageRows,notificationRows,checklistRows,replenishmentRows,paymentRows,privacyRows]=await Promise.all([
+  const [orderRows,productRows,variantRows,returnRows,messageRows,notificationRows,checklistRows,replenishmentRows,paymentRows,privacyRows,newsletterRows]=await Promise.all([
     db.select().from(orders).orderBy(desc(orders.id)).limit(500),
     db.select().from(products),
     db.select().from(productVariants),
@@ -21,12 +21,13 @@ export async function GET() {
     db.select().from(replenishments).orderBy(desc(replenishments.id)).limit(500),
     db.select().from(paymentTransactions).orderBy(desc(paymentTransactions.id)).limit(500),
     db.select().from(privacyRequests).orderBy(desc(privacyRequests.id)).limit(500),
+    db.select().from(newsletterOutbox).orderBy(desc(newsletterOutbox.id)).limit(500),
   ]);
   const now=Date.now();const hours=(value:string)=>(now-new Date(value).getTime())/3_600_000;
   const activeOrders=orderRows.filter(order=>!["completed","cancelled"].includes(order.status));
   const openReturns=returnRows.filter(item=>["new","reviewing","approved"].includes(item.status));
   const openMessages=messageRows.filter(item=>item.status!=="resolved");
-  const draftNotifications=notificationRows.filter(item=>item.status==="draft");
+  const draftNotifications=notificationRows.filter(item=>item.status==="draft");const draftNewsletter= newsletterRows.filter(item=>item.status==="draft");
   const packingReady=new Set(checklistRows.filter(item=>item.productChecked&&item.quantityChecked&&item.qualityChecked&&item.packageChecked&&item.addressChecked).map(item=>item.orderId));
   const packingIncomplete=activeOrders.filter(order=>["confirmed","preparing"].includes(order.status)&&!packingReady.has(order.id));
   const overdueReplenishments=replenishmentRows.filter(item=>item.status==="ordered"&&item.expectedAt&&new Date(item.expectedAt).getTime()<now);
@@ -52,7 +53,7 @@ export async function GET() {
   ].sort((a,b)=>(a.level==="urgent"?0:1)-(b.level==="urgent"?0:1)||(a.createdAt??"").localeCompare(b.createdAt??""));
   return Response.json({
     generatedAt:new Date().toISOString(),
-    metrics:{activeOrders:activeOrders.length,newOrders:activeOrders.filter(order=>order.status==="new").length,preparingOrders:activeOrders.filter(order=>order.status==="preparing").length,packingIncomplete:packingIncomplete.length,overdueReplenishments:overdueReplenishments.length,shippingExceptions:activeOrders.filter(order=>order.deliveryStatus==="exception").length,staleShipments:activeOrders.filter(order=>order.status==="shipped"&&hours(order.lastShipmentEventAt??order.shippedAt??order.updatedAt)>=72).length,lowStock:lowStock.length,outOfStock:lowStock.filter(item=>item.stock===0).length,openReturns:openReturns.length,newReturns:openReturns.filter(item=>item.status==="new").length,openMessages:openMessages.length,newMessages:openMessages.filter(item=>item.status==="new").length,draftNotifications:draftNotifications.length},
+    metrics:{activeOrders:activeOrders.length,newOrders:activeOrders.filter(order=>order.status==="new").length,preparingOrders:activeOrders.filter(order=>order.status==="preparing").length,packingIncomplete:packingIncomplete.length,overdueReplenishments:overdueReplenishments.length,shippingExceptions:activeOrders.filter(order=>order.deliveryStatus==="exception").length,staleShipments:activeOrders.filter(order=>order.status==="shipped"&&hours(order.lastShipmentEventAt??order.shippedAt??order.updatedAt)>=72).length,lowStock:lowStock.length,outOfStock:lowStock.filter(item=>item.stock===0).length,openReturns:openReturns.length,newReturns:openReturns.filter(item=>item.status==="new").length,openMessages:openMessages.length,newMessages:openMessages.filter(item=>item.status==="new").length,draftNotifications:draftNotifications.length+draftNewsletter.length},
     alerts:alerts.slice(0,30),
     lowStock:lowStock.sort((a,b)=>a.stock-b.stock).slice(0,20),
     recentOrders:activeOrders.slice(0,12).map(order=>({id:order.id,orderNumber:order.orderNumber,status:order.status,customerName:order.customerName,total:order.total,market:order.market,createdAt:order.createdAt})),

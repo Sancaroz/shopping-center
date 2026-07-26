@@ -10,6 +10,7 @@ import {
   homepageBlocks,
   inventoryMovements,
   newsletterSubscribers,
+  newsletterOutbox,
   notificationOutbox,
   orderItems,
   orders,
@@ -84,6 +85,7 @@ export async function GET(request: Request) {
       auditRows,
       messageRows,
       subscriberRows,
+      newsletterOutboxRows,
     ] = await Promise.all([
       db.select().from(storeSettings),
       db.select().from(categories),
@@ -108,6 +110,7 @@ export async function GET(request: Request) {
       db.select().from(auditLogs),
       db.select().from(contactMessages),
       db.select().from(newsletterSubscribers),
+      db.select().from(newsletterOutbox),
     ]);
     const backup = await buildBackupEnvelope({
       settings,
@@ -133,6 +136,7 @@ export async function GET(request: Request) {
       auditLogs: auditRows,
       contactMessages: messageRows,
       newsletterSubscribers: subscriberRows,
+      newsletterOutbox:newsletterOutboxRows,
     });
     await recordAudit({
       user,

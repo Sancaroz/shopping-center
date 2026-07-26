@@ -29,6 +29,7 @@ const tableLabels: Record<string, string> = {
   contactMessages: "Müşteri mesajları",
   privacyRequests: "Kişisel veri talepleri",
   newsletterSubscribers: "Bülten aboneleri",
+  newsletterOutbox: "Bülten gönderim kuyruğu",
 };
 
 export default function DataSafetyCenter({ initialHistory }: { initialHistory: HistoryItem[] }) {

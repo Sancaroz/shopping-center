@@ -109,7 +109,7 @@ export default function Home() {
     window.setTimeout(() => setNotice(""), 2200);
   };
 
-  const subscribe=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();setNewsletterMessage("");const response=await fetch("/api/newsletter",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:newsletterEmail,market})});const data=await response.json();if(response.ok){setNewsletterEmail("");setNewsletterMessage(market==="TR"?"Kaydınız alındı.":"You are subscribed.");}else setNewsletterMessage(data.error??"Kayıt tamamlanamadı.");};
+  const subscribe=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();setNewsletterMessage("");const response=await fetch("/api/newsletter",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:newsletterEmail,market,consent:true})});const data=await response.json();if(response.ok){setNewsletterEmail("");setNewsletterMessage(data.alreadyActive?(market==="TR"?"Bu adres zaten doğrulanmış abone.":"This address is already subscribed."):(market==="TR"?"Doğrulama bağlantınız hazırlandı; e-posta gönderimi etkinleştiğinde iletilecek.":"Your verification link is queued and will be sent when email delivery is enabled."));}else setNewsletterMessage(data.error??"Kayıt tamamlanamadı.");};
   const isGlobal=market==="GLOBAL";
   const globalText=(key:keyof GlobalContent,fallback:string)=>isGlobal?(settings[key]||fallback):fallback;
   const badgeText=(badge:string)=>!isGlobal?badge:({"YENİ":"NEW","ÇOK SEVİLEN":"BESTSELLER","YAKINDA":"COMING SOON"}[badge]||badge);

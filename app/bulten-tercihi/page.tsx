@@ -1,0 +1,4 @@
+"use client";
+import {useState} from "react";
+import "./bulten-tercihi.css";
+export default function NewsletterPreferencePage(){const[busy,setBusy]=useState(false);const[message,setMessage]=useState("");async function unsubscribe(){setBusy(true);const token=new URLSearchParams(window.location.search).get("token");const response=await fetch("/api/newsletter/unsubscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token})});const body=await response.json();setMessage(response.ok?"Bülten aboneliğiniz sonlandırıldı.":body.error??"İşlem tamamlanamadı.");setBusy(false)}return <main className="newsletter-choice"><article><p>MYSA OBJETS</p><h1>Bülten tercihi</h1><span>{message||"Artık seçki ve haber e-postaları almak istemiyorsanız aboneliğinizi tek adımda sonlandırabilirsiniz."}</span>{!message&&<button onClick={unsubscribe} disabled={busy}>{busy?"İşleniyor…":"Abonelikten çık"}</button>}<a href="/">Mağazaya dön →</a></article></main>}

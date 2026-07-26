@@ -358,6 +358,27 @@ export const newsletterSubscribers = sqliteTable("newsletter_subscribers", {
   market: text("market").notNull().default("TR"),
   status: text("status").notNull().default("active"),
   consentAt: text("consent_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  verificationTokenHash: text("verification_token_hash").notNull().default(""),
+  verificationExpiresAt: text("verification_expires_at"),
+  verifiedAt: text("verified_at"),
+  unsubscribeTokenHash: text("unsubscribe_token_hash").notNull().default(""),
+  unsubscribedAt: text("unsubscribed_at"),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const newsletterOutbox = sqliteTable("newsletter_outbox", {
+  id: integer("id").primaryKey({ autoIncrement:true }),
+  subscriberId: integer("subscriber_id").notNull().references(() => newsletterSubscribers.id, { onDelete:"cascade" }),
+  eventKey: text("event_key").notNull().unique(),
+  eventType: text("event_type").notNull(),
+  recipient: text("recipient").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  status: text("status").notNull().default("draft"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error").notNull().default(""),
+  sentAt: text("sent_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 

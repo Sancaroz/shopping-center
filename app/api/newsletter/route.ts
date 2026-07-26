@@ -1,32 +1,15 @@
-import { desc, eq } from "drizzle-orm";
-import { getDb } from "../../../db";
-import { newsletterSubscribers } from "../../../db/schema";
-import { getChatGPTUser } from "../../chatgpt-auth";
-import { enforceRateLimit } from "../../rate-limit";
+import {desc,eq} from "drizzle-orm";
+import {getDb} from "../../../db";
+import {newsletterOutbox,newsletterSubscribers} from "../../../db/schema";
+import {recordAudit} from "../../audit-log";
+import {getChatGPTUser} from "../../chatgpt-auth";
+import {enforceRateLimit} from "../../rate-limit";
+import {createVerificationToken,hashVerificationToken} from "../../order-verification";
 
-export const dynamic="force-dynamic";
+export const dynamic="force-dynamic";const noStore={"Cache-Control":"no-store"};
 
-export async function GET(){
-  if(!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401});
-  const subscribers=await getDb().select().from(newsletterSubscribers).orderBy(desc(newsletterSubscribers.id));
-  return Response.json({subscribers});
-}
+export async function GET(){if(!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401,headers:noStore});const db=getDb();const[subscribers,outbox]=await Promise.all([db.select().from(newsletterSubscribers).orderBy(desc(newsletterSubscribers.id)),db.select().from(newsletterOutbox).orderBy(desc(newsletterOutbox.id)).limit(500)]);return Response.json({subscribers,outbox},{headers:noStore});}
 
-export async function POST(request:Request){
-  const body=await request.json().catch(()=>({})) as Record<string,unknown>;
-  const email=String(body.email??"").trim().toLocaleLowerCase("en-US").slice(0,180);
-  const market=body.market==="GLOBAL"?"GLOBAL":"TR";
-  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return Response.json({error:"Geçerli bir e-posta adresi girin."},{status:400});
-  const limited=await enforceRateLimit(request,{scope:"newsletter",identifier:email,limit:5,windowMinutes:60});if(limited)return limited;
-  const now=new Date().toISOString();
-  await getDb().insert(newsletterSubscribers).values({email,market,status:"active",consentAt:now,updatedAt:now}).onConflictDoUpdate({target:newsletterSubscribers.email,set:{market,status:"active",consentAt:now,updatedAt:now}});
-  return Response.json({ok:true},{status:201});
-}
+export async function POST(request:Request){const body=await request.json().catch(()=>({})) as Record<string,unknown>;const email=String(body.email??"").trim().toLocaleLowerCase("en-US").slice(0,180);const market=body.market==="GLOBAL"?"GLOBAL":"TR";if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||body.consent!==true)return Response.json({error:"Geçerli e-posta adresi ve bülten onayı zorunludur."},{status:400,headers:noStore});const limited=await enforceRateLimit(request,{scope:"newsletter",identifier:email,limit:5,windowMinutes:60});if(limited)return limited;const db=getDb();const[existing]=await db.select().from(newsletterSubscribers).where(eq(newsletterSubscribers.email,email)).limit(1);if(existing?.status==="active")return Response.json({ok:true,alreadyActive:true},{status:200,headers:noStore});const verificationToken=createVerificationToken();const unsubscribeToken=createVerificationToken();const verificationTokenHash=await hashVerificationToken(verificationToken);const unsubscribeTokenHash=await hashVerificationToken(unsubscribeToken);const now=new Date().toISOString();const verificationExpiresAt=new Date(Date.now()+48*60*60*1000).toISOString();const[subscriber]=await db.insert(newsletterSubscribers).values({email,market,status:"pending_verification",consentAt:now,verificationTokenHash,verificationExpiresAt,unsubscribeTokenHash,unsubscribedAt:null,updatedAt:now}).onConflictDoUpdate({target:newsletterSubscribers.email,set:{market,status:"pending_verification",consentAt:now,verificationTokenHash,verificationExpiresAt,unsubscribeTokenHash,unsubscribedAt:null,updatedAt:now}}).returning();const verifyUrl=`https://mysa-objets-store.robologai.chatgpt.site/bulten-dogrula?token=${verificationToken}`;const unsubscribeUrl=`https://mysa-objets-store.robologai.chatgpt.site/bulten-tercihi?token=${unsubscribeToken}`;await db.insert(newsletterOutbox).values({subscriberId:subscriber.id,eventKey:`newsletter:${subscriber.id}:verify:${verificationTokenHash.slice(0,16)}`,eventType:"verification",recipient:email,subject:market==="GLOBAL"?"Confirm your MYSA OBJETS subscription":"MYSA OBJETS bülten kaydınızı doğrulayın",body:market==="GLOBAL"?`Confirm your subscription within 48 hours: ${verifyUrl}\n\nUnsubscribe: ${unsubscribeUrl}`:`Bülten kaydınızı 48 saat içinde doğrulayın: ${verifyUrl}\n\nAbonelikten çık: ${unsubscribeUrl}`,status:"draft"});return Response.json({ok:true,pendingVerification:true},{status:201,headers:noStore});}
 
-export async function PATCH(request:Request){
-  if(!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401});
-  const body=await request.json() as{id?:number;status?:string};const id=Number(body.id);const status=String(body.status);
-  if(!id||!["active","unsubscribed"].includes(status))return Response.json({error:"Geçersiz abone durumu"},{status:400});
-  const[subscriber]=await getDb().update(newsletterSubscribers).set({status,updatedAt:new Date().toISOString()}).where(eq(newsletterSubscribers.id,id)).returning();
-  return subscriber?Response.json({subscriber}):Response.json({error:"Abone bulunamadı"},{status:404});
-}
+export async function PATCH(request:Request){const user=await getChatGPTUser();if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401,headers:noStore});const body=await request.json().catch(()=>null) as Record<string,unknown>|null;const id=Number(body?.id);if(!id||body?.status!=="unsubscribed")return Response.json({error:"Abonelik yalnızca doğrulama bağlantısıyla aktifleştirilebilir."},{status:400,headers:noStore});const db=getDb();const[before]=await db.select().from(newsletterSubscribers).where(eq(newsletterSubscribers.id,id)).limit(1);if(!before)return Response.json({error:"Abone bulunamadı"},{status:404,headers:noStore});const now=new Date().toISOString();const[subscriber]=await db.update(newsletterSubscribers).set({status:"unsubscribed",unsubscribedAt:now,verificationTokenHash:"",verificationExpiresAt:null,updatedAt:now}).where(eq(newsletterSubscribers.id,id)).returning();await recordAudit({user,action:"newsletter.unsubscribe",entityType:"newsletter_subscriber",entityId:id,summary:`${before.email} bülten aboneliği yönetim tarafından durduruldu.`,before:{status:before.status},after:{status:"unsubscribed"}});return Response.json({subscriber},{headers:noStore});}
