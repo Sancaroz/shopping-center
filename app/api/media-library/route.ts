@@ -1,5 +1,27 @@
-import{env}from"cloudflare:workers";import{eq}from"drizzle-orm";import{getDb}from"../../../db";import{categories,homepageBlocks,productImages,products,storeSettings}from"../../../db/schema";import{getChatGPTUser}from"../../chatgpt-auth";
-type ObjectRow={key:string;size:number;uploaded:Date};type Bucket={list(options?:{prefix?:string;limit?:number}):Promise<{objects:ObjectRow[]}>;delete(key:string):Promise<void>};
-const bucket=()=>((env as unknown as{MEDIA?:Bucket}).MEDIA);const url=(key:string)=>`/api/media/${encodeURIComponent(key)}`;
-export async function GET(){if(!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401});const media=bucket();if(!media)return Response.json({error:"Medya alanı hazır değil."},{status:503});const result=await media.list({prefix:"products/",limit:1000});return Response.json({items:result.objects.sort((a,b)=>new Date(b.uploaded).getTime()-new Date(a.uploaded).getTime()).map(item=>({key:item.key,url:url(item.key),size:item.size,uploaded:item.uploaded}))});}
-export async function DELETE(request:Request){if(!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401});const{key}=await request.json()as{key?:string};if(!key?.startsWith("products/"))return Response.json({error:"Geçersiz medya kaydı."},{status:400});const imageUrl=url(key);const db=getDb();const[product,category,gallery,setting,homepageBlock]=await Promise.all([db.select({id:products.id}).from(products).where(eq(products.imageUrl,imageUrl)).limit(1),db.select({id:categories.id}).from(categories).where(eq(categories.imageUrl,imageUrl)).limit(1),db.select({id:productImages.id}).from(productImages).where(eq(productImages.imageUrl,imageUrl)).limit(1),db.select({key:storeSettings.key}).from(storeSettings).where(eq(storeSettings.value,imageUrl)).limit(1),db.select({id:homepageBlocks.id}).from(homepageBlocks).where(eq(homepageBlocks.imageUrl,imageUrl)).limit(1)]);const used=[product.length&&"ürün",category.length&&"kategori",gallery.length&&"ürün galerisi",setting.length&&"site ayarı",homepageBlock.length&&"ana sayfa bloğu"].filter(Boolean);if(used.length)return Response.json({error:`Bu görsel ${used.join(", ")} içinde kullanılıyor. Önce ilgili kayıttan kaldırın.`},{status:409});const media=bucket();if(!media)return Response.json({error:"Medya alanı hazır değil."},{status:503});await media.delete(key);return Response.json({ok:true});}
+import { env } from "cloudflare:workers";
+import { getChatGPTUser } from "../../chatgpt-auth";
+import { recordAudit } from "../../audit-log";
+import { findMediaUsage, listMediaUsage, mediaUrl } from "../../media-usage";
+
+type ObjectRow={key:string;size:number;uploaded:Date};
+type Bucket={list(options?:{prefix?:string;limit?:number}):Promise<{objects:ObjectRow[]}>;delete(key:string):Promise<void>};
+const bucket=()=>((env as unknown as{MEDIA?:Bucket}).MEDIA);
+
+export async function GET(){
+  if(!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401});
+  const media=bucket();if(!media)return Response.json({error:"Medya alanı hazır değil."},{status:503});
+  const[result,usage]=await Promise.all([media.list({prefix:"products/",limit:1000}),listMediaUsage()]);
+  return Response.json({items:result.objects.sort((a,b)=>new Date(b.uploaded).getTime()-new Date(a.uploaded).getTime()).map(item=>({key:item.key,url:mediaUrl(item.key),size:item.size,uploaded:item.uploaded,usedBy:usage.get(mediaUrl(item.key))??[]}))});
+}
+
+export async function DELETE(request:Request){
+  const user=await getChatGPTUser();if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401});
+  const body=await request.json().catch(()=>null)as{key?:unknown}|null;const key=typeof body?.key==="string"?body.key:"";
+  if(!/^products\/[a-zA-Z0-9._-]+$/.test(key)||key.includes(".."))return Response.json({error:"Geçersiz medya kaydı."},{status:400});
+  const imageUrl=mediaUrl(key);const usedBy=await findMediaUsage(imageUrl);
+  if(usedBy.length)return Response.json({error:`Bu görsel ${usedBy.join(", ")} içinde kullanılıyor. Önce ilgili kayıttan kaldırın.`,usedBy},{status:409});
+  const media=bucket();if(!media)return Response.json({error:"Medya alanı hazır değil."},{status:503});
+  await media.delete(key);
+  await recordAudit({user,action:"media.delete",entityType:"media",entityId:key,summary:"Kullanılmayan görsel medya alanından kalıcı olarak silindi.",before:{key,imageUrl},after:{deleted:true}});
+  return Response.json({ok:true});
+}

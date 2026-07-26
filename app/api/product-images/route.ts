@@ -3,6 +3,8 @@ import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { productImages, products } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
+import { recordAudit } from "../../audit-log";
+import { findMediaUsage, mediaKeyFromUrl } from "../../media-usage";
 
 type MediaBucket = { delete(key:string):Promise<unknown> };
 
@@ -32,12 +34,14 @@ export async function PATCH(request:Request) {
 }
 
 export async function DELETE(request:Request) {
-  if(!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401});
+  const user=await getChatGPTUser();if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401});
   const url=new URL(request.url);const id=Number(url.searchParams.get("id"));const productId=Number(url.searchParams.get("productId"));
   if(!id||!productId)return Response.json({error:"Geçersiz görsel"},{status:400});
   const db=getDb();const[image]=await db.select().from(productImages).where(and(eq(productImages.id,id),eq(productImages.productId,productId))).limit(1);if(!image)return Response.json({error:"Görsel bulunamadı"},{status:404});
   await db.delete(productImages).where(eq(productImages.id,id));
   const[product]=await db.select().from(products).where(eq(products.id,productId)).limit(1);if(product?.imageUrl===image.imageUrl)await db.update(products).set({imageUrl:"",updatedAt:new Date().toISOString()}).where(eq(products.id,productId));
-  if(image.imageUrl.startsWith("/api/media/")){const[galleryReference]=await db.select({id:productImages.id}).from(productImages).where(eq(productImages.imageUrl,image.imageUrl)).limit(1);const[coverReference]=await db.select({id:products.id}).from(products).where(eq(products.imageUrl,image.imageUrl)).limit(1);if(!galleryReference&&!coverReference){const key=decodeURIComponent(image.imageUrl.slice("/api/media/".length));const bucket=(env as unknown as {MEDIA?:MediaBucket}).MEDIA;await bucket?.delete(key);}}
+  const key=mediaKeyFromUrl(image.imageUrl);const usedBy=await findMediaUsage(image.imageUrl);let mediaDeleted=false;
+  if(key&&!usedBy.length){const bucket=(env as unknown as {MEDIA?:MediaBucket}).MEDIA;if(bucket){await bucket.delete(key);mediaDeleted=true;}}
+  await recordAudit({user,action:"product_image.delete",entityType:"product",entityId:productId,summary:"Ürün galerisinden bir görsel kaldırıldı.",before:{imageId:image.id,imageUrl:image.imageUrl},after:{mediaDeleted,remainingUsage:usedBy}});
   return Response.json({ok:true});
 }

@@ -1015,3 +1015,30 @@ test("accepts only signature-verified raster uploads and serves them defensively
   }
   assert.match(uploadScreens.join("\n"), /accept="image\/png,image\/jpeg,image\/webp"/);
 });
+
+test("prevents referenced media deletion across every storefront image source", async () => {
+  const [usage,libraryApi,library,productImages,auditCenter] = await Promise.all([
+    source("app/media-usage.ts"),
+    source("app/api/media-library/route.ts"),
+    source("app/admin/medya/media-library.tsx"),
+    source("app/api/product-images/route.ts"),
+    source("app/admin/islem-gecmisi/audit-log-center.tsx"),
+  ]);
+  assert.match(usage, /products\.imageUrl/);
+  assert.match(usage, /categories\.imageUrl/);
+  assert.match(usage, /productImages\.imageUrl/);
+  assert.match(usage, /storeSettings\.value/);
+  assert.match(usage, /homepageBlocks\.imageUrl/);
+  assert.match(usage, /mediaKeyFromUrl/);
+  assert.match(libraryApi, /usedBy:usage\.get/);
+  assert.match(libraryApi, /if\(usedBy\.length\)return Response\.json/);
+  assert.match(libraryApi, /action:"media\.delete"/);
+  assert.match(library, /item\.usedBy\.length/);
+  assert.match(library, /Kullanılmıyor · güvenle silinebilir/);
+  assert.match(productImages, /findMediaUsage\(image\.imageUrl\)/);
+  assert.match(productImages, /if\(key&&!usedBy\.length\)/);
+  assert.match(productImages, /action:"product_image\.delete"/);
+  assert.match(auditCenter, /Medya silme/);
+  assert.match(auditCenter, /Galeri görseli kaldırma/);
+  assert.match(auditCenter, /\["media","Medya"\]/);
+});
