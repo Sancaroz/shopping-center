@@ -1057,7 +1057,7 @@ test("keeps unsafe CSV imports in draft and records stock and audit history", as
   assert.match(importApi, /category\?\.active/);
   assert.match(importApi, /variantRows\.filter/);
   assert.match(importApi, /seen\.has\(slug\)/);
-  assert.match(importApi, /!value\.startsWith\("\/\/"\)/);
+  assert.match(importApi, /isCatalogImageUrl\(imageUrl\)/);
   assert.match(importApi, /db\.insert\(inventoryMovements\)/);
   assert.match(importApi, /movementType:current\?"correction":"opening"/);
   assert.match(importApi, /action:"product\.import"/);
@@ -1065,4 +1065,34 @@ test("keeps unsafe CSV imports in draft and records stock and audit history", as
   assert.match(importer, /report\.forcedDraft/);
   assert.match(importer, /report\.warnings/);
   assert.match(auditCenter, /CSV ürün aktarımı/);
+});
+
+test("enforces bounded catalog numbers and revalidates every live product change", async () => {
+  const [input,productsApi,variantsApi,quality,importApi] = await Promise.all([
+    source("app/catalog-input.ts"),
+    source("app/api/products/route.ts"),
+    source("app/api/variants/route.ts"),
+    source("app/catalog-quality.ts"),
+    source("app/api/import/products/route.ts"),
+  ]);
+  assert.match(input, /MAX_CATALOG_PRICE=100_000_000/);
+  assert.match(input, /MAX_CATALOG_STOCK=1_000_000/);
+  assert.match(input, /Number\.isFinite\(parsed\)/);
+  assert.match(input, /Number\.isInteger\(parsed\)/);
+  assert.match(input, /!value\.startsWith\("\/\/"\)/);
+  assert.match(productsApi, /parseCatalogMoney\(body\.priceTr\)/);
+  assert.match(productsApi, /parseCatalogStock\(body\.stock\)/);
+  assert.match(productsApi, /selectedProducts\.some\(product=>\(\{\.\.\.product,\.\.\.bulkUpdates\}\)\.active\)/);
+  assert.match(productsApi, /const candidate = \{ \.\.\.currentBefore, \.\.\.updates \}/);
+  assert.match(productsApi, /if \(candidate\.active\)/);
+  assert.match(variantsApi, /parseCatalogMoney\(body\.priceAdjustment,\{allowNegative:true\}\)/);
+  assert.match(variantsApi, /Varyant başka bir ürüne taşınamaz/);
+  assert.match(variantsApi, /satış fiyatını sıfır veya negatif yapamaz/);
+  assert.match(quality, /Türkiye varyant fiyatı sıfır veya negatif/);
+  assert.match(quality, /Global varyant fiyatı sıfır veya negatif/);
+  assert.match(quality, /Kategori bulunamadı/);
+  assert.match(productsApi, /descriptionTr\.length>10_000/);
+  assert.match(productsApi, /Kategori bulunamadı\./);
+  assert.match(importApi, /parseCatalogMoney\(numeric\(source\.priceTr\)\)/);
+  assert.match(importApi, /parseCatalogStock\(numeric\(source\.stock\)\)/);
 });

@@ -12,13 +12,15 @@ export function catalogQuality(product:Product,variants:Variant[],images:Image[]
   if(!product.slug.trim())blockers.push("Ürün adresi eksik");
   else if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(product.slug))blockers.push("Ürün adresi uygun formatta değil");
   if(!product.categoryId)blockers.push("Kategori seçilmemiş");
-  else if(categoryActive===false)blockers.push("Kategori yayında değil");
+  else if(categoryActive!==true)blockers.push(categoryActive===false?"Kategori yayında değil":"Kategori bulunamadı");
   if(!product.imageUrl.trim())blockers.push("Kapak görseli eksik");
   if(!product.marketTr&&!product.marketGlobal)blockers.push("Satış pazarı seçilmemiş");
   if(product.marketTr&&product.priceTr<=0)blockers.push("Türkiye fiyatı eksik");
   if(product.marketGlobal&&product.priceGlobal<=0)blockers.push("Global fiyat eksik");
   if(product.marketGlobal&&!product.nameEn.trim())blockers.push("İngilizce ürün adı eksik");
   if(product.marketGlobal&&!product.descriptionEn.trim())blockers.push("İngilizce açıklama eksik");
+  if(product.marketTr&&variants.some(variant=>!Number.isFinite(product.priceTr+variant.priceAdjustment)||product.priceTr+variant.priceAdjustment<=0))blockers.push("Türkiye varyant fiyatı sıfır veya negatif");
+  if(product.marketGlobal&&variants.some(variant=>!Number.isFinite(product.priceGlobal+variant.priceAdjustment)||product.priceGlobal+variant.priceAdjustment<=0))blockers.push("Global varyant fiyatı sıfır veya negatif");
   const sellableStock=variants.length?variants.reduce((sum,variant)=>sum+Math.max(0,variant.stock),0):Math.max(0,product.stock);
   if(sellableStock<1)blockers.push("Satılabilir stok yok");
   if(product.descriptionTr.trim().length>0&&product.descriptionTr.trim().length<100)warnings.push("Türkçe açıklama kısa");

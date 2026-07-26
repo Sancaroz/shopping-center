@@ -1,8 +1,9 @@
 import {asc,eq} from "drizzle-orm";
 import {getDb} from "../../../db";
-import {inventoryMovements,productVariants} from "../../../db/schema";
+import {inventoryMovements,products,productVariants} from "../../../db/schema";
 import {recordAudit} from "../../audit-log";
 import {getChatGPTUser} from "../../chatgpt-auth";
+import {parseCatalogMoney,parseCatalogStock} from "../../catalog-input";
 
 export const dynamic="force-dynamic";
 
@@ -17,10 +18,12 @@ export async function GET(){
 
 export async function POST(request:Request){
   const user=await getChatGPTUser();if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401});
-  const body=await request.json() as Record<string,unknown>;const productId=Number(body.productId);const sku=String(body.sku??"").trim();const optionName=String(body.optionName??"").trim();const optionValue=String(body.optionValue??"").trim();const stock=Number(body.stock??0);
-  if(!productId||!sku||!optionName||!optionValue)return Response.json({error:"Ürün, seçenek, değer ve ürün kodu zorunludur."},{status:400});
-  if(!Number.isInteger(stock)||stock<0)return Response.json({error:"Stok sıfır veya pozitif tam sayı olmalıdır."},{status:400});
-  const db=getDb();const[variant]=await db.insert(productVariants).values({productId,sku,optionName,optionValue,optionNameEn:String(body.optionNameEn??"").trim(),optionValueEn:String(body.optionValueEn??"").trim(),stock,priceAdjustment:Number(body.priceAdjustment??0),active:true}).returning();
+  const body=await request.json().catch(()=>null) as Record<string,unknown>|null;if(!body)return Response.json({error:"Geçersiz varyant verisi."},{status:400});const productId=Number(body.productId);const sku=String(body.sku??"").trim();const optionName=String(body.optionName??"").trim();const optionValue=String(body.optionValue??"").trim();const stock=parseCatalogStock(body.stock);const priceAdjustment=parseCatalogMoney(body.priceAdjustment,{allowNegative:true});
+  if(!Number.isInteger(productId)||productId<1||!sku||!optionName||!optionValue)return Response.json({error:"Ürün, seçenek, değer ve ürün kodu zorunludur."},{status:400});
+  if(sku.length>100||optionName.length>100||optionValue.length>160)return Response.json({error:"Varyant alanları izin verilen uzunluğu aşıyor."},{status:400});
+  if(stock===null)return Response.json({error:"Stok sıfır ile 1.000.000 arasında tam sayı olmalıdır."},{status:400});if(priceAdjustment===null)return Response.json({error:"Fiyat farkı geçersiz."},{status:400});
+  const db=getDb();const[product]=await db.select().from(products).where(eq(products.id,productId)).limit(1);if(!product)return Response.json({error:"Ürün bulunamadı."},{status:404});if(product.active&&((product.marketTr&&product.priceTr+priceAdjustment<=0)||(product.marketGlobal&&product.priceGlobal+priceAdjustment<=0)))return Response.json({error:"Fiyat farkı ürünün satış fiyatını sıfır veya negatif yapamaz."},{status:400});
+  const[variant]=await db.insert(productVariants).values({productId,sku,optionName,optionValue,optionNameEn:String(body.optionNameEn??"").trim().slice(0,100),optionValueEn:String(body.optionValueEn??"").trim().slice(0,160),stock,priceAdjustment,active:true}).returning().catch(()=>[]);if(!variant)return Response.json({error:"Bu varyant kodu daha önce kullanılmış."},{status:409});
   if(stock>0)await db.insert(inventoryMovements).values({productId,variantId:variant.id,movementType:"opening",quantityDelta:stock,previousStock:0,nextStock:stock,reason:"Varyant açılış stoğu",reference:"variant-create",actorEmail:user.email});
   await recordAudit({user,action:"variant.create",entityType:"variant",entityId:variant.id,summary:`${variant.sku} varyantı oluşturuldu.`,after:variant});
   return Response.json({variant},{status:201});
@@ -28,10 +31,12 @@ export async function POST(request:Request){
 
 export async function PATCH(request:Request){
   const user=await getChatGPTUser();if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401});
-  const body=await request.json() as Record<string,unknown>;const id=Number(body.id);if(!id)return Response.json({error:"Geçersiz varyant"},{status:400});
+  const body=await request.json().catch(()=>null) as Record<string,unknown>|null;const id=Number(body?.id);if(!body||!Number.isInteger(id)||id<1)return Response.json({error:"Geçersiz varyant"},{status:400});
   const db=getDb();const[before]=await db.select().from(productVariants).where(eq(productVariants.id,id)).limit(1);if(!before)return Response.json({error:"Varyant bulunamadı"},{status:404});
-  const updates:Partial<typeof productVariants.$inferInsert>={};if(body.productId!==undefined)updates.productId=Number(body.productId);if(body.sku!==undefined)updates.sku=String(body.sku).trim();if(body.optionName!==undefined)updates.optionName=String(body.optionName).trim();if(body.optionValue!==undefined)updates.optionValue=String(body.optionValue).trim();if(body.optionNameEn!==undefined)updates.optionNameEn=String(body.optionNameEn).trim();if(body.optionValueEn!==undefined)updates.optionValueEn=String(body.optionValueEn).trim();if(body.stock!==undefined){const stock=Number(body.stock);if(!Number.isInteger(stock)||stock<0)return Response.json({error:"Stok sıfır veya pozitif tam sayı olmalıdır."},{status:400});updates.stock=stock;}if(body.priceAdjustment!==undefined)updates.priceAdjustment=Number(body.priceAdjustment);if(body.active!==undefined)updates.active=Boolean(body.active);
-  const[variant]=await db.update(productVariants).set(updates).where(eq(productVariants.id,id)).returning();
+  if(body.productId!==undefined&&Number(body.productId)!==before.productId)return Response.json({error:"Varyant başka bir ürüne taşınamaz."},{status:409});
+  const updates:Partial<typeof productVariants.$inferInsert>={};if(body.sku!==undefined){const value=String(body.sku).trim();if(!value||value.length>100)return Response.json({error:"Varyant kodu geçersiz."},{status:400});updates.sku=value;}if(body.optionName!==undefined){const value=String(body.optionName).trim();if(!value||value.length>100)return Response.json({error:"Seçenek adı geçersiz."},{status:400});updates.optionName=value;}if(body.optionValue!==undefined){const value=String(body.optionValue).trim();if(!value||value.length>160)return Response.json({error:"Seçenek değeri geçersiz."},{status:400});updates.optionValue=value;}if(body.optionNameEn!==undefined)updates.optionNameEn=String(body.optionNameEn).trim().slice(0,100);if(body.optionValueEn!==undefined)updates.optionValueEn=String(body.optionValueEn).trim().slice(0,160);if(body.stock!==undefined){const stock=parseCatalogStock(body.stock);if(stock===null)return Response.json({error:"Stok sıfır ile 1.000.000 arasında tam sayı olmalıdır."},{status:400});updates.stock=stock;}if(body.priceAdjustment!==undefined){const value=parseCatalogMoney(body.priceAdjustment,{allowNegative:true});if(value===null)return Response.json({error:"Fiyat farkı geçersiz."},{status:400});updates.priceAdjustment=value;}if(body.active!==undefined)updates.active=Boolean(body.active);
+  const[product]=await db.select().from(products).where(eq(products.id,before.productId)).limit(1);if(!product)return Response.json({error:"Ürün bulunamadı."},{status:404});const nextAdjustment=updates.priceAdjustment??before.priceAdjustment;if(product.active&&((product.marketTr&&product.priceTr+nextAdjustment<=0)||(product.marketGlobal&&product.priceGlobal+nextAdjustment<=0)))return Response.json({error:"Fiyat farkı ürünün satış fiyatını sıfır veya negatif yapamaz."},{status:400});
+  const[variant]=await db.update(productVariants).set(updates).where(eq(productVariants.id,id)).returning().catch(()=>[]);if(!variant)return Response.json({error:"Varyant kodu başka bir kayıtta kullanılıyor veya veri geçersiz."},{status:409});
   if(updates.stock!==undefined&&updates.stock!==before.stock)await db.insert(inventoryMovements).values({productId:variant.productId,variantId:id,movementType:"correction",quantityDelta:updates.stock-before.stock,previousStock:before.stock,nextStock:updates.stock,reason:"Varyant düzenleyicisinden stok düzeltmesi",reference:"variant-editor",actorEmail:user.email});
   await recordAudit({user,action:"variant.update",entityType:"variant",entityId:id,summary:`${variant.sku} varyantı güncellendi.`,before,after:variant});
   return Response.json({variant});
