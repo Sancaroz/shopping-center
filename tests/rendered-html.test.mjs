@@ -1096,3 +1096,28 @@ test("enforces bounded catalog numbers and revalidates every live product change
   assert.match(importApi, /parseCatalogMoney\(numeric\(source\.priceTr\)\)/);
   assert.match(importApi, /parseCatalogStock\(numeric\(source\.stock\)\)/);
 });
+
+test("preserves a valid two-level category tree and blocks unsafe hiding", async () => {
+  const [tree,categoriesApi,productsApi,panel] = await Promise.all([
+    source("app/category-tree.ts"),
+    source("app/api/categories/route.ts"),
+    source("app/api/products/route.ts"),
+    source("app/admin/panel.tsx"),
+  ]);
+  assert.match(tree, /category\.parentId===ids\[index\]/);
+  assert.match(tree, /Kategori kendisinin üst kategorisi olamaz/);
+  assert.match(tree, /Kategori ağacı en fazla iki seviye olabilir/);
+  assert.match(tree, /Alt kategorileri bulunan kategori başka bir kategorinin altına taşınamaz/);
+  assert.match(tree, /üst kategorisi de yayında olmalıdır/);
+  assert.match(categoriesApi, /request\.json\(\)\.catch/);
+  assert.match(categoriesApi, /\^\[a-z0-9\]\+\(\?:-\[a-z0-9\]\+\)\*\$/);
+  assert.match(categoriesApi, /isCatalogImageUrl/);
+  assert.match(categoriesApi, /new Set\(ids\)\.size!==ids\.length/);
+  assert.match(categoriesApi, /new Set\(selected\.map\(category=>category\.parentId\)\)\.size!==1/);
+  assert.match(categoriesApi, /descendantIds\(allCategories,id\)/);
+  assert.match(categoriesApi, /Ürünlerle arşivle işlemini kullanın/);
+  assert.match(categoriesApi, /category\.parentId===null\|\|rows\.some/);
+  assert.match(productsApi, /visibleCategoryIds/);
+  assert.match(productsApi, /product\.categoryId!==null&&visibleCategoryIds\.has\(product\.categoryId\)/);
+  assert.match(panel, /data\.error\?\?"Kategori durumu güncellenemedi/);
+});

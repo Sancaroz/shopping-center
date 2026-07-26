@@ -1,84 +1,51 @@
-import { asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { categories, products } from "../../../db/schema";
 import { recordAudit } from "../../audit-log";
+import { isCatalogImageUrl } from "../../catalog-input";
+import { categoryParentIssue, descendantIds } from "../../category-tree";
 import { getChatGPTUser } from "../../chatgpt-auth";
 
 export const dynamic = "force-dynamic";
+const parseParent=(value:unknown)=>value===""||value===null||value===undefined?null:Number(value);
+const parseSortOrder=(value:unknown)=>{const parsed=Number(value??0);return Number.isInteger(parsed)&&parsed>=0&&parsed<=10_000?parsed:null;};
 
 export async function GET() {
-  try {
-    const db=getDb();
-    const user=await getChatGPTUser();
-    const rows=user ? await db.select().from(categories).orderBy(asc(categories.sortOrder),asc(categories.id)) : await db.select().from(categories).where(eq(categories.active,true)).orderBy(asc(categories.sortOrder),asc(categories.id));
-    return Response.json({categories:rows});
-  } catch {
-    return Response.json({ categories: [] });
-  }
+  try {const db=getDb();const user=await getChatGPTUser();const rows=user?await db.select().from(categories).orderBy(asc(categories.sortOrder),asc(categories.id)):await db.select().from(categories).where(eq(categories.active,true)).orderBy(asc(categories.sortOrder),asc(categories.id));const visible=user?rows:rows.filter(category=>category.parentId===null||rows.some(parent=>parent.id===category.parentId));return Response.json({categories:visible});}
+  catch{return Response.json({categories:[]});}
 }
 
-export async function POST(request: Request) {
-  const user=await getChatGPTUser();
-  if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
-  const body = await request.json() as Record<string, unknown>;
-  const nameTr = String(body.nameTr ?? "").trim();
-  const slug = String(body.slug ?? "").trim();
-  if (!nameTr || !slug) return Response.json({ error: "Kategori adı ve kodu zorunludur." }, { status: 400 });
-  const [category] = await getDb().insert(categories).values({ nameTr, nameEn:String(body.nameEn??"").trim(), slug, parentId: Number(body.parentId) || null, imageUrl: String(body.imageUrl ?? ""), sortOrder: Number(body.sortOrder ?? 0) }).returning();
-  await recordAudit({user,action:"category.create",entityType:"category",entityId:category.id,summary:`${category.nameTr} kategorisi oluşturuldu.`,after:category});
-  return Response.json({ category }, { status: 201 });
+export async function POST(request:Request) {
+  const user=await getChatGPTUser();if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401});
+  const body=await request.json().catch(()=>null)as Record<string,unknown>|null;if(!body)return Response.json({error:"Geçersiz kategori verisi."},{status:400});
+  const nameTr=String(body.nameTr??"").trim();const nameEn=String(body.nameEn??"").trim();const slug=String(body.slug??"").trim().toLocaleLowerCase("en-US");const parentId=parseParent(body.parentId);const imageUrl=String(body.imageUrl??"").trim();const sortOrder=parseSortOrder(body.sortOrder);
+  if(!nameTr||nameTr.length>160||nameEn.length>160)return Response.json({error:"Kategori adı zorunludur ve 160 karakteri aşamaz."},{status:400});
+  if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)||slug.length>160)return Response.json({error:"Kategori kodu yalnızca küçük harf, rakam ve tire içermelidir."},{status:400});
+  if(parentId!==null&&(!Number.isInteger(parentId)||parentId<1))return Response.json({error:"Üst kategori geçersiz."},{status:400});if(sortOrder===null)return Response.json({error:"Kategori sırası 0 ile 10.000 arasında tam sayı olmalıdır."},{status:400});if(!isCatalogImageUrl(imageUrl))return Response.json({error:"Görsel bağlantısı güvenli bir HTTPS veya site içi adres olmalıdır."},{status:400});
+  const db=getDb();const rows=await db.select().from(categories);const parentIssue=categoryParentIssue(rows,parentId,undefined,true);if(parentIssue)return Response.json({error:parentIssue},{status:409});
+  const[category]=await db.insert(categories).values({nameTr,nameEn,slug,parentId,imageUrl,sortOrder}).returning().catch(()=>[]);if(!category)return Response.json({error:"Bu kategori kodu daha önce kullanılmış."},{status:409});
+  await recordAudit({user,action:"category.create",entityType:"category",entityId:category.id,summary:`${category.nameTr} kategorisi oluşturuldu.`,after:category});return Response.json({category},{status:201});
 }
 
-export async function PATCH(request: Request) {
-  const user=await getChatGPTUser();
-  if (!user) return Response.json({ error:"Yetkisiz erişim" },{status:401});
-  const body=await request.json() as Record<string,unknown>;
-  if(Array.isArray(body.order)&&body.order.length){
-    const ids=body.order.map(Number).filter(Number.isInteger).filter(id=>id>0).slice(0,100);
-    const db=getDb();
-    for(const[sortOrder,id]of ids.entries()) await db.update(categories).set({sortOrder}).where(eq(categories.id,id));
-    await recordAudit({user,action:"category.reorder",entityType:"category",summary:`${ids.length} kategorinin sırası güncellendi.`,after:{order:ids}});
-    return Response.json({ok:true,updated:ids.length});
-  }
-  const id=Number(body.id);
-  if(!id)return Response.json({error:"Geçersiz kategori"},{status:400});
+export async function PATCH(request:Request) {
+  const user=await getChatGPTUser();if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401});
+  const body=await request.json().catch(()=>null)as Record<string,unknown>|null;if(!body)return Response.json({error:"Geçersiz kategori verisi."},{status:400});
+  const db=getDb();const allCategories=await db.select().from(categories);
+  if(Array.isArray(body.order)&&body.order.length){const ids=body.order.map(Number);if(ids.length>100||ids.some(id=>!Number.isInteger(id)||id<1)||new Set(ids).size!==ids.length)return Response.json({error:"Kategori sırası geçersiz."},{status:400});const selected=allCategories.filter(category=>ids.includes(category.id));if(selected.length!==ids.length||new Set(selected.map(category=>category.parentId)).size!==1)return Response.json({error:"Yalnızca aynı seviyedeki kategoriler birlikte sıralanabilir."},{status:409});for(const[sortOrder,id]of ids.entries())await db.update(categories).set({sortOrder}).where(eq(categories.id,id));await recordAudit({user,action:"category.reorder",entityType:"category",summary:`${ids.length} kategorinin sırası güncellendi.`,after:{order:ids}});return Response.json({ok:true,updated:ids.length});}
+  const id=Number(body.id);if(!Number.isInteger(id)||id<1)return Response.json({error:"Geçersiz kategori"},{status:400});const before=allCategories.find(category=>category.id===id);if(!before)return Response.json({error:"Kategori bulunamadı."},{status:404});
   const updates:Partial<typeof categories.$inferInsert>={};
-  if(body.nameTr!==undefined)updates.nameTr=String(body.nameTr).trim();
-  if(body.nameEn!==undefined)updates.nameEn=String(body.nameEn).trim();
-  if(body.slug!==undefined)updates.slug=String(body.slug).trim();
-  if(body.parentId!==undefined)updates.parentId=Number(body.parentId)||null;
-  if(body.imageUrl!==undefined)updates.imageUrl=String(body.imageUrl);
-  if(body.sortOrder!==undefined)updates.sortOrder=Number(body.sortOrder)||0;
-  if(body.active!==undefined)updates.active=Boolean(body.active);
-  const db=getDb();
-  const[before]=await db.select().from(categories).where(eq(categories.id,id)).limit(1);
-  if(!before)return Response.json({error:"Kategori bulunamadı."},{status:404});
-  const[category]=await db.update(categories).set(updates).where(eq(categories.id,id)).returning();
-  await recordAudit({user,action:"category.update",entityType:"category",entityId:id,summary:`${category.nameTr} kategorisi güncellendi.`,before,after:category});
-  return Response.json({category});
+  if(body.nameTr!==undefined){const value=String(body.nameTr).trim();if(!value||value.length>160)return Response.json({error:"Kategori adı zorunludur ve 160 karakteri aşamaz."},{status:400});updates.nameTr=value;}
+  if(body.nameEn!==undefined){const value=String(body.nameEn).trim();if(value.length>160)return Response.json({error:"İngilizce kategori adı 160 karakteri aşamaz."},{status:400});updates.nameEn=value;}
+  if(body.slug!==undefined){const value=String(body.slug).trim().toLocaleLowerCase("en-US");if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)||value.length>160)return Response.json({error:"Kategori kodu yalnızca küçük harf, rakam ve tire içermelidir."},{status:400});updates.slug=value;}
+  if(body.imageUrl!==undefined){const value=String(body.imageUrl).trim();if(!isCatalogImageUrl(value))return Response.json({error:"Görsel bağlantısı güvenli bir HTTPS veya site içi adres olmalıdır."},{status:400});updates.imageUrl=value;}
+  if(body.sortOrder!==undefined){const value=parseSortOrder(body.sortOrder);if(value===null)return Response.json({error:"Kategori sırası 0 ile 10.000 arasında tam sayı olmalıdır."},{status:400});updates.sortOrder=value;}
+  if(body.active!==undefined){if(typeof body.active!=="boolean")return Response.json({error:"Kategori görünürlük durumu geçersiz."},{status:400});updates.active=body.active;}
+  const parentId=body.parentId!==undefined?parseParent(body.parentId):before.parentId;if(parentId!==null&&(!Number.isInteger(parentId)||parentId<1))return Response.json({error:"Üst kategori geçersiz."},{status:400});if(body.parentId!==undefined)updates.parentId=parentId;
+  const candidateActive=updates.active??before.active;const parentIssue=categoryParentIssue(allCategories,parentId,id,candidateActive);if(parentIssue)return Response.json({error:parentIssue},{status:409});
+  if(before.active&&updates.active===false){const ids=descendantIds(allCategories,id);const[activeProduct]=await db.select({id:products.id}).from(products).where(and(inArray(products.categoryId,ids),eq(products.active,true))).limit(1);const activeChild=allCategories.find(category=>category.id!==id&&ids.includes(category.id)&&category.active);if(activeProduct||activeChild)return Response.json({error:"Yayındaki alt kategori veya ürünler varken kategori yalnızca gizlenemez. Ürünlerle arşivle işlemini kullanın."},{status:409});}
+  const[category]=await db.update(categories).set(updates).where(eq(categories.id,id)).returning().catch(()=>[]);if(!category)return Response.json({error:"Kategori kodu başka bir kayıtta kullanılıyor veya veri geçersiz."},{status:409});await recordAudit({user,action:"category.update",entityType:"category",entityId:id,summary:`${category.nameTr} kategorisi güncellendi.`,before,after:category});return Response.json({category});
 }
 
-function descendantIds(allCategories: Array<typeof categories.$inferSelect>, rootId:number) {
-  const ids=[rootId];
-  for(let index=0;index<ids.length;index++) {
-    for(const category of allCategories) if(category.parentId===ids[index]&&!ids.includes(category.id)) ids.push(category.id);
-  }
-  return ids;
-}
-
-export async function DELETE(request: Request) {
-  const user=await getChatGPTUser();
-  if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401});
-  const id=Number(new URL(request.url).searchParams.get("id"));
-  if(!id)return Response.json({error:"Geçersiz kategori"},{status:400});
-  const db=getDb();
-  const categoryRows=await db.select().from(categories);
-  const before=categoryRows.find(category=>category.id===id);
-  if(!before)return Response.json({error:"Kategori bulunamadı."},{status:404});
-  const ids=descendantIds(categoryRows,id);
-  const now=new Date().toISOString();
-  const archivedProducts=await db.update(products).set({active:false,marketTr:false,marketGlobal:false,featured:false,updatedAt:now}).where(inArray(products.categoryId,ids)).returning({id:products.id});
-  const archivedCategories=await db.update(categories).set({active:false}).where(inArray(categories.id,ids)).returning({id:categories.id});
-  await recordAudit({user,action:"category.archive",entityType:"category",entityId:id,summary:`${before.nameTr} kategorisi, alt kategorileri ve bağlı ürünleri arşivlendi.`,before:{active:before.active},after:{active:false,categoryCount:archivedCategories.length,productCount:archivedProducts.length}});
-  return Response.json({ok:true,archived:true,categoryCount:archivedCategories.length,productCount:archivedProducts.length});
+export async function DELETE(request:Request) {
+  const user=await getChatGPTUser();if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401});const id=Number(new URL(request.url).searchParams.get("id"));if(!Number.isInteger(id)||id<1)return Response.json({error:"Geçersiz kategori"},{status:400});const db=getDb();const categoryRows=await db.select().from(categories);const before=categoryRows.find(category=>category.id===id);if(!before)return Response.json({error:"Kategori bulunamadı."},{status:404});const ids=descendantIds(categoryRows,id);const now=new Date().toISOString();const archivedProducts=await db.update(products).set({active:false,marketTr:false,marketGlobal:false,featured:false,updatedAt:now}).where(inArray(products.categoryId,ids)).returning({id:products.id});const archivedCategories=await db.update(categories).set({active:false}).where(inArray(categories.id,ids)).returning({id:categories.id});await recordAudit({user,action:"category.archive",entityType:"category",entityId:id,summary:`${before.nameTr} kategorisi, alt kategorileri ve bağlı ürünleri arşivlendi.`,before:{active:before.active},after:{active:false,categoryCount:archivedCategories.length,productCount:archivedProducts.length}});return Response.json({ok:true,archived:true,categoryCount:archivedCategories.length,productCount:archivedProducts.length});
 }

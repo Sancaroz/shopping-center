@@ -18,10 +18,10 @@ export async function GET() {
   try {
     const db = getDb();
     const user = await getChatGPTUser();
-    const rows = user
-      ? await db.select().from(products).orderBy(desc(products.id))
-      : await db.select().from(products).where(eq(products.active, true)).orderBy(desc(products.id));
-    return Response.json({ products: rows });
+    if(user)return Response.json({products:await db.select().from(products).orderBy(desc(products.id))});
+    const[rows,categoryRows]=await Promise.all([db.select().from(products).where(eq(products.active,true)).orderBy(desc(products.id)),db.select().from(categories).where(eq(categories.active,true))]);
+    const visibleCategoryIds=new Set(categoryRows.filter(category=>category.parentId===null||categoryRows.some(parent=>parent.id===category.parentId)).map(category=>category.id));
+    return Response.json({products:rows.filter(product=>product.categoryId!==null&&visibleCategoryIds.has(product.categoryId))});
   } catch {
     return Response.json({ products: [], status: "catalog_initializing" });
   }
