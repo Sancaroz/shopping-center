@@ -110,12 +110,10 @@ export async function POST(request:Request) {
 export async function PATCH(request:Request) {
   const user=await getChatGPTUser();
   if (!user) return Response.json({ error:"Yetkisiz erişim" }, { status:401 });
-  const body = await request.json() as { id?:number; status?:string; paymentStatus?:string; paymentProvider?:string; paymentReference?:string; shippingCarrier?:string; trackingNumber?:string; estimatedDeliveryAt?:string; internalNote?:string };
+  const body = await request.json() as { id?:number; status?:string; shippingCarrier?:string; trackingNumber?:string; estimatedDeliveryAt?:string; internalNote?:string };
   const allowed = ["new", "confirmed", "preparing", "shipped", "completed", "cancelled"];
-  const paymentStatuses=["pending","paid","failed","refunded","not_required"];
   if (!body.id) return Response.json({ error:"Geçersiz sipariş" }, { status:400 });
   if(body.status!==undefined&&!allowed.includes(String(body.status)))return Response.json({error:"Geçersiz sipariş durumu"},{status:400});
-  if(body.paymentStatus!==undefined&&!paymentStatuses.includes(String(body.paymentStatus)))return Response.json({error:"Geçersiz ödeme durumu"},{status:400});
   const db=getDb();const orderId=Number(body.id);const[existing]=await db.select().from(orders).where(eq(orders.id,orderId)).limit(1);if(!existing)return Response.json({error:"Sipariş bulunamadı"},{status:404});const lines=await db.select().from(orderItems).where(eq(orderItems.orderId,orderId));const nextStatus=body.status===undefined?existing.status:String(body.status);const needsInventory=["confirmed","preparing","shipped","completed"].includes(nextStatus);
   if(needsInventory&&!existing.emailVerifiedAt)return Response.json({error:"Müşteri e-posta adresini doğrulamadan sipariş onaylanamaz."},{status:409});
   const effectiveCarrier=body.shippingCarrier===undefined?existing.shippingCarrier:String(body.shippingCarrier).trim();const effectiveTracking=body.trackingNumber===undefined?existing.trackingNumber:String(body.trackingNumber).trim();
@@ -128,9 +126,6 @@ export async function PATCH(request:Request) {
   const updates:Partial<typeof orders.$inferInsert>={status:nextStatus,inventoryApplied,updatedAt:new Date().toISOString()};
   if(needsInventory&&existing.reservationState==="active"){updates.reservationState="committed";updates.reservationExpiresAt=null;}
   if(nextStatus==="cancelled"){updates.reservationState=existing.reservationState==="active"?"released":existing.reservationState;updates.reservationExpiresAt=null;updates.verificationTokenHash="";updates.verificationExpiresAt=null;}
-  if(body.paymentStatus!==undefined)updates.paymentStatus=String(body.paymentStatus);
-  if(body.paymentProvider!==undefined)updates.paymentProvider=String(body.paymentProvider).trim().slice(0,80);
-  if(body.paymentReference!==undefined)updates.paymentReference=String(body.paymentReference).trim().slice(0,160);
   if(body.shippingCarrier!==undefined)updates.shippingCarrier=String(body.shippingCarrier).trim().slice(0,80);
   if(body.trackingNumber!==undefined)updates.trackingNumber=String(body.trackingNumber).trim().slice(0,160);
   if(body.estimatedDeliveryAt!==undefined){const value=String(body.estimatedDeliveryAt).trim();if(value&&Number.isNaN(new Date(value).getTime()))return Response.json({error:"Tahmini teslim tarihi geçersiz."},{status:400});updates.estimatedDeliveryAt=value?new Date(value).toISOString():null;}

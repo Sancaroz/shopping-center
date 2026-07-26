@@ -469,7 +469,7 @@ test("captures immutable billing data without issuing a premature invoice", asyn
   assert.match(invoice, /Bu ekran mali belge üretmez/);
   assert.match(invoice, /Sipariş anındaki satıcı şirket bilgileri/);
   assert.doesNotMatch(tracking, /billingTaxNumber|sellerSnapshotJson/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 9/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 10/);
 });
 
 test("manages mixed sourcing and records auditable inventory movements", async () => {
@@ -502,7 +502,7 @@ test("manages mixed sourcing and records auditable inventory movements", async (
   assert.match(reservations, /movementType:"reservation_release"/);
   assert.match(readiness, /Stok ve tedarik/);
   assert.match(backup, /"inventoryMovements"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 9/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 10/);
   assert.match(exportApi, /inventoryMovementRows/);
   assert.match(adminPage, /\/admin\/stok/);
   assert.match(productsApi, /Ürün düzenleyicisinden stok düzeltmesi/);
@@ -533,7 +533,7 @@ test("snapshots order costs and reports finance estimates without false accounti
   assert.match(center, /Global ürün maliyetleri avro bazında tanımlanmadığı/);
   assert.match(readiness, /Kârlılık kontrolü/);
   assert.match(adminPage, /\/admin\/finans/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 9/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 10/);
 });
 
 test("applies server-authoritative promotions with safe limits and inactive defaults", async () => {
@@ -572,7 +572,7 @@ test("applies server-authoritative promotions with safe limits and inactive defa
   assert.match(center, /Yeni kampanyalar daima pasif oluşturulur/);
   assert.match(finance, /order\.subtotal-order\.discountAmount/);
   assert.match(backup, /"promotionRedemptions"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 9/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 10/);
   assert.match(exportApi, /promotionRedemptionRows/);
   assert.match(trackingApi, /discountAmount: order\.discountAmount/);
   assert.match(trackingPage, /İNDİRİM/);
@@ -617,7 +617,7 @@ test("requires an audited fulfillment checklist before shipment", async () => {
   assert.match(component, /Kalite kontrolü/);
   assert.match(component, /Adres ve etiket/);
   assert.match(backup, /"fulfillmentChecklists"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 9/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 10/);
   assert.match(exportApi, /fulfillmentChecklistRows/);
   assert.match(operations, /packingIncomplete/);
 });
@@ -643,7 +643,7 @@ test("tracks replenishments without sending suppliers and receives stock once", 
   assert.match(inventory, /\/admin\/tedarik/);
   assert.match(operations, /overdueReplenishments/);
   assert.match(backup, /"replenishments"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 9/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 10/);
   assert.match(exportApi, /replenishmentRows/);
 });
 
@@ -670,7 +670,43 @@ test("runs authenticated auditable support tickets with safe order matching", as
   assert.match(operations, /message-urgent/);
   assert.match(panel, /\/admin\/destek/);
   assert.match(backup, /Destek-sipariş/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 9/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 10/);
   assert.match(auditCenter, /Destek kaydı güncellemesi/);
   assert.match(auditCenter, /contact_message","Destek/);
+});
+
+test("reconciles immutable payment and refund records without collecting card data", async () => {
+  const [schema,api,center,page,operations,panel,orderDetail,auditCenter,backup,exportApi,ordersApi] = await Promise.all([
+    source("db/schema.ts"),
+    source("app/api/payment-transactions/route.ts"),
+    source("app/admin/odemeler/payment-center.tsx"),
+    source("app/admin/odemeler/page.tsx"),
+    source("app/api/operations-summary/route.ts"),
+    source("app/admin/panel.tsx"),
+    source("app/admin/siparis/[id]/order-detail.tsx"),
+    source("app/admin/islem-gecmisi/audit-log-center.tsx"),
+    source("app/backup-format.ts"),
+    source("app/api/export/route.ts"),
+    source("app/api/orders/route.ts"),
+  ]);
+  assert.match(schema, /paymentTransactions/);
+  assert.match(schema, /transactionKey/);
+  assert.match(api, /Yetkisiz erişim/);
+  assert.match(api, /onConflictDoNothing/);
+  assert.match(api, /reconciliationStatus/);
+  assert.match(api, /partially_refunded/);
+  assert.match(api, /order_closed/);
+  assert.match(api, /payment_transaction\.create/);
+  assert.doesNotMatch(ordersApi, /body\.paymentStatus/);
+  assert.doesNotMatch(api, /cardNumber|cvv|pan:/i);
+  assert.match(center, /Gerçek tahsilat başlatmaz/);
+  assert.match(center, /Kart bilgisi girmeyin/);
+  assert.match(page, /requireChatGPTUser\("\/admin\/odemeler"\)/);
+  assert.match(operations, /payment-mismatch/);
+  assert.match(panel, /\/admin\/odemeler/);
+  assert.match(orderDetail, /Ödeme defteri/);
+  assert.match(auditCenter, /Ödeme işlemi kaydı/);
+  assert.match(backup, /"paymentTransactions"/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 10/);
+  assert.match(exportApi, /paymentTransactionRows/);
 });

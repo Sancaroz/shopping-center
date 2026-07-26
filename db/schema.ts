@@ -153,6 +153,25 @@ export const orderItems = sqliteTable("order_items", {
   unitCostSnapshot: real("unit_cost_snapshot").notNull().default(0),
 });
 
+export const paymentTransactions = sqliteTable("payment_transactions", {
+  id: integer("id").primaryKey({ autoIncrement:true }),
+  orderId: integer("order_id").notNull().references(() => orders.id, { onDelete:"restrict" }),
+  transactionKey: text("transaction_key").notNull().unique(),
+  kind: text("kind").notNull(),
+  status: text("status").notNull(),
+  provider: text("provider").notNull(),
+  providerReference: text("provider_reference").notNull(),
+  amount: real("amount").notNull(),
+  currency: text("currency").notNull(),
+  source: text("source").notNull().default("manual"),
+  reconciliationStatus: text("reconciliation_status").notNull(),
+  expectedAmount: real("expected_amount").notNull(),
+  note: text("note").notNull().default(""),
+  occurredAt: text("occurred_at").notNull(),
+  actorEmail: text("actor_email").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const fulfillmentChecklists = sqliteTable("fulfillment_checklists", {
   id: integer("id").primaryKey({ autoIncrement:true }),
   orderId: integer("order_id").notNull().unique().references(() => orders.id, { onDelete:"cascade" }),

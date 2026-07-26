@@ -1,6 +1,6 @@
 import { desc } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { contactMessages, fulfillmentChecklists, notificationOutbox, orders, products, productVariants, replenishments, returnRequests } from "../../../db/schema";
+import { contactMessages, fulfillmentChecklists, notificationOutbox, orders, paymentTransactions, products, productVariants, replenishments, returnRequests } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
 
 export const dynamic="force-dynamic";
@@ -10,7 +10,7 @@ type Alert={key:string;level:"urgent"|"warning"|"info";title:string;detail:strin
 export async function GET() {
   if (!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401});
   const db=getDb();
-  const [orderRows,productRows,variantRows,returnRows,messageRows,notificationRows,checklistRows,replenishmentRows]=await Promise.all([
+  const [orderRows,productRows,variantRows,returnRows,messageRows,notificationRows,checklistRows,replenishmentRows,paymentRows]=await Promise.all([
     db.select().from(orders).orderBy(desc(orders.id)).limit(500),
     db.select().from(products),
     db.select().from(productVariants),
@@ -19,6 +19,7 @@ export async function GET() {
     db.select().from(notificationOutbox).orderBy(desc(notificationOutbox.id)).limit(500),
     db.select().from(fulfillmentChecklists),
     db.select().from(replenishments).orderBy(desc(replenishments.id)).limit(500),
+    db.select().from(paymentTransactions).orderBy(desc(paymentTransactions.id)).limit(500),
   ]);
   const now=Date.now();const hours=(value:string)=>(now-new Date(value).getTime())/3_600_000;
   const activeOrders=orderRows.filter(order=>!["completed","cancelled"].includes(order.status));
@@ -45,6 +46,7 @@ export async function GET() {
     ...openReturns.filter(item=>item.status==="new"&&hours(item.createdAt)>=24).map(item=>({key:`return-${item.id}`,level:"warning" as const,title:`${item.requestNumber} inceleme bekliyor`,detail:`${Math.floor(hours(item.createdAt))} saattir yanıt bekliyor.`,href:"/admin/iade-talepleri",createdAt:item.createdAt})),
     ...openMessages.filter(item=>item.status==="new"&&hours(item.createdAt)>=24).map(item=>({key:`message-${item.id}`,level:"warning" as const,title:`${item.name} adlı müşterinin mesajı bekliyor`,detail:`${item.subject} · ${Math.floor(hours(item.createdAt))} saat`,href:"/admin/destek",createdAt:item.createdAt})),
     ...openMessages.filter(item=>item.priority==="urgent").map(item=>({key:`message-urgent-${item.id}`,level:"urgent" as const,title:`${item.subject} acil destek kaydı`,detail:`${item.name} · ${item.orderNumber||"Sipariş numarası yok"}`,href:"/admin/destek",createdAt:item.updatedAt})),
+    ...paymentRows.filter(item=>["amount_mismatch","order_closed"].includes(item.reconciliationStatus)).map(item=>({key:`payment-mismatch-${item.id}`,level:"urgent" as const,title:item.reconciliationStatus==="order_closed"?"İptal sipariş için ödeme görüldü":"Ödeme tutarı siparişle uyuşmuyor",detail:`${item.provider} · ${item.providerReference} · kayıt ${item.amount} ${item.currency}, beklenen ${item.expectedAmount} ${item.currency}`,href:"/admin/odemeler",createdAt:item.createdAt})),
   ].sort((a,b)=>(a.level==="urgent"?0:1)-(b.level==="urgent"?0:1)||(a.createdAt??"").localeCompare(b.createdAt??""));
   return Response.json({
     generatedAt:new Date().toISOString(),

@@ -16,6 +16,7 @@ const tableLabels: Record<string, string> = {
   cartItems: "Sepet kalemleri",
   orders: "Siparişler",
   orderItems: "Sipariş kalemleri",
+  paymentTransactions: "Ödeme işlemleri",
   fulfillmentChecklists: "Paketleme kontrolleri",
   shipmentEvents: "Kargo hareketleri",
   inventoryMovements: "Stok hareketleri",
