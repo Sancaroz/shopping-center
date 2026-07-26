@@ -8,6 +8,7 @@ const labels:Record<string,string>={"order.update":"Sipariş güncellemesi","ret
 labels["media.upload"]="Medya yükleme";
 labels["media.delete"]="Medya silme";
 labels["product_image.delete"]="Galeri görseli kaldırma";
+labels["product.import"]="CSV ürün aktarımı";
 
 function Changes({log}:{log:AuditLog}) {
   const parse=(value:string)=>{try{return JSON.parse(value||"{}") as Record<string,unknown>;}catch{return {_error:"Eski kayıt özeti görüntülenemiyor."};}};

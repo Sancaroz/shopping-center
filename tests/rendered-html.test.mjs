@@ -1042,3 +1042,27 @@ test("prevents referenced media deletion across every storefront image source", 
   assert.match(auditCenter, /Galeri görseli kaldırma/);
   assert.match(auditCenter, /\["media","Medya"\]/);
 });
+
+test("keeps unsafe CSV imports in draft and records stock and audit history", async () => {
+  const [importApi,importer,auditCenter] = await Promise.all([
+    source("app/api/import/products/route.ts"),
+    source("app/admin/toplu-urun/product-importer.tsx"),
+    source("app/admin/islem-gecmisi/audit-log-center.tsx"),
+  ]);
+  assert.match(importApi, /active:"Hayır"/);
+  assert.match(importApi, /current\?\.active\?\?false/);
+  assert.match(importApi, /catalogQuality\(/);
+  assert.ok(importApi.indexOf("catalogQuality(") < importApi.indexOf("db.insert(products)"));
+  assert.match(importApi, /values\.active=false;forcedDraft\+\+/);
+  assert.match(importApi, /category\?\.active/);
+  assert.match(importApi, /variantRows\.filter/);
+  assert.match(importApi, /seen\.has\(slug\)/);
+  assert.match(importApi, /!value\.startsWith\("\/\/"\)/);
+  assert.match(importApi, /db\.insert\(inventoryMovements\)/);
+  assert.match(importApi, /movementType:current\?"correction":"opening"/);
+  assert.match(importApi, /action:"product\.import"/);
+  assert.match(importer, /Eksik ürünler otomatik olarak taslakta tutulur/);
+  assert.match(importer, /report\.forcedDraft/);
+  assert.match(importer, /report\.warnings/);
+  assert.match(auditCenter, /CSV ürün aktarımı/);
+});
