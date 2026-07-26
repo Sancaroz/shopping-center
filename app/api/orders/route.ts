@@ -9,6 +9,7 @@ import { shippingQuote } from "../../shipping-rules";
 import { releaseExpiredReservations, releaseOrderReservation, reserveInventory } from "../../inventory-reservations";
 import { createVerificationToken, hashVerificationToken } from "../../order-verification";
 import {evaluatePromotion,hashPromotionEmail,releasePromotionClaim} from "../../promotions";
+import {buildOrderContractSnapshot} from "../../order-contract";
 
 const COOKIE = "store_cart";
 const tokenFrom = (request:Request) => request.headers.get("cookie")?.split(";").map(value => value.trim()).find(value => value.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1) ?? null;
@@ -83,16 +84,18 @@ export async function POST(request:Request) {
   const quote=shippingQuote({market:cart.market==="GLOBAL"?"GLOBAL":"TR",country,subtotal:discountedSubtotal,settings});
   if(!quote.ok)return Response.json({error:quote.error},{status:409});
   const shippingAmount=quote.shippingAmount;const total=quote.total;
+  const contractSnapshot=await buildOrderContractSnapshot(settings,cart.market==="GLOBAL"?"GLOBAL":"TR");
   const reservation=await reserveInventory(db,priced.map(line=>({productId:line.productId,variantId:line.variantId,quantity:line.quantity,productName:cart.market==="GLOBAL"?(line.productNameEn||line.productName):line.productName})));
   if(!reservation.ok)return Response.json({error:reservation.error},{status:409});
   const orderNumber = `MS-${new Date().toISOString().slice(0,10).replaceAll("-","")}-${crypto.randomUUID().slice(0,6).toUpperCase()}`;
   const verificationToken=createVerificationToken();const verificationTokenHash=await hashVerificationToken(verificationToken);const verificationExpiresAt=new Date(Date.now()+24*60*60*1000).toISOString();
   const sellerSnapshotJson=JSON.stringify({legalStatus:settings.legalStatus??"draft",legalName:settings.legalName??"",legalBusinessType:settings.legalBusinessType??"",legalAddress:settings.legalAddress??"",legalTaxOffice:settings.legalTaxOffice??"",legalTaxNumber:settings.legalTaxNumber??"",legalEmail:settings.legalEmail??"",legalPhone:settings.legalPhone??""});
   let promotionClaimed=false;if(promotionResult.promotion){const promo=promotionResult.promotion;const claimed=await db.update(promotions).set({usedCount:sql`${promotions.usedCount}+1`,updatedAt:new Date().toISOString()}).where(promo.usageLimit>0?and(eq(promotions.id,promo.id),eq(promotions.active,true),lt(promotions.usedCount,promo.usageLimit)):and(eq(promotions.id,promo.id),eq(promotions.active,true))).returning({id:promotions.id});if(!claimed.length){await reservation.rollback();return Response.json({error:"İndirim kodunun kullanım sınırı doldu veya kod kapatıldı."},{status:409});}promotionClaimed=true;}
+  const consentAt=new Date().toISOString();
   let order:typeof orders.$inferSelect|undefined;try{[order] = await db.insert(orders).values({
     orderNumber, market:cart.market, customerName, email, phone, address, city,
     postalCode:String(body.postalCode ?? "").trim().slice(0,30), country:quote.country,
-    note:String(body.note ?? "").trim().slice(0,1000), subtotal,shippingAmount,total,discountAmount,promotionId:promotionResult.promotion?.id??null,promoCode:promotionResult.promotion?.code??"",requestKey,privacyConsentAt:new Date().toISOString(),termsConsentAt:new Date().toISOString(),termsVersion:"order-request-v1",inventoryApplied:true,reservationState:"active",reservationExpiresAt:verificationExpiresAt,verificationTokenHash,verificationExpiresAt,billingType,billingName,billingAddress,billingCity,billingPostalCode,billingCountry,billingTaxOffice,billingTaxNumber,pricingTaxStatus:settings.taxDisplayMode??"pending",sellerSnapshotJson,
+    note:String(body.note ?? "").trim().slice(0,1000), subtotal,shippingAmount,total,discountAmount,promotionId:promotionResult.promotion?.id??null,promoCode:promotionResult.promotion?.code??"",requestKey,privacyConsentAt:consentAt,termsConsentAt:consentAt,termsVersion:contractSnapshot.version,termsSnapshotJson:contractSnapshot.json,termsSnapshotHash:contractSnapshot.hash,inventoryApplied:true,reservationState:"active",reservationExpiresAt:verificationExpiresAt,verificationTokenHash,verificationExpiresAt,billingType,billingName,billingAddress,billingCity,billingPostalCode,billingCountry,billingTaxOffice,billingTaxNumber,pricingTaxStatus:settings.taxDisplayMode??"pending",sellerSnapshotJson,
   }).returning();
   await db.insert(orderItems).values(priced.map(line => ({
     orderId:order.id, productId:line.productId, variantId:line.variantId, productName:cart.market==="GLOBAL"?(line.productNameEn||line.productName):line.productName,
