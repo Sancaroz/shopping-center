@@ -5,6 +5,7 @@ type Variant=typeof productVariants.$inferSelect;
 type Image=typeof productImages.$inferSelect;
 
 export function catalogQuality(product:Product,variants:Variant[],images:Image[],categoryActive?:boolean){
+  variants=variants.filter(variant=>variant.active);
   const blockers:string[]=[];const warnings:string[]=[];
   if(!product.nameTr.trim())blockers.push("Türkçe ürün adı eksik");
   if(!product.descriptionTr.trim())blockers.push("Türkçe açıklama eksik");

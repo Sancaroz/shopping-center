@@ -20,6 +20,7 @@ type CartItem = {
   marketTr: boolean;
   marketGlobal: boolean;
   variantStock: number | null;
+  variantActive: boolean | null;
   optionName: string | null;
   optionValue: string | null;
   optionNameEn: string | null;
@@ -64,7 +65,7 @@ export default function CartPage() {
   }
 
   const money = (value: number) => market === "TR" ? `${value.toLocaleString("tr-TR")} TL` : `€${value.toLocaleString("en-US")}`;
-  const unavailableItems=items.filter(item=>!item.active||(market==="TR"?!item.marketTr:!item.marketGlobal));
+  const unavailableItems=items.filter(item=>!item.active||item.variantActive===false||(market==="TR"?!item.marketTr:!item.marketGlobal));
   const trQuote=shippingQuote({market:"TR",country:"Türkiye",subtotal:total,settings:shippingSettings});const shipping=market==="TR"&&trQuote.ok?trQuote.shippingAmount:0;const freeLimit=shippingSettings.freeShippingTr;const grandTotal=total+shipping;
 
   return <main className="cart-page">
@@ -74,7 +75,7 @@ export default function CartPage() {
       {loading ? <p className="cart-empty">{market==="GLOBAL"?"Loading your bag…":"Çantanız yükleniyor…"}</p> : items.length === 0 ? <div className="cart-empty"><h2>{market==="GLOBAL"?"Your bag is empty.":"Çantanız henüz boş."}</h2><p>{market==="GLOBAL"?"Begin your selection in the shop.":"Seçkinizi oluşturmaya mağazadan başlayabilirsiniz."}</p><a href="/#shop">{market==="GLOBAL"?"Explore products":"Ürünleri keşfet"} →</a></div> : <>{unavailableItems.length>0&&<div className="cart-market-warning" role="alert"><b>{market==="GLOBAL"?"Your bag contains unavailable products.":"Çantanızda artık bu pazarda satılmayan ürünler var."}</b><span>{market==="GLOBAL"?"Remove the marked products before continuing.":"Devam etmek için işaretli ürünleri kaldırın."}</span></div>}<div className="cart-layout">
         <div className="cart-lines">{items.map(item => {
           const unit = (market === "TR" ? item.priceTr : item.priceGlobal) + (item.priceAdjustment ?? 0);
-          const unavailable=!item.active||(market==="TR"?!item.marketTr:!item.marketGlobal);return <article className={`cart-line ${unavailable?"unavailable":""}`} key={item.id}>
+          const unavailable=!item.active||item.variantActive===false||(market==="TR"?!item.marketTr:!item.marketGlobal);return <article className={`cart-line ${unavailable?"unavailable":""}`} key={item.id}>
             <a className="cart-image" href={`/urun/${encodeURIComponent(item.slug)}`}><img src={item.imageUrl || "https://images.unsplash.com/photo-1616627547584-bf28cee262db?auto=format&fit=crop&w=600&q=85"} alt={item.name}/></a>
             <div className="cart-copy"><p>{unavailable?(market==="GLOBAL"?"UNAVAILABLE":"BU PAZARDA YOK"):market==="TR"?"SEÇKİLİ ÜRÜN":"CURATED PRODUCT"}</p><h2><a href={`/urun/${encodeURIComponent(item.slug)}`}>{market==="GLOBAL"?(item.nameEn||item.name):item.name}</a></h2>{item.optionValue && <span>{market==="GLOBAL"?(item.optionNameEn||item.optionName):item.optionName}: {market==="GLOBAL"?(item.optionValueEn||item.optionValue):item.optionValue}</span>}{unavailable&&<span className="cart-unavailable-note">{market==="GLOBAL"?"This product must be removed from your bag.":"Siparişe devam etmek için bu ürünü kaldırın."}</span>}<div className="cart-quantity"><button onClick={() => setQuantity(item, item.quantity - 1)} aria-label={market==="GLOBAL"?"Decrease quantity":"Adedi azalt"}>−</button><span>{item.quantity}</span><button onClick={() => setQuantity(item, item.quantity + 1)} disabled={unavailable||item.quantity >= (item.variantStock ?? item.stock)} aria-label={market==="GLOBAL"?"Increase quantity":"Adedi artır"}>+</button></div><button className="cart-remove" onClick={() => remove(item.id)}>{market==="TR"?"Kaldır":"Remove"}</button></div>
             <strong>{money(unit * item.quantity)}</strong>

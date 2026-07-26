@@ -67,6 +67,7 @@ export const productVariants = sqliteTable("product_variants", {
   optionValueEn: text("option_value_en").notNull().default(""),
   stock: integer("stock").notNull().default(0),
   priceAdjustment: real("price_adjustment").notNull().default(0),
+  active: integer("active", { mode:"boolean" }).notNull().default(true),
 });
 
 export const productImages = sqliteTable("product_images", {

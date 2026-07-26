@@ -12,7 +12,7 @@ async function restore(db:Database,items:Reserved[]){for(const item of items){if
 export async function reserveInventory(db:Database,lines:Line[]){
   const reserved:Reserved[]=[];
   for(const line of lines){
-    if(line.variantId){const updated=await db.update(productVariants).set({stock:sql`${productVariants.stock}-${line.quantity}`}).where(and(eq(productVariants.id,line.variantId),gte(productVariants.stock,line.quantity))).returning({id:productVariants.id});if(!updated.length){await restore(db,reserved);return{ok:false as const,error:`${line.productName} için yeterli stok bulunmuyor.`};}reserved.push({kind:"variant",id:line.variantId,quantity:line.quantity});}
+    if(line.variantId){const updated=await db.update(productVariants).set({stock:sql`${productVariants.stock}-${line.quantity}`}).where(and(eq(productVariants.id,line.variantId),eq(productVariants.active,true),gte(productVariants.stock,line.quantity))).returning({id:productVariants.id});if(!updated.length){await restore(db,reserved);return{ok:false as const,error:`${line.productName} seçeneği artık satışta değil veya yeterli stok bulunmuyor.`};}reserved.push({kind:"variant",id:line.variantId,quantity:line.quantity});}
     else{const updated=await db.update(products).set({stock:sql`${products.stock}-${line.quantity}`,updatedAt:new Date().toISOString()}).where(and(eq(products.id,line.productId),gte(products.stock,line.quantity))).returning({id:products.id});if(!updated.length){await restore(db,reserved);return{ok:false as const,error:`${line.productName} için yeterli stok bulunmuyor.`};}reserved.push({kind:"product",id:line.productId,quantity:line.quantity});}
   }
   return{ok:true as const,reserved,rollback:()=>restore(db,reserved)};

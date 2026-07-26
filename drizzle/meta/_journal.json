@@ -253,6 +253,13 @@
       "when": 1785098234102,
       "tag": "0035_nifty_mauler",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1785099376474,
+      "tag": "0036_woozy_bromley",
+      "breakpoints": true
     }
   ]
 }

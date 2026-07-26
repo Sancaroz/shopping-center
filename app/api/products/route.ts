@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { categories, inventoryMovements, productImages, products, productVariants } from "../../../db/schema";
 import { catalogQuality } from "../../catalog-quality";
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     }).returning();
     const [images, variants] = await Promise.all([
       db.select().from(productImages).where(eq(productImages.productId, duplicateId)),
-      db.select().from(productVariants).where(eq(productVariants.productId, duplicateId)),
+      db.select().from(productVariants).where(and(eq(productVariants.productId, duplicateId),eq(productVariants.active,true))),
     ]);
     if (images.length) await db.insert(productImages).values(images.map(image => ({ productId: product.id, imageUrl: image.imageUrl, altText: image.altText, sortOrder: image.sortOrder })));
     if (variants.length) await db.insert(productVariants).values(variants.map(variant => ({ productId: product.id, sku: `${variant.sku}-COPY-${suffix}`, optionName: variant.optionName, optionValue: variant.optionValue, optionNameEn: variant.optionNameEn, optionValueEn: variant.optionValueEn, stock: 0, priceAdjustment: variant.priceAdjustment })));
