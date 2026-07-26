@@ -18,22 +18,26 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!(await getChatGPTUser())) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
+  const user=await getChatGPTUser();
+  if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
   const body = await request.json() as Record<string, unknown>;
   const nameTr = String(body.nameTr ?? "").trim();
   const slug = String(body.slug ?? "").trim();
   if (!nameTr || !slug) return Response.json({ error: "Kategori adı ve kodu zorunludur." }, { status: 400 });
   const [category] = await getDb().insert(categories).values({ nameTr, nameEn:String(body.nameEn??"").trim(), slug, parentId: Number(body.parentId) || null, imageUrl: String(body.imageUrl ?? ""), sortOrder: Number(body.sortOrder ?? 0) }).returning();
+  await recordAudit({user,action:"category.create",entityType:"category",entityId:category.id,summary:`${category.nameTr} kategorisi oluşturuldu.`,after:category});
   return Response.json({ category }, { status: 201 });
 }
 
 export async function PATCH(request: Request) {
-  if (!(await getChatGPTUser())) return Response.json({ error:"Yetkisiz erişim" },{status:401});
+  const user=await getChatGPTUser();
+  if (!user) return Response.json({ error:"Yetkisiz erişim" },{status:401});
   const body=await request.json() as Record<string,unknown>;
   if(Array.isArray(body.order)&&body.order.length){
     const ids=body.order.map(Number).filter(Number.isInteger).filter(id=>id>0).slice(0,100);
     const db=getDb();
     for(const[sortOrder,id]of ids.entries()) await db.update(categories).set({sortOrder}).where(eq(categories.id,id));
+    await recordAudit({user,action:"category.reorder",entityType:"category",summary:`${ids.length} kategorinin sırası güncellendi.`,after:{order:ids}});
     return Response.json({ok:true,updated:ids.length});
   }
   const id=Number(body.id);
@@ -46,7 +50,11 @@ export async function PATCH(request: Request) {
   if(body.imageUrl!==undefined)updates.imageUrl=String(body.imageUrl);
   if(body.sortOrder!==undefined)updates.sortOrder=Number(body.sortOrder)||0;
   if(body.active!==undefined)updates.active=Boolean(body.active);
-  const[category]=await getDb().update(categories).set(updates).where(eq(categories.id,id)).returning();
+  const db=getDb();
+  const[before]=await db.select().from(categories).where(eq(categories.id,id)).limit(1);
+  if(!before)return Response.json({error:"Kategori bulunamadı."},{status:404});
+  const[category]=await db.update(categories).set(updates).where(eq(categories.id,id)).returning();
+  await recordAudit({user,action:"category.update",entityType:"category",entityId:id,summary:`${category.nameTr} kategorisi güncellendi.`,before,after:category});
   return Response.json({category});
 }
 

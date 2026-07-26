@@ -3,7 +3,14 @@ import { auditLogs } from "../db/schema";
 import type { ChatGPTUser } from "./chatgpt-auth";
 
 function safeJson(value:unknown) {
-  try{return JSON.stringify(value).slice(0,5000);}catch{return "{}";}
+  try {
+    const compact=JSON.stringify(value,(_key,item)=>typeof item==="string"&&item.length>1000?`${item.slice(0,1000)}…`:item);
+    if(compact.length<=5000)return compact;
+    const keys=value&&typeof value==="object"&&!Array.isArray(value)?Object.keys(value).slice(0,100):[];
+    return JSON.stringify({_truncated:true,keys,message:"Kayıt boyutu sınırı nedeniyle alan özeti saklandı."});
+  } catch {
+    return "{}";
+  }
 }
 
 export async function recordAudit(input:{

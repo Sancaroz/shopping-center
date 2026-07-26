@@ -1,6 +1,7 @@
 import { getDb } from "../../../db";
 import { eq } from "drizzle-orm";
 import { products, storeSettings } from "../../../db/schema";
+import { recordAudit } from "../../audit-log";
 import { getChatGPTUser } from "../../chatgpt-auth";
 
 export const dynamic = "force-dynamic";
@@ -115,7 +116,8 @@ const defaults = {
 };
 export async function GET() { try { const rows = await getDb().select().from(storeSettings); return Response.json({ settings: { ...defaults, ...Object.fromEntries(rows.map(row => [row.key, row.value])) } }); } catch { return Response.json({ settings: defaults }); } }
 export async function PUT(request: Request) {
-  if (!(await getChatGPTUser())) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
+  const user=await getChatGPTUser();
+  if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
   const body = await request.json() as Record<string, unknown>; const db = getDb(); const allowed = Object.keys(defaults) as (keyof typeof defaults)[];
   const rows=await db.select().from(storeSettings);const current=Object.fromEntries(rows.map(row=>[row.key,row.value]));const values=Object.fromEntries(allowed.map(key=>[key,String(body[key]??current[key]??defaults[key])]));
   const shippingNumbers=["shippingTr","freeShippingTr","shippingGlobal","freeShippingGlobal"].map(key=>Number(values[key]));
@@ -123,6 +125,8 @@ export async function PUT(request: Request) {
   if(values.shippingGlobalEnabled==="true"&&!values.shippingGlobalCountries.split(",").some(country=>country.trim()))return Response.json({error:"Global teslimat açılmadan önce en az bir desteklenen ülke girilmelidir."},{status:409});
   if(values.legalStatus==="complete"){const required=[["Ticari unvan",values.legalName],["Şirket türü",values.legalBusinessType],["Merkez adresi",values.legalAddress],["Vergi dairesi",values.legalTaxOffice],["Vergi numarası",values.legalTaxNumber],["Hukuki e-posta",values.legalEmail],["Telefon",values.legalPhone],["İade adresi",values.returnAddress],["Ön bilgilendirme",values.preliminaryInformationTr],["Mesafeli satış sözleşmesi",values.distanceSalesTermsTr]];const missing=required.filter(([,value])=>!value.trim()).map(([label])=>label);if(missing.length)return Response.json({error:`Yayına hazır durumu için eksik alanlar: ${missing.join(", ")}.`},{status:409});}
   if(values.salesMode==="live"){const blockers:string[]=["ödeme sağlayıcısı teknik entegrasyonu"];if(values.legalStatus!=="complete")blockers.push("şirket ve hukuki bilgiler");if(values.paymentProviderStatus!=="active"||!values.paymentProviderName.trim())blockers.push("aktif ödeme sağlayıcısı");if(values.etbisStatus!=="complete")blockers.push("ETBİS kaydı");if(!values.returnCarrier.trim())blockers.push("anlaşmalı iade kargosu");if(values.taxDisplayMode!=="tax_included")blockers.push("vergiler dâhil tüketici fiyatı onayı");if(values.preliminaryInformationTr.startsWith("TASLAK")||values.distanceSalesTermsTr.startsWith("TASLAK"))blockers.push("onaylı sözleşme metinleri");const activeProducts=await db.select({id:products.id}).from(products).where(eq(products.active,true)).limit(1);if(!activeProducts.length)blockers.push("yayındaki ürün");if(blockers.length)return Response.json({error:`Canlı satış modu için tamamlanmalı: ${blockers.join(", ")}.`},{status:409});}
+  const changedKeys=allowed.filter(key=>(current[key]??defaults[key])!==values[key]);
   await db.batch(allowed.map(key => db.insert(storeSettings).values({ key, value: values[key], updatedAt: new Date().toISOString() }).onConflictDoUpdate({ target: storeSettings.key, set: { value: values[key], updatedAt: new Date().toISOString() } })));
+  if(changedKeys.length)await recordAudit({user,action:"settings.update",entityType:"settings",summary:`${changedKeys.length} mağaza ayarı güncellendi.`,before:Object.fromEntries(changedKeys.map(key=>[key,current[key]??defaults[key]])),after:Object.fromEntries(changedKeys.map(key=>[key,values[key]]))});
   return Response.json({ settings: values });
 }

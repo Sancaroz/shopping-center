@@ -866,3 +866,29 @@ test("archives catalog records without destroying order or inventory history", a
   assert.match(auditCenter, /Kategori arşivleme/);
   assert.match(schema, /onDelete: "set null"/);
 });
+
+test("audits catalog and store-setting changes with valid bounded snapshots", async () => {
+  const [productsApi,categoriesApi,settingsApi,auditHelper,auditCenter,backup] = await Promise.all([
+    source("app/api/products/route.ts"),
+    source("app/api/categories/route.ts"),
+    source("app/api/settings/route.ts"),
+    source("app/audit-log.ts"),
+    source("app/admin/islem-gecmisi/audit-log-center.tsx"),
+    source("app/backup-format.ts"),
+  ]);
+  assert.match(productsApi, /product\.create/);
+  assert.match(productsApi, /product\.duplicate/);
+  assert.match(productsApi, /product\.bulk_update/);
+  assert.match(productsApi, /product\.update/);
+  assert.match(categoriesApi, /category\.create/);
+  assert.match(categoriesApi, /category\.reorder/);
+  assert.match(categoriesApi, /category\.update/);
+  assert.match(settingsApi, /changedKeys/);
+  assert.match(settingsApi, /settings\.update/);
+  assert.match(auditHelper, /_truncated:true/);
+  assert.doesNotMatch(auditHelper, /JSON\.stringify\(value\)\.slice/);
+  assert.match(auditCenter, /Eski kayıt özeti görüntülenemiyor/);
+  assert.match(auditCenter, /\["product","Ürünler"\]/);
+  assert.match(auditCenter, /\["settings","Ayarlar"\]/);
+  assert.match(backup, /"auditLogs"/);
+});

@@ -48,6 +48,7 @@ export async function POST(request: Request) {
     ]);
     if (images.length) await db.insert(productImages).values(images.map(image => ({ productId: product.id, imageUrl: image.imageUrl, altText: image.altText, sortOrder: image.sortOrder })));
     if (variants.length) await db.insert(productVariants).values(variants.map(variant => ({ productId: product.id, sku: `${variant.sku}-COPY-${suffix}`, optionName: variant.optionName, optionValue: variant.optionValue, optionNameEn: variant.optionNameEn, optionValueEn: variant.optionValueEn, stock: 0, priceAdjustment: variant.priceAdjustment })));
+    await recordAudit({user,action:"product.duplicate",entityType:"product",entityId:product.id,summary:`${source.nameTr} ürünü taslak olarak kopyalandı.`,before:{sourceProductId:source.id},after:product});
     return Response.json({ product, copiedImages: images.length, copiedVariants: variants.length }, { status: 201 });
   }
   const nameTr = String(body.nameTr ?? "").trim();
@@ -69,6 +70,7 @@ export async function POST(request: Request) {
     active: false,
   }).returning();
   if(product.stock>0)await db.insert(inventoryMovements).values({productId:product.id,movementType:"opening",quantityDelta:product.stock,previousStock:0,nextStock:product.stock,reason:"Ürün açılış stoğu",reference:"product-create",actorEmail:user.email});
+  await recordAudit({user,action:"product.create",entityType:"product",entityId:product.id,summary:`${product.nameTr} ürünü taslak olarak oluşturuldu.`,after:product});
   return Response.json({ product }, { status: 201 });
 }
 
@@ -77,6 +79,8 @@ export async function PATCH(request: Request) {
   const body = await request.json() as Record<string, unknown>;
   const ids = Array.isArray(body.ids) ? body.ids.map(Number).filter(Number.isInteger).filter(id => id > 0).slice(0, 500) : [];
   if (ids.length) {
+    const db=getDb();
+    const selectedProducts=await db.select().from(products).where(inArray(products.id,ids));
     const bulkUpdates: Partial<typeof products.$inferInsert> = { updatedAt: new Date().toISOString() };
     if (body.active !== undefined) bulkUpdates.active = Boolean(body.active);
     if (body.marketTr !== undefined) bulkUpdates.marketTr = Boolean(body.marketTr);
@@ -84,9 +88,7 @@ export async function PATCH(request: Request) {
     if (body.featured !== undefined) bulkUpdates.featured = Boolean(body.featured);
     if (Object.keys(bulkUpdates).length === 1) return Response.json({ error: "Toplu işlem seçilmedi." }, { status: 400 });
     if (bulkUpdates.active === true) {
-      const db = getDb();
-      const [selectedProducts, selectedVariants, categoryRows] = await Promise.all([
-        db.select().from(products).where(inArray(products.id, ids)),
+      const [selectedVariants, categoryRows] = await Promise.all([
         db.select().from(productVariants).where(inArray(productVariants.productId, ids)),
         db.select().from(categories),
       ]);
@@ -100,7 +102,8 @@ export async function PATCH(request: Request) {
         incomplete: incomplete.map(item => ({ id:item.product.id, name:item.product.nameTr, issues:item.issues })),
       }, { status: 409 });
     }
-    const updated = await getDb().update(products).set(bulkUpdates).where(inArray(products.id, ids)).returning({ id: products.id });
+    const updated = await db.update(products).set(bulkUpdates).where(inArray(products.id, ids)).returning({ id: products.id });
+    await recordAudit({user,action:"product.bulk_update",entityType:"product",summary:`${updated.length} ürün toplu olarak güncellendi.`,before:{productIds:selectedProducts.map(product=>product.id)},after:{updates:bulkUpdates,productIds:updated.map(product=>product.id)}});
     return Response.json({ ok: true, updated: updated.length });
   }
   const id = Number(body.id);
@@ -136,6 +139,7 @@ export async function PATCH(request: Request) {
   }
   const [product] = await db.update(products).set(updates).where(eq(products.id, id)).returning();
   if(product&&updates.stock!==undefined&&updates.stock!==currentBefore.stock)await db.insert(inventoryMovements).values({productId:id,movementType:"correction",quantityDelta:updates.stock-currentBefore.stock,previousStock:currentBefore.stock,nextStock:updates.stock,reason:"Ürün düzenleyicisinden stok düzeltmesi",reference:"product-editor",actorEmail:user.email});
+  if(product)await recordAudit({user,action:"product.update",entityType:"product",entityId:id,summary:`${product.nameTr} ürünü güncellendi.`,before:currentBefore,after:product});
   return Response.json({ product });
 }
 
