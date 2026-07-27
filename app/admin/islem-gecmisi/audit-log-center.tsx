@@ -9,6 +9,7 @@ labels["notification.update"]="Bildirim kuyruğu güncellemesi";
 
 labels["media.upload"]="Medya yükleme";
 labels["media.delete"]="Medya silme";
+labels["media.backup.download"]="Medya yedeği indirme";
 labels["product_image.delete"]="Galeri görseli kaldırma";
 labels["product_image.create"]="Galeri görseli ekleme";
 labels["product_image.update"]="Galeri açıklaması güncelleme";

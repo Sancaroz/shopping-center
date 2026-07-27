@@ -207,7 +207,7 @@ test("creates complete integrity-checked backups and rehearses restore safely", 
   assert.doesNotMatch(backupApi, /insert\(products\)|delete\(orders\)/);
   assert.match(safetyCenter, /Canlı mağazadaki hiçbir kayıt/);
   assert.match(safetyCenter, /Yapılandırılmış veriler geri yüklemeye hazır/);
-  assert.match(safetyCenter, /görsellerinin dosya kopyaları JSON içine eklenmez/);
+  assert.match(safetyCenter, /görsel dosyalarını ayrıca medya kütüphanesinden indirin/);
 });
 
 test("keeps lint rules aligned with the Vinext and dynamic-media architecture", async () => {
@@ -1070,6 +1070,44 @@ test("prevents referenced media deletion across every storefront image source", 
   assert.match(auditCenter, /Medya silme/);
   assert.match(auditCenter, /Galeri görseli kaldırma/);
   assert.match(auditCenter, /\["media","Medya"\]/);
+});
+
+test("exports owner-only integrity-checked media backup parts", async () => {
+  const [contract,api,page,library,dataSafety,pkg] = await Promise.all([
+    source("app/media-backup.ts"),
+    source("app/api/media-backup/route.ts"),
+    source("app/admin/medya/page.tsx"),
+    source("app/admin/medya/media-library.tsx"),
+    source("app/admin/veri-guvenligi/data-safety-center.tsx"),
+    source("package.json"),
+  ]);
+  assert.match(contract, /MEDIA_ARCHIVE_MAX_BYTES=24\*1024\*1024/);
+  assert.match(contract, /MEDIA_ARCHIVE_MAX_FILES=40/);
+  assert.match(contract, /crypto\.subtle\.digest\("SHA-256"/);
+  assert.match(api, /getChatGPTOwner/);
+  assert.match(api, /MAX_MEDIA_OBJECTS=5_000/);
+  assert.match(api, /requestedSnapshot!==snapshot/);
+  assert.match(api, /object\.size!==listed\.size\|\|object\.etag!==listed\.etag/);
+  assert.match(api, /zipSync\(archiveFiles,\{level:0\}\)/);
+  assert.match(api, /mysa-media-manifest\.json/);
+  assert.match(api, /action:"media\.backup\.download"/);
+  assert.match(api, /"Content-Disposition":`attachment/);
+  assert.match(page, /isOwner=\{user\.role==="owner"\}/);
+  assert.match(library, /Ürün görsellerinin kopyası/);
+  assert.match(library, /downloadPart\(part\)/);
+  assert.match(library, /\/api\/media-backup\?key=/);
+  assert.match(dataSafety, /Görsel dosyası yedeğine git/);
+  assert.match(pkg, /"fflate": "0\.7\.4"/);
+});
+
+test("partitions media backups deterministically without exceeding safe limits", async () => {
+  const {partitionMediaBackup,mediaBackupSnapshot,MEDIA_ARCHIVE_MAX_BYTES}=await importTypescriptModule("app/media-backup.ts");
+  const fortyOne=Array.from({length:41},(_,index)=>({key:`products/${String(index).padStart(2,"0")}.webp`,size:1,uploaded:"2026-01-01T00:00:00.000Z",etag:`e${index}`}));
+  const counted=partitionMediaBackup(fortyOne);assert.equal(counted.parts.length,2);assert.equal(counted.parts[0].objects.length,40);assert.equal(counted.parts[1].objects.length,1);
+  const sized=partitionMediaBackup([{key:"products/a.webp",size:20*1024*1024,uploaded:"",etag:"a"},{key:"products/b.webp",size:5*1024*1024,uploaded:"",etag:"b"},{key:"products/large.webp",size:MEDIA_ARCHIVE_MAX_BYTES+1,uploaded:"",etag:"large"}]);
+  assert.equal(sized.parts.length,2);assert.equal(sized.individual.length,1);assert.ok(sized.parts.every(part=>part.size<=MEDIA_ARCHIVE_MAX_BYTES));
+  const first=await mediaBackupSnapshot(fortyOne);const reordered=await mediaBackupSnapshot([...fortyOne].reverse());const changed=await mediaBackupSnapshot(fortyOne.map((item,index)=>index?item:{...item,etag:"changed"}));
+  assert.equal(first,reordered);assert.match(first,/^[a-f0-9]{64}$/);assert.notEqual(first,changed);
 });
 
 test("keeps unsafe CSV imports in draft and records stock and audit history", async () => {
