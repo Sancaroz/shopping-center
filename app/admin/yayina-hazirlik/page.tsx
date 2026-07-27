@@ -1,4 +1,4 @@
-import { requireChatGPTUser } from "../../chatgpt-auth";
+import { requireOwner } from "../../chatgpt-auth";
 import LaunchReadiness from "./launch-readiness";
 import "../admin.css";
 import "./launch-readiness.css";
@@ -6,6 +6,6 @@ import "./launch-readiness.css";
 export const dynamic="force-dynamic";
 
 export default async function LaunchReadinessPage() {
-  await requireChatGPTUser("/admin/yayina-hazirlik");
+  await requireOwner("/admin/yayina-hazirlik");
   return <LaunchReadiness/>;
 }

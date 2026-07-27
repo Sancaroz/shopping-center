@@ -121,6 +121,7 @@ const imageUrlKeys = ["brandLogoUrl", "faviconUrl", "seoImageUrl", "heroImageUrl
 const externalUrlKeys = ["instagramUrl", "pinterestUrl"] as const;
 const longTextKeys = new Set(["shippingPolicyTr", "returnsPolicyTr", "shippingPolicyGlobal", "returnsPolicyGlobal", "privacyPolicy", "privacyPolicyGlobal", "preliminaryInformationTr", "distanceSalesTermsTr"]);
 const booleanKeys = ["showAnnouncement", "showCategories", "showProducts", "showJournal", "showManifesto", "shippingGlobalEnabled"] as const;
+const ownerOnlyKeys=new Set<keyof typeof defaults>(["legalStatus","legalBusinessType","legalName","legalAddress","legalTaxOffice","legalTaxNumber","legalMersisNumber","legalEmail","legalPhone","etbisStatus","preliminaryInformationTr","distanceSalesTermsTr","salesMode","paymentProviderStatus","paymentProviderName","taxDisplayMode"]);
 const allowedEnums: Partial<Record<keyof typeof defaults, readonly string[]>> = {
   legalStatus: ["draft", "complete"], salesMode: ["order_request", "live"], orderIntakeStatus: ["open", "paused"],
   paymentProviderStatus: ["not_started", "application", "sandbox", "active"], etbisStatus: ["not_started", "in_progress", "complete"], taxDisplayMode: ["pending", "tax_included"],
@@ -131,6 +132,7 @@ export async function PUT(request: Request) {
   if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
   const parsed=await readBoundedJson(request,160_000);if(parsed.error)return parsed.error;const body=parsed.body!;
   const db = getDb(); const allowed = Object.keys(defaults) as (keyof typeof defaults)[];
+  const protectedKey=allowed.find(key=>ownerOnlyKeys.has(key)&&body[key]!==undefined);if(user.role!=="owner"&&protectedKey)return Response.json({error:"Şirket, ödeme ve canlı satış ayarlarını yalnızca mağaza sahibi değiştirebilir."},{status:403});
   const invalidType=allowed.find(key=>body[key]!==undefined&&!(["string","number","boolean"].includes(typeof body[key])));
   if(invalidType)return Response.json({error:`${invalidType} alanı geçersiz.`},{status:400});
   const rows=await db.select().from(storeSettings);const current=Object.fromEntries(rows.map(row=>[row.key,row.value]));const values=Object.fromEntries(allowed.map(key=>[key,String(body[key]??current[key]??defaults[key])]));

@@ -143,7 +143,7 @@ test("records authenticated audit history for critical order and return changes"
   ]);
   assert.match(auditHelper, /actorEmail:input\.user\.email/);
   assert.match(auditHelper, /safeJson/);
-  assert.match(auditApi, /Yetkisiz erişim/);
+  assert.match(auditApi, /getChatGPTOwner/);
   assert.match(orders, /action:"order.update"/);
   assert.match(returns, /action:"return_request.update"/);
   assert.match(auditPage, /salt okunurdur/);
@@ -268,7 +268,7 @@ test("prepares provider integrations without exposing secrets or mutating orders
   assert.match(signature, /constantTimeEqual/);
   assert.match(webhook, /processed:false/);
   assert.doesNotMatch(webhook, /update\(orders\)|paymentStatus/);
-  assert.match(statusApi, /Yetkisiz erişim/);
+  assert.match(statusApi, /getChatGPTOwner/);
   assert.match(center, /Gizli anahtarlar yönetim ekranında gösterilmez/);
   assert.match(center, /Test modu doğrulanmadan canlı moda geçilmez/);
   assert.match(notifications, /providerConfigured/);
@@ -524,7 +524,7 @@ test("snapshots order costs and reports finance estimates without false accounti
   assert.match(schema, /unitCostSnapshot/);
   assert.match(migration, /unit_cost_snapshot/);
   assert.match(orders, /unitCostSnapshot:cart\.market==="TR"\?line\.unitCost:0/);
-  assert.match(financeApi, /Yetkisiz erişim/);
+  assert.match(financeApi, /getChatGPTOwner/);
   assert.match(financeApi, /paymentStatus==="paid"/);
   assert.match(financeApi, /unitCostSnapshot\*item\.quantity/);
   assert.match(financeApi, /market==="TR"/);
@@ -587,12 +587,12 @@ test("provides a privacy-conscious authenticated customer operations center", as
     source("app/admin/musteriler/customer-center.tsx"),
     source("app/admin/page.tsx"),
   ]);
-  assert.match(api, /getChatGPTUser/);
-  assert.match(api, /Yetkisiz erişim/);
+  assert.match(api, /getChatGPTOwner/);
+  assert.match(api, /yalnızca mağaza sahibine açıktır/);
   assert.match(api, /toLocaleLowerCase\("en-US"\)/);
   assert.match(api, /maskPhone/);
   assert.doesNotMatch(api, /billingTaxNumber|billingAddress|internalNote/);
-  assert.match(page, /requireChatGPTUser\("\/admin\/musteriler"\)/);
+  assert.match(page, /requireOwner\("\/admin\/musteriler"\)/);
   assert.match(center, /Bu ekran bir pazarlama listesi değildir/);
   assert.match(center, /Tekrar gelen/);
   assert.match(center, /Doğrulama bekleyen/);
@@ -691,7 +691,7 @@ test("reconciles immutable payment and refund records without collecting card da
   ]);
   assert.match(schema, /paymentTransactions/);
   assert.match(schema, /transactionKey/);
-  assert.match(api, /Yetkisiz erişim/);
+  assert.match(api, /getChatGPTOwner/);
   assert.match(api, /onConflictDoNothing/);
   assert.match(api, /reconciliationStatus/);
   assert.match(api, /partially_refunded/);
@@ -701,7 +701,7 @@ test("reconciles immutable payment and refund records without collecting card da
   assert.doesNotMatch(api, /body\.(?:cardNumber|cvv|pan)|(?:cardNumber|cvv|pan)\s*:/i);
   assert.match(center, /Gerçek tahsilat başlatmaz/);
   assert.match(center, /Kart bilgisi girmeyin/);
-  assert.match(page, /requireChatGPTUser\("\/admin\/odemeler"\)/);
+  assert.match(page, /requireOwner\("\/admin\/odemeler"\)/);
   assert.match(operations, /payment-mismatch/);
   assert.match(panel, /\/admin\/odemeler/);
   assert.match(orderDetail, /Ödeme defteri/);
@@ -735,7 +735,7 @@ test("tracks privacy rights requests without automatic deletion or identity docu
   assert.match(publicPage, /Kart bilgisi, parola veya kimlik belgesi yüklemeyin/);
   assert.match(adminCenter, /Silme veya dışa aktarma otomatik yapılmaz/);
   assert.match(adminCenter, /Cevap özeti/);
-  assert.match(adminPage, /requireChatGPTUser\("\/admin\/veri-talepleri"\)/);
+  assert.match(adminPage, /requireOwner\("\/admin\/veri-talepleri"\)/);
   assert.match(policies, /\/veri-talebi/);
   assert.match(operations, /privacy-/);
   assert.match(panel, /\/admin\/veri-talepleri/);
@@ -1555,4 +1555,36 @@ test("exports sensitive business data as inert audited no-store downloads", asyn
   assert.match(exportApi, /downloadHeaders\("application\/json; charset=utf-8"/);
   assert.match(auditCenter, /labels\["data\.export"\]="Veri dışa aktarma"/);
   assert.match(auditCenter, /\["export","Dışa aktarma"\]/);
+});
+
+test("reserves sensitive governance data and controls for the store owner", async () => {
+  const [auth,exportApi,backups,auditApi,payments,privacy,finance,customers,integrations,readiness,settings,operationsPage,dataPage,auditPage,paymentsPage,privacyPage,financePage,customersPage,integrationsPage,readinessPage] = await Promise.all([
+    source("app/chatgpt-auth.ts"),
+    source("app/api/export/route.ts"),
+    source("app/api/backups/route.ts"),
+    source("app/api/audit-logs/route.ts"),
+    source("app/api/payment-transactions/route.ts"),
+    source("app/api/privacy-requests/route.ts"),
+    source("app/api/finance-summary/route.ts"),
+    source("app/api/customers/route.ts"),
+    source("app/api/integrations/status/route.ts"),
+    source("app/api/launch-readiness/route.ts"),
+    source("app/api/settings/route.ts"),
+    source("app/admin/operasyon/page.tsx"),
+    source("app/admin/veri-guvenligi/page.tsx"),
+    source("app/admin/islem-gecmisi/page.tsx"),
+    source("app/admin/odemeler/page.tsx"),
+    source("app/admin/veri-talepleri/page.tsx"),
+    source("app/admin/finans/page.tsx"),
+    source("app/admin/musteriler/page.tsx"),
+    source("app/admin/entegrasyonlar/page.tsx"),
+    source("app/admin/yayina-hazirlik/page.tsx"),
+  ]);
+  assert.match(auth, /export async function getChatGPTOwner/);
+  for(const api of [exportApi,backups,auditApi,payments,privacy,finance,customers,integrations,readiness])assert.match(api,/getChatGPTOwner/);
+  assert.match(settings, /ownerOnlyKeys=new Set/);
+  assert.match(settings, /user\.role!=="owner"&&protectedKey/);
+  assert.match(settings, /Şirket, ödeme ve canlı satış ayarlarını yalnızca mağaza sahibi değiştirebilir/);
+  for(const page of [dataPage,auditPage,paymentsPage,privacyPage,financePage,customersPage,integrationsPage,readinessPage])assert.match(page,/requireOwner/);
+  assert.match(operationsPage, /requireChatGPTUser/);
 });

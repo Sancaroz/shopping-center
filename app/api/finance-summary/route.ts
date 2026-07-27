@@ -1,12 +1,12 @@
 import {desc} from "drizzle-orm";
 import {getDb} from "../../../db";
 import {orderItems,orders,products} from "../../../db/schema";
-import {getChatGPTUser} from "../../chatgpt-auth";
+import {getChatGPTOwner} from "../../chatgpt-auth";
 
 export const dynamic="force-dynamic";
 
 export async function GET(){
-  if(!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401});
+  if(!(await getChatGPTOwner()))return Response.json({error:"Finans özeti yalnızca mağaza sahibine açıktır."},{status:403});
   const db=getDb();const[orderRows,itemRows,productRows]=await Promise.all([db.select().from(orders).orderBy(desc(orders.id)).limit(1000),db.select().from(orderItems),db.select().from(products)]);
   const itemsByOrder=new Map<number,typeof itemRows>();for(const item of itemRows){const rows=itemsByOrder.get(item.orderId)??[];rows.push(item);itemsByOrder.set(item.orderId,rows);}
   const active=orderRows.filter(order=>order.status!=="cancelled");const realized=active.filter(order=>order.paymentStatus==="paid");

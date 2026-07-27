@@ -1,7 +1,7 @@
 import {desc} from "drizzle-orm";
 import {getDb} from "../../../db";
 import {orders} from "../../../db/schema";
-import {getChatGPTUser} from "../../chatgpt-auth";
+import {getChatGPTOwner} from "../../chatgpt-auth";
 
 export const dynamic="force-dynamic";
 
@@ -15,7 +15,7 @@ type CustomerSummary={
 function maskPhone(phone:string){const digits=phone.replace(/\D/g,"");if(digits.length<4)return"—";return`••• ••• ${digits.slice(-4)}`;}
 
 export async function GET(){
-  if(!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401});
+  if(!(await getChatGPTOwner()))return Response.json({error:"Müşteri özeti yalnızca mağaza sahibine açıktır."},{status:403});
   const rows=await getDb().select({id:orders.id,orderNumber:orders.orderNumber,customerName:orders.customerName,email:orders.email,phone:orders.phone,city:orders.city,country:orders.country,market:orders.market,status:orders.status,paymentStatus:orders.paymentStatus,total:orders.total,emailVerifiedAt:orders.emailVerifiedAt,createdAt:orders.createdAt}).from(orders).orderBy(desc(orders.id)).limit(5000);
   const byEmail=new Map<string,CustomerSummary>();
   for(const order of rows){

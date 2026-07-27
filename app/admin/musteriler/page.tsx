@@ -1,6 +1,6 @@
-import {requireChatGPTUser} from "../../chatgpt-auth";
+import {requireOwner} from "../../chatgpt-auth";
 import CustomerCenter from "./customer-center";
 import "./customer-center.css";
 
 export const dynamic="force-dynamic";
-export default async function CustomersPage(){await requireChatGPTUser("/admin/musteriler");return <CustomerCenter/>;}
+export default async function CustomersPage(){await requireOwner("/admin/musteriler");return <CustomerCenter/>;}

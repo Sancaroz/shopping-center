@@ -105,6 +105,11 @@ export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   return user ? authorizeChatGPTUser(user) : null;
 }
 
+export async function getChatGPTOwner(): Promise<ChatGPTUser | null> {
+  const user = await getChatGPTUser();
+  return user?.role === "owner" ? user : null;
+}
+
 export async function requireChatGPTUser(
   returnTo: string,
 ): Promise<ChatGPTUser> {

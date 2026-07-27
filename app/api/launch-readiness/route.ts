@@ -1,13 +1,13 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { adminUsers, auditLogs, notificationOutbox, orders, products, returnRequests, storeSettings } from "../../../db/schema";
-import { getChatGPTUser } from "../../chatgpt-auth";
+import { getChatGPTOwner } from "../../chatgpt-auth";
 import { getIntegrationStatus } from "../../integrations/runtime";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  if (!(await getChatGPTUser())) return Response.json({ error:"Yetkisiz erişim" }, { status:401 });
+  if (!(await getChatGPTOwner())) return Response.json({ error:"Yayına hazırlık yalnızca mağaza sahibine açıktır." }, { status:403 });
   const db=getDb();
   const [settingsRows,adminUserRows,productRows,orderRows,returnRows,notificationRows,auditRows]=await Promise.all([
     db.select().from(storeSettings),

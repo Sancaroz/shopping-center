@@ -29,7 +29,7 @@ import {
 } from "../../../db/schema";
 import { recordAudit } from "../../audit-log";
 import { buildBackupEnvelope } from "../../backup-format";
-import { getChatGPTUser, type ChatGPTUser } from "../../chatgpt-auth";
+import { getChatGPTOwner, type ChatGPTUser } from "../../chatgpt-auth";
 
 export const dynamic = "force-dynamic";
 const date = () => new Date().toISOString().slice(0, 10);
@@ -65,8 +65,8 @@ async function auditedCsvExport(user:ChatGPTUser,type:string,label:string,rows:R
 }
 
 export async function GET(request: Request) {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
+  const user = await getChatGPTOwner();
+  if (!user) return Response.json({ error: "Veri dışa aktarma yalnızca mağaza sahibine açıktır." }, { status: 403 });
   const type = new URL(request.url).searchParams.get("type");
   const db = getDb();
   if (type === "products"){const rows=await db.select().from(products).orderBy(desc(products.id)) as unknown as Record<string,unknown>[];return auditedCsvExport(user,type,"Ürünler",rows,"urunler");}

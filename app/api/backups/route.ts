@@ -3,13 +3,13 @@ import { getDb } from "../../../db";
 import { auditLogs, carts, requestThrottles } from "../../../db/schema";
 import { recordAudit } from "../../audit-log";
 import { verifyBackupEnvelope } from "../../backup-format";
-import { getChatGPTUser } from "../../chatgpt-auth";
+import { getChatGPTOwner } from "../../chatgpt-auth";
 
 export const dynamic = "force-dynamic";
 const MAX_BACKUP_BYTES = 10 * 1024 * 1024;
 
 export async function GET() {
-  if (!(await getChatGPTUser())) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
+  if (!(await getChatGPTOwner())) return Response.json({ error: "Yedekleme yalnızca mağaza sahibine açıktır." }, { status: 403 });
   const rows = await getDb().select().from(auditLogs).orderBy(desc(auditLogs.id)).limit(300);
   const history = rows
     .filter((row) => row.entityType === "backup" || row.action === "data.retention_cleanup")
@@ -19,8 +19,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
+  const user = await getChatGPTOwner();
+  if (!user) return Response.json({ error: "Yedekleme yalnızca mağaza sahibine açıktır." }, { status: 403 });
   const contentLength = Number(request.headers.get("content-length") ?? 0);
   if (contentLength > MAX_BACKUP_BYTES) return Response.json({ error: "Yedek dosyası 10 MB sınırını aşıyor." }, { status: 413 });
   const raw = await request.text();
@@ -43,8 +43,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE() {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
+  const user = await getChatGPTOwner();
+  if (!user) return Response.json({ error: "Yedekleme yalnızca mağaza sahibine açıktır." }, { status: 403 });
   const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
   const cartCutoff = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString();
   const staleRows = await getDb()

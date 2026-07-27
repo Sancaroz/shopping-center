@@ -2,7 +2,7 @@ import {asc,desc,eq} from "drizzle-orm";
 import {getDb} from "../../../db";
 import {orders,paymentTransactions,storeSettings} from "../../../db/schema";
 import {recordAudit} from "../../audit-log";
-import {getChatGPTUser} from "../../chatgpt-auth";
+import {getChatGPTOwner} from "../../chatgpt-auth";
 import {containsLikelyCardNumber,readBoundedJson} from "../../public-form-security";
 
 export const dynamic="force-dynamic";
@@ -10,7 +10,7 @@ const noStore={"Cache-Control":"no-store"};
 const roundMoney=(value:number)=>Math.round((value+Number.EPSILON)*100)/100;
 
 export async function GET(){
-  if(!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401,headers:noStore});
+  if(!(await getChatGPTOwner()))return Response.json({error:"Ödeme kayıtları yalnızca mağaza sahibine açıktır."},{status:403,headers:noStore});
   const db=getDb();
   const [transactionRows,orderRows,settingRows]=await Promise.all([
     db.select({id:paymentTransactions.id,orderId:paymentTransactions.orderId,transactionKey:paymentTransactions.transactionKey,kind:paymentTransactions.kind,status:paymentTransactions.status,provider:paymentTransactions.provider,providerReference:paymentTransactions.providerReference,amount:paymentTransactions.amount,currency:paymentTransactions.currency,source:paymentTransactions.source,reconciliationStatus:paymentTransactions.reconciliationStatus,expectedAmount:paymentTransactions.expectedAmount,note:paymentTransactions.note,occurredAt:paymentTransactions.occurredAt,actorEmail:paymentTransactions.actorEmail,createdAt:paymentTransactions.createdAt,orderNumber:orders.orderNumber,customerName:orders.customerName,orderTotal:orders.total,market:orders.market}).from(paymentTransactions).innerJoin(orders,eq(paymentTransactions.orderId,orders.id)).orderBy(desc(paymentTransactions.id)).limit(500),
@@ -22,7 +22,7 @@ export async function GET(){
 }
 
 export async function POST(request:Request){
-  const user=await getChatGPTUser();if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401,headers:noStore});
+  const user=await getChatGPTOwner();if(!user)return Response.json({error:"Ödeme kayıtları yalnızca mağaza sahibine açıktır."},{status:403,headers:noStore});
   const parsed=await readBoundedJson(request,8_000);if(parsed.error)return parsed.error;const body=parsed.body!;
   const orderId=Number(body.orderId);const kind=String(body.kind??"");const status=String(body.status??"");const provider=String(body.provider??"").trim().slice(0,80);const providerReference=String(body.providerReference??"").trim().slice(0,160);const amount=roundMoney(Number(body.amount));const note=String(body.note??"").trim().slice(0,1000);const occurredInput=String(body.occurredAt??"").trim();const occurredDate=occurredInput?new Date(occurredInput):new Date();
   if(!Number.isInteger(orderId)||orderId<1||!["payment","refund"].includes(kind)||!["pending","succeeded","failed"].includes(status)||!provider||!providerReference||!Number.isFinite(amount)||amount<=0||amount>1_000_000_000||Number.isNaN(occurredDate.getTime()))return Response.json({error:"Sipariş, işlem türü, durum, sağlayıcı, referans ve geçerli tutar zorunludur."},{status:400,headers:noStore});
