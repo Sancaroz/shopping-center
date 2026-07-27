@@ -1394,3 +1394,25 @@ test("locks terminal notifications and audits safe queue management", async () =
   assert.match(auditCenter, /Bildirim kuyruğu güncellemesi/);
   assert.match(auditCenter, /\["notification","Bildirimler"\]/);
 });
+
+test("requires verified identity and a forward-only privacy request workflow", async () => {
+  const [lifecycle,api,center] = await Promise.all([
+    source("app/privacy-request-lifecycle.ts"),
+    source("app/api/privacy-requests/route.ts"),
+    source("app/admin/veri-talepleri/privacy-request-center.tsx"),
+  ]);
+  assert.match(lifecycle, /new:\["reviewing","waiting_identity","rejected"\]/);
+  assert.match(lifecycle, /completed:\[\]/);
+  assert.match(lifecycle, /rejected:\[\]/);
+  assert.match(lifecycle, /canTransitionPrivacyRequestStatus/);
+  assert.match(lifecycle, /canTransitionIdentityStatus/);
+  assert.match(api, /readBoundedJson\(request,8_000\)/);
+  assert.match(api, /Sonuçlandırılmış veri talebi yeniden değiştirilemez/);
+  assert.match(api, /Kimlik doğrulanmadan veri talebi tamamlanamaz/);
+  assert.match(api, /waiting_identity.*identityStatus!=="pending"/s);
+  assert.match(api, /containsLikelyCardNumber/);
+  assert.match(center, /allowedPrivacyRequestStatusTargets\(item\.status\)/);
+  assert.match(center, /allowedIdentityStatusTargets\(item\.identityStatus\)/);
+  assert.match(center, /disabled=\{busy\|\|terminal\}/);
+  assert.match(center, /Talep sonuçlandı/);
+});
