@@ -1721,15 +1721,16 @@ test("records a matched payment and paid order state atomically only once", asyn
   assert.match(api, /Bu sipariş için başarılı tahsilat daha önce kaydedildi/);
 });
 
-test("prevents concurrent refunds from exceeding the captured payment", async () => {
-  const [api,migration] = await Promise.all([
+test("serializes concurrent refunds before recalculating the remaining amount", async () => {
+  const [schema,api,migration] = await Promise.all([
+    source("db/schema.ts"),
     source("app/api/payment-transactions/route.ts"),
-    source("drizzle/0042_protect_refund_total.sql"),
+    source("drizzle/0042_famous_phil_sheldon.sql"),
   ]);
-  assert.match(migration, /CREATE TRIGGER `payment_transactions_refund_limit`/);
-  assert.match(migration, /BEFORE INSERT ON `payment_transactions`/);
-  assert.match(migration, /NEW\.`kind` = 'refund'/);
-  assert.match(migration, /RAISE\(ABORT, 'refund_exceeds_captured'\)/);
-  assert.match(api, /String\(error\)\.includes\("refund_exceeds_captured"\)/);
-  assert.match(api, /İade toplamı tahsil edilen tutarı aşamaz/);
+  assert.match(schema, /ledgerSequence: integer\("ledger_sequence"\)/);
+  assert.match(schema, /payment_transactions_order_ledger_sequence/);
+  assert.match(migration, /ADD `ledger_sequence` integer/);
+  assert.match(migration, /CREATE UNIQUE INDEX `payment_transactions_order_ledger_sequence`/);
+  assert.match(api, /ledgerSequence=status==="succeeded"&&reconciliationStatus==="matched"\?successful\.length\+1:null/);
+  assert.match(api, /Bu sırada başka bir iade kaydedildi/);
 });

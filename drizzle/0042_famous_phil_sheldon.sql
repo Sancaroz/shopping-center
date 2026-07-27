@@ -1,0 +1,2 @@
+ALTER TABLE `payment_transactions` ADD `ledger_sequence` integer;--> statement-breakpoint
+CREATE UNIQUE INDEX `payment_transactions_order_ledger_sequence` ON `payment_transactions` (`order_id`,`ledger_sequence`) WHERE "payment_transactions"."ledger_sequence" IS NOT NULL;

@@ -180,11 +180,15 @@ export const paymentTransactions = sqliteTable("payment_transactions", {
   source: text("source").notNull().default("manual"),
   reconciliationStatus: text("reconciliation_status").notNull(),
   expectedAmount: real("expected_amount").notNull(),
+  ledgerSequence: integer("ledger_sequence"),
   note: text("note").notNull().default(""),
   occurredAt: text("occurred_at").notNull(),
   actorEmail: text("actor_email").notNull().default(""),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-}, table => [uniqueIndex("payment_transactions_one_matched_payment").on(table.orderId).where(sql`${table.kind} = 'payment' AND ${table.status} = 'succeeded' AND ${table.reconciliationStatus} = 'matched'`)]);
+}, table => [
+  uniqueIndex("payment_transactions_one_matched_payment").on(table.orderId).where(sql`${table.kind} = 'payment' AND ${table.status} = 'succeeded' AND ${table.reconciliationStatus} = 'matched'`),
+  uniqueIndex("payment_transactions_order_ledger_sequence").on(table.orderId,table.ledgerSequence).where(sql`${table.ledgerSequence} IS NOT NULL`),
+]);
 
 export const fulfillmentChecklists = sqliteTable("fulfillment_checklists", {
   id: integer("id").primaryKey({ autoIncrement:true }),
