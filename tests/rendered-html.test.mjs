@@ -1149,3 +1149,39 @@ test("scopes product-gallery changes to one product and protects live covers", a
   assert.match(auditCenter, /Galeri açıklaması güncelleme/);
   assert.match(auditCenter, /Galeri sıralama/);
 });
+
+test("validates storefront links and preserves audited homepage blocks", async () => {
+  const [safeUrl,settingsApi,blocksApi,blocksEditor,navigationEditor,announcementEditor,auditCenter] = await Promise.all([
+    source("app/safe-url.ts"),
+    source("app/api/settings/route.ts"),
+    source("app/api/homepage-blocks/route.ts"),
+    source("app/admin/bloklar/blocks-editor.tsx"),
+    source("app/admin/navigasyon/navigation-editor.tsx"),
+    source("app/admin/duyuru/announcement-editor.tsx"),
+    source("app/admin/islem-gecmisi/audit-log-center.tsx"),
+  ]);
+  assert.match(safeUrl, /MAX_STOREFRONT_URL_LENGTH = 2_000/);
+  assert.match(safeUrl, /parsed\.protocol === "https:"/);
+  assert.match(safeUrl, /!parsed\.username && !parsed\.password/);
+  assert.match(safeUrl, /value\.startsWith\("\/\/"\)/);
+  assert.match(safeUrl, /CONTROL_OR_BACKSLASH/);
+  assert.match(settingsApi, /storefrontUrlKeys/);
+  assert.match(settingsApi, /imageUrlKeys/);
+  assert.match(settingsApi, /externalUrlKeys/);
+  assert.match(settingsApi, /request\.json\(\)\.catch/);
+  assert.match(settingsApi, /isSafeStorefrontUrl/);
+  assert.match(settingsApi, /isSafeImageUrl/);
+  assert.match(settingsApi, /isSafeExternalUrl/);
+  assert.match(blocksApi, /MAX_BLOCKS = 20/);
+  assert.match(blocksApi, /COPY_LIMIT = 5_000/);
+  assert.match(blocksApi, /en az bir pazarda/);
+  assert.match(blocksApi, /action: "homepage_block\.create"/);
+  assert.match(blocksApi, /action: "homepage_block\.update"/);
+  assert.match(blocksApi, /action: "homepage_block\.archive"/);
+  assert.doesNotMatch(blocksApi, /delete\(homepageBlocks\)/);
+  assert.match(blocksEditor, /İçerik ve işlem geçmişi korunacaktır/);
+  assert.match(blocksEditor, /data\.error \|\| "Blok eklenemedi/);
+  assert.match(navigationEditor, /data\.error\?\?"Menü kaydedilemedi/);
+  assert.match(announcementEditor, /data\.error\?\?"Duyuru ayarları kaydedilemedi/);
+  assert.match(auditCenter, /Vitrin bloğu arşivleme/);
+});

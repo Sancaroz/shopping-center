@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { products, storeSettings } from "../../../db/schema";
 import { recordAudit } from "../../audit-log";
 import { getChatGPTUser } from "../../chatgpt-auth";
+import { isSafeExternalUrl, isSafeImageUrl, isSafeStorefrontUrl } from "../../safe-url";
 
 export const dynamic = "force-dynamic";
 const defaults = {
@@ -114,12 +115,37 @@ const defaults = {
   paymentProviderStatus:"not_started",
   paymentProviderName:"",
 };
+const storefrontUrlKeys = ["announcementUrlTr", "announcementUrlGlobal", "nav1Url", "nav2Url", "nav3Url", "nav4Url"] as const;
+const imageUrlKeys = ["brandLogoUrl", "faviconUrl", "seoImageUrl", "heroImageUrl", "journalImageUrl"] as const;
+const externalUrlKeys = ["instagramUrl", "pinterestUrl"] as const;
+const longTextKeys = new Set(["shippingPolicyTr", "returnsPolicyTr", "shippingPolicyGlobal", "returnsPolicyGlobal", "privacyPolicy", "privacyPolicyGlobal", "preliminaryInformationTr", "distanceSalesTermsTr"]);
+const booleanKeys = ["showAnnouncement", "showCategories", "showProducts", "showJournal", "showManifesto", "shippingGlobalEnabled"] as const;
+const allowedEnums: Partial<Record<keyof typeof defaults, readonly string[]>> = {
+  legalStatus: ["draft", "complete"], salesMode: ["order_request", "live"], orderIntakeStatus: ["open", "paused"],
+  paymentProviderStatus: ["not_started", "active"], etbisStatus: ["not_started", "complete"], taxDisplayMode: ["pending", "tax_included"],
+};
 export async function GET() { try { const rows = await getDb().select().from(storeSettings); return Response.json({ settings: { ...defaults, ...Object.fromEntries(rows.map(row => [row.key, row.value])) } }); } catch { return Response.json({ settings: defaults }); } }
 export async function PUT(request: Request) {
   const user=await getChatGPTUser();
   if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
-  const body = await request.json() as Record<string, unknown>; const db = getDb(); const allowed = Object.keys(defaults) as (keyof typeof defaults)[];
+  const body = await request.json().catch(()=>null) as Record<string, unknown>|null;
+  if(!body||Array.isArray(body))return Response.json({error:"Geçersiz istek."},{status:400});
+  const db = getDb(); const allowed = Object.keys(defaults) as (keyof typeof defaults)[];
+  const invalidType=allowed.find(key=>body[key]!==undefined&&!(["string","number","boolean"].includes(typeof body[key])));
+  if(invalidType)return Response.json({error:`${invalidType} alanı geçersiz.`},{status:400});
   const rows=await db.select().from(storeSettings);const current=Object.fromEntries(rows.map(row=>[row.key,row.value]));const values=Object.fromEntries(allowed.map(key=>[key,String(body[key]??current[key]??defaults[key])]));
+  const oversized=allowed.find(key=>values[key].length>(longTextKeys.has(key)?50_000:10_000));
+  if(oversized)return Response.json({error:`${oversized} alanı izin verilen uzunluğu aşıyor.`},{status:400});
+  const unsafeStorefrontUrl=storefrontUrlKeys.find(key=>!isSafeStorefrontUrl(values[key],{allowEmpty:false}));
+  if(unsafeStorefrontUrl)return Response.json({error:`${unsafeStorefrontUrl} güvenli bir site içi yol, bölüm bağlantısı veya HTTPS adresi olmalıdır.`},{status:400});
+  const unsafeImageUrl=imageUrlKeys.find(key=>!isSafeImageUrl(values[key]));
+  if(unsafeImageUrl)return Response.json({error:`${unsafeImageUrl} güvenli bir site içi görsel yolu veya HTTPS adresi olmalıdır.`},{status:400});
+  const unsafeExternalUrl=externalUrlKeys.find(key=>!isSafeExternalUrl(values[key]));
+  if(unsafeExternalUrl)return Response.json({error:`${unsafeExternalUrl} güvenli bir HTTPS adresi olmalıdır.`},{status:400});
+  const invalidBoolean=booleanKeys.find(key=>values[key]!=="true"&&values[key]!=="false");
+  if(invalidBoolean)return Response.json({error:`${invalidBoolean} açık veya kapalı olmalıdır.`},{status:400});
+  const invalidEnum=allowed.find(key=>allowedEnums[key]&&!allowedEnums[key]!.includes(values[key]));
+  if(invalidEnum)return Response.json({error:`${invalidEnum} seçimi geçersiz.`},{status:400});
   const shippingNumbers=["shippingTr","freeShippingTr","shippingGlobal","freeShippingGlobal"].map(key=>Number(values[key]));
   if(shippingNumbers.some(value=>!Number.isFinite(value)||value<0))return Response.json({error:"Kargo ücretleri ve ücretsiz teslimat sınırları sıfırdan küçük olamaz."},{status:400});
   if(values.shippingGlobalEnabled==="true"&&!values.shippingGlobalCountries.split(",").some(country=>country.trim()))return Response.json({error:"Global teslimat açılmadan önce en az bir desteklenen ülke girilmelidir."},{status:409});
