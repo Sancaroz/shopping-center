@@ -47,15 +47,10 @@ export async function DELETE() {
   if (!user) return Response.json({ error: "Yedekleme yalnızca mağaza sahibine açıktır." }, { status: 403 });
   const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
   const cartCutoff = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString();
-  const staleRows = await getDb()
-    .select({ keyHash: requestThrottles.keyHash })
-    .from(requestThrottles)
-    .where(lt(requestThrottles.updatedAt, cutoff));
-  if (staleRows.length) {
-    await getDb().delete(requestThrottles).where(lt(requestThrottles.updatedAt, cutoff));
-  }
-  const staleCarts=await getDb().select({id:carts.id}).from(carts).where(lt(carts.updatedAt,cartCutoff));
-  if(staleCarts.length)await getDb().delete(carts).where(lt(carts.updatedAt,cartCutoff));
+  const db=getDb();const[staleRows,staleCarts]=await db.batch([
+    db.delete(requestThrottles).where(lt(requestThrottles.updatedAt,cutoff)).returning({keyHash:requestThrottles.keyHash}),
+    db.delete(carts).where(lt(carts.updatedAt,cartCutoff)).returning({id:carts.id}),
+  ]);
   await recordAudit({
     user,
     action: "data.retention_cleanup",

@@ -31,7 +31,7 @@ import {
   storeSettings,
 } from "../../../db/schema";
 import { recordAudit } from "../../audit-log";
-import { buildBackupEnvelope } from "../../backup-format";
+import { buildBackupEnvelope, verifyBackupEnvelope } from "../../backup-format";
 import { getChatGPTOwner, type ChatGPTUser } from "../../chatgpt-auth";
 
 export const dynamic = "force-dynamic";
@@ -106,7 +106,7 @@ export async function GET(request: Request) {
       messageRows,
       subscriberRows,
       newsletterOutboxRows,
-    ] = await Promise.all([
+    ] = await db.batch([
       db.select().from(storeSettings),
       db.select().from(adminUsers),
       db.select().from(categories),
@@ -166,12 +166,14 @@ export async function GET(request: Request) {
       newsletterSubscribers: subscriberRows,
       newsletterOutbox:newsletterOutboxRows,
     });
+    const verification=await verifyBackupEnvelope(backup);
+    if(!verification.valid){await recordAudit({user,action:"backup.create_failed",entityType:"backup",summary:"Tam mağaza yedeği bütünlük denetimini geçemedi; dosya indirmeye açılmadı.",after:{errors:verification.errors,counts:verification.counts,schemaVersion:backup.schemaVersion}});return Response.json({error:"Yedek bütünlük denetimini geçemedi. Canlı veriler değiştirilmedi; işlem geçmişindeki ayrıntıları kontrol edin."},{status:500,headers:{"Cache-Control":"private, no-store, max-age=0"}});}
     await recordAudit({
       user,
       action: "backup.create",
       entityType: "backup",
       summary: "Tam mağaza yedeği oluşturuldu.",
-      after: { checksum: backup.checksum, counts: backup.counts, schemaVersion: backup.schemaVersion },
+      after: { checksum: backup.checksum, counts: backup.counts, schemaVersion: backup.schemaVersion, verified:true },
     });
     return new Response(JSON.stringify(backup, null, 2), {
       headers:downloadHeaders("application/json; charset=utf-8",`attachment; filename="mysa-tam-yedek-${date()}.json"`),

@@ -18,8 +18,11 @@ const tableLabels: Record<string, string> = {
   orders: "Siparişler",
   orderItems: "Sipariş kalemleri",
   paymentTransactions: "Ödeme işlemleri",
+  paymentWebhookReceipts: "Ödeme webhook kayıtları",
   fulfillmentChecklists: "Paketleme kontrolleri",
   shipmentEvents: "Kargo hareketleri",
+  inventoryOperations: "Atomik stok işlemleri",
+  inventoryOperationItems: "Atomik stok işlem kalemleri",
   inventoryMovements: "Stok hareketleri",
   replenishments: "Tedarik kayıtları",
   promotions: "Kampanyalar",
@@ -79,15 +82,15 @@ export default function DataSafetyCenter({ initialHistory }: { initialHistory: H
   return <main className="admin-shell data-safety-shell">
     <header className="admin-header"><div><p>VERİ GÜVENLİĞİ</p><h1>Yedekleme ve geri yükleme provası</h1></div><div><a href="/admin">Panele dön ↗</a><a href="/admin/islem-gecmisi">İşlem geçmişi ↗</a></div></header>
     <section className="safety-intro">
-      <article><span>1</span><div><b>Tam yedeği indir</b><p>Tüm mağaza, sipariş, müşteri iletişimi ve işlem geçmişi kayıtlarını tek dosyada saklayın.</p></div></article>
+      <article><span>1</span><div><b>Veri yedeğini indir</b><p>Mağaza, sipariş, müşteri iletişimi ve işlem geçmişinin yapılandırılmış kayıtlarını tek dosyada saklayın.</p></div></article>
       <article><span>2</span><div><b>Dosyayı prova et</b><p>Bütünlük özeti, tablo yapısı ve kayıt bağlantıları canlı veriye dokunmadan kontrol edilir.</p></div></article>
       <article><span>3</span><div><b>Güvenli yerde sakla</b><p>Yedek müşteri bilgileri içerir; kişisel ve erişimi sınırlı bir klasörde tutun.</p></div></article>
     </section>
     <section className="safety-grid">
-      <article className="admin-card backup-action-card"><p className="section-kicker">YEDEK OLUŞTUR</p><h2>Tam mağaza yedeği</h2><p>Geçici güvenlik sayaçları dışında işletmenin yeniden kurulması için gereken tüm verileri içerir.</p><a className="primary-safety-action" href="/api/export?type=backup">Yedeği cihazıma indir ↓</a><small>Öneri: Haftada en az bir kez ve büyük ürün güncellemelerinden önce indirin.</small></article>
+      <article className="admin-card backup-action-card"><p className="section-kicker">YEDEK OLUŞTUR</p><h2>Tutarlı mağaza veri yedeği</h2><p>Geçici güvenlik sayaçları dışında tüm yapılandırılmış mağaza verilerini tek bir tutarlı veritabanı anından alır ve indirmeden önce bütünlüğünü doğrular.</p><a className="primary-safety-action" href="/api/export?type=backup">Yedeği cihazıma indir ↓</a><small>Ürün görsellerinin dosya kopyaları JSON içine eklenmez; görsel bağlantıları korunur. Haftada en az bir kez ve büyük güncellemelerden önce indirin.</small></article>
       <article className="admin-card backup-action-card"><p className="section-kicker">GERİ YÜKLEME PROVASI</p><h2>Yedek dosyasını doğrula</h2><p>Bu işlem yalnızca dosyayı okur. Canlı mağazadaki hiçbir kayıt eklenmez, silinmez veya değiştirilmez.</p><label className={`file-safety-action ${busy ? "disabled" : ""}`}>{busy ? "Kontrol ediliyor…" : "JSON yedeğini seç"}<input type="file" accept=".json,application/json" onChange={verify} disabled={busy} /></label><small>En fazla 10 MB · Yalnızca MYSA yedek biçimi</small></article>
     </section>
-    {report && <section className={`admin-card verification-report ${report.valid ? "valid" : "invalid"}`}><div><p className="section-kicker">PROVA SONUCU</p><h2>{report.valid ? "Yedek geri yüklenmeye hazır" : "Yedekte sorun bulundu"}</h2><p>{report.valid ? "Dosya özeti, tablo yapıları ve kayıt bağlantıları doğrulandı." : "Bu dosya canlı sisteme geri yüklenmemelidir."}</p></div>{report.errors.length > 0 && <ul>{report.errors.map((error) => <li key={error}>{error}</li>)}</ul>}<div className="backup-counts">{Object.entries(report.counts).map(([name, count]) => <span key={name}><b>{count}</b>{tableLabels[name] ?? name}</span>)}</div>{report.checksum && <code>SHA-256 · {report.checksum}</code>}</section>}
+    {report && <section className={`admin-card verification-report ${report.valid ? "valid" : "invalid"}`}><div><p className="section-kicker">PROVA SONUCU</p><h2>{report.valid ? "Yapılandırılmış veriler geri yüklemeye hazır" : "Yedekte sorun bulundu"}</h2><p>{report.valid ? "Dosya özeti, benzersiz kimlikler, tablo yapıları ve çapraz kayıt bağlantıları doğrulandı." : "Bu dosya canlı sisteme geri yüklenmemelidir."}</p></div>{report.errors.length > 0 && <ul>{report.errors.map((error) => <li key={error}>{error}</li>)}</ul>}<div className="backup-counts">{Object.entries(report.counts).map(([name, count]) => <span key={name}><b>{count}</b>{tableLabels[name] ?? name}</span>)}</div>{report.checksum && <code>SHA-256 · {report.checksum}</code>}</section>}
     {message && <p className="admin-message">{message}</p>}
     <section className="safety-grid safety-lower">
       <article className="admin-card retention-card"><p className="section-kicker">VERİ SAKLAMA</p><h2>Geçici teknik kayıtlar</h2><p>Anonim güvenlik sayaçları 48 saat, kullanılmayan sepetler 35 gün sonra temizlenebilir. Müşteri veya sipariş kayıtlarına dokunulmaz.</p><button onClick={cleanup} disabled={busy}>Süresi dolanları temizle</button></article>
