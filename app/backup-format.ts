@@ -1,5 +1,5 @@
 export const BACKUP_FORMAT = "mysa-store-backup";
-export const BACKUP_SCHEMA_VERSION = 17;
+export const BACKUP_SCHEMA_VERSION = 18;
 
 export const backupTableNames = [
   "settings",
@@ -18,6 +18,7 @@ export const backupTableNames = [
   "fulfillmentChecklists",
   "shipmentEvents",
   "inventoryOperations",
+  "inventoryOperationItems",
   "inventoryMovements",
   "replenishments",
   "promotions",
@@ -58,6 +59,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function rowIds(rows: unknown[]) {
   return new Set(rows.filter(isRecord).map((row) => row.id).filter((id) => typeof id === "number"));
+}
+
+function rowValues(rows: unknown[],field:string) {
+  return new Set(rows.filter(isRecord).map((row) => row[field]).filter((value) => typeof value === "string" || typeof value === "number"));
 }
 
 function checkReferences(
@@ -125,6 +130,7 @@ export async function verifyBackupEnvelope(input: unknown) {
   const variantIds = rowIds(completeData.variants);
   const promotionIds=rowIds(completeData.promotions);
   const subscriberIds=rowIds(completeData.newsletterSubscribers);
+  const inventoryOperationKeys=rowValues(completeData.inventoryOperations,"operationKey");
   const checks = [
     checkReferences(completeData.products, "categoryId", categoryIds, "Ürün-kategori", true),
     checkReferences(completeData.variants, "productId", productIds, "Varyant-ürün"),
@@ -135,6 +141,7 @@ export async function verifyBackupEnvelope(input: unknown) {
     checkReferences(completeData.paymentTransactions, "orderId", orderIds, "Ödeme işlemi-sipariş"),
     checkReferences(completeData.fulfillmentChecklists, "orderId", orderIds, "Hazırlık listesi-sipariş"),
     checkReferences(completeData.shipmentEvents, "orderId", orderIds, "Kargo hareketi-sipariş"),
+    checkReferences(completeData.inventoryOperationItems, "operationKey", inventoryOperationKeys, "Stok işlem kalemi-işlem"),
     checkReferences(completeData.inventoryMovements, "productId", productIds, "Stok hareketi-ürün"),
     checkReferences(completeData.inventoryMovements, "variantId", variantIds, "Stok hareketi-varyant", true),
     checkReferences(completeData.inventoryMovements, "orderId", orderIds, "Stok hareketi-sipariş", true),

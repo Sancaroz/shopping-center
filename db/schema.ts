@@ -133,6 +133,7 @@ export const orders = sqliteTable("orders", {
   lastShipmentEventAt: text("last_shipment_event_at"),
   internalNote: text("internal_note").notNull().default(""),
   inventoryApplied: integer("inventory_applied", { mode: "boolean" }).notNull().default(false),
+  inventoryOperationKey: text("inventory_operation_key").notNull().default(""),
   reservationState: text("reservation_state").notNull().default("none"),
   reservationExpiresAt: text("reservation_expires_at"),
   emailVerifiedAt: text("email_verified_at"),
@@ -152,6 +153,7 @@ export const orders = sqliteTable("orders", {
   invoiceNumber: text("invoice_number").notNull().default(""),
   invoicedAt: text("invoiced_at"),
   promotionId: integer("promotion_id"),
+  promotionClaimState: text("promotion_claim_state").notNull().default("none"),
   promoCode: text("promo_code").notNull().default(""),
   discountAmount: real("discount_amount").notNull().default(0),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -244,6 +246,15 @@ export const inventoryOperations = sqliteTable("inventory_operations", {
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const inventoryOperationItems = sqliteTable("inventory_operation_items", {
+  id: integer("id").primaryKey({ autoIncrement:true }),
+  operationKey: text("operation_key").notNull().references(() => inventoryOperations.operationKey, { onDelete:"cascade" }),
+  targetKey: text("target_key").notNull(),
+  productId: integer("product_id").notNull(),
+  variantId: integer("variant_id"),
+  quantity: integer("quantity").notNull(),
+}, table => [uniqueIndex("inventory_operation_items_target").on(table.operationKey,table.targetKey)]);
+
 export const inventoryMovements = sqliteTable("inventory_movements", {
   id: integer("id").primaryKey({ autoIncrement:true }),
   operationKey: text("operation_key"),
@@ -292,6 +303,7 @@ export const promotions = sqliteTable("promotions", {
   minSubtotal: real("min_subtotal").notNull().default(0),
   usageLimit: integer("usage_limit").notNull().default(0),
   usedCount: integer("used_count").notNull().default(0),
+  lastClaimOperationKey: text("last_claim_operation_key").notNull().default(""),
   startsAt: text("starts_at"),
   endsAt: text("ends_at"),
   active: integer("active", { mode:"boolean" }).notNull().default(false),

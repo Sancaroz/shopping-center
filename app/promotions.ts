@@ -1,6 +1,6 @@
 import {and,eq,exists,gte,sql} from "drizzle-orm";
 import {getDb} from "../db";
-import {promotionRedemptions,promotions} from "../db/schema";
+import {orders,promotionRedemptions,promotions} from "../db/schema";
 
 type Database=ReturnType<typeof getDb>;
 
@@ -19,8 +19,8 @@ export async function evaluatePromotion(db:Database,input:{code:string;market:"T
 
 export async function hashPromotionEmail(email:string){const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(email.trim().toLocaleLowerCase("en-US")));return Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,"0")).join("");}
 
-export async function releasePromotionClaim(db:Database,input:{orderId:number;promotionId:number;provisional?:boolean}){
-  const decrement=db.update(promotions).set({usedCount:sql`${promotions.usedCount}-1`,updatedAt:new Date().toISOString()}).where(and(eq(promotions.id,input.promotionId),gte(promotions.usedCount,1),input.provisional?sql`1 = 1`:exists(db.select({id:promotionRedemptions.id}).from(promotionRedemptions).where(and(eq(promotionRedemptions.orderId,input.orderId),eq(promotionRedemptions.promotionId,input.promotionId))))));
-  if(input.provisional){await decrement;return;}
-  await db.batch([decrement,db.delete(promotionRedemptions).where(and(eq(promotionRedemptions.orderId,input.orderId),eq(promotionRedemptions.promotionId,input.promotionId)))]);
+export async function releasePromotionClaim(db:Database,input:{orderId:number;promotionId:number}){
+  const activeOrderClaim=exists(db.select({id:orders.id}).from(orders).where(and(eq(orders.id,input.orderId),eq(orders.promotionId,input.promotionId),eq(orders.promotionClaimState,"active"))));
+  const decrement=db.update(promotions).set({usedCount:sql`${promotions.usedCount}-1`,updatedAt:new Date().toISOString()}).where(and(eq(promotions.id,input.promotionId),gte(promotions.usedCount,1),activeOrderClaim));
+  const results=await db.batch([decrement,db.delete(promotionRedemptions).where(and(eq(promotionRedemptions.orderId,input.orderId),eq(promotionRedemptions.promotionId,input.promotionId))),db.update(orders).set({promotionClaimState:"released",updatedAt:new Date().toISOString()}).where(and(eq(orders.id,input.orderId),eq(orders.promotionId,input.promotionId),eq(orders.promotionClaimState,"active"))).returning({id:orders.id})]);const released=results.at(-1);return Array.isArray(released)&&released.length>0;
 }

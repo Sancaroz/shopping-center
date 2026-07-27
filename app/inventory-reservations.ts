@@ -1,6 +1,7 @@
 import {and,eq,exists,gte,inArray,lte,sql} from "drizzle-orm";
 import {getDb} from "../db";
-import {inventoryMovements,inventoryOperations,orderItems,orders,products,promotionRedemptions,promotions,productVariants} from "../db/schema";
+import {inventoryMovements,inventoryOperationItems,inventoryOperations,orderItems,orders,products,promotionRedemptions,promotions,productVariants} from "../db/schema";
+import {releasePromotionClaim} from "./promotions";
 
 type Database=ReturnType<typeof getDb>;
 type Line={productId:number;variantId:number|null;quantity:number;productName:string};
@@ -22,7 +23,8 @@ function combineLines(lines:Line[]){
   return[...combined.values()];
 }
 
-async function rollbackInventoryOperation(db:Database,operationKey:string,items:Reserved[]){
+export async function rollbackInventoryOperation(db:Database,operationKey:string,knownItems?:Reserved[]){
+  const storedItems=knownItems??(await db.select().from(inventoryOperationItems).where(eq(inventoryOperationItems.operationKey,operationKey))).map(item=>({kind:item.variantId?"variant" as const:"product" as const,id:item.variantId??item.productId,productId:item.productId,quantity:item.quantity,productName:""}));const items=storedItems;
   const rollbackKey=`rollback:${operationKey}`;const activeGuard=()=>exists(db.select({operationKey:inventoryOperations.operationKey}).from(inventoryOperations).where(and(eq(inventoryOperations.operationKey,operationKey),eq(inventoryOperations.state,"active"))));
   const stockUpdates=items.map(item=>item.kind==="variant"
     ?db.update(productVariants).set({stock:sql`${productVariants.stock}+${item.quantity}`,lastStockOperationKey:rollbackKey}).where(and(eq(productVariants.id,item.id),activeGuard()))
@@ -42,8 +44,9 @@ export async function reserveInventory(db:Database,lines:Line[]){
     :exists(db.select({id:products.id}).from(products).where(and(eq(products.id,item.id),eq(products.lastStockOperationKey,operationKey)))));
   const allApplied=and(...applied)!;
   const operationInsert=db.insert(inventoryOperations).values({operationKey:sql<string>`CASE WHEN ${allApplied} THEN ${operationKey} ELSE NULL END`,kind:"reservation",state:"active"}).returning({operationKey:inventoryOperations.operationKey});
+  const itemInsert=db.insert(inventoryOperationItems).values(reserved.map(item=>({operationKey,targetKey:`${item.kind}:${item.id}`,productId:item.productId,variantId:item.kind==="variant"?item.id:null,quantity:item.quantity}))).returning({id:inventoryOperationItems.id});
   try{
-    const results=await db.batch([...stockUpdates,operationInsert]);const operation=results.at(-1);if(!Array.isArray(operation)||!operation.length)throw new Error("inventory reservation claim failed");
+    const results=await db.batch([...stockUpdates,operationInsert,itemInsert]);const operation=results[stockUpdates.length];const stored=results.at(-1);if(!Array.isArray(operation)||!operation.length||!Array.isArray(stored)||stored.length!==reserved.length)throw new Error("inventory reservation claim failed");
   }catch{
     for(const item of reserved){const[current]=item.kind==="variant"?await db.select({stock:productVariants.stock,active:productVariants.active}).from(productVariants).where(and(eq(productVariants.id,item.id),eq(productVariants.productId,item.productId))).limit(1):await db.select({stock:products.stock,active:products.active}).from(products).where(eq(products.id,item.id)).limit(1);if(!current||!current.active||current.stock<item.quantity)return{ok:false as const,error:item.kind==="variant"?`${item.productName} seçeneği artık satışta değil veya yeterli stok bulunmuyor.`:`${item.productName} artık satışta değil veya yeterli stok bulunmuyor.`};}
     return{ok:false as const,error:"Sepet stoğu bu sırada değişti. Güncel miktarlarla tekrar deneyin."};
@@ -73,12 +76,12 @@ export async function releaseOrderReservation(db:Database,orderId:number,state="
   const releaseComplete=and(releaseGuard(),...movementGuards)!;const operationInsert=db.insert(inventoryOperations).values({operationKey:sql<string>`CASE WHEN ${releaseComplete} THEN ${releaseOperationKey} ELSE NULL END`,kind:"reservation_release",state:"committed"}).onConflictDoNothing().returning({operationKey:inventoryOperations.operationKey});
   const promotionWrites=[];
   if(options.releasePromotion&&order.promotionId){const redemptionGuard=exists(db.select({id:promotionRedemptions.id}).from(promotionRedemptions).where(and(eq(promotionRedemptions.orderId,orderId),eq(promotionRedemptions.promotionId,order.promotionId))));promotionWrites.push(db.update(promotions).set({usedCount:sql`${promotions.usedCount}-1`,updatedAt:new Date().toISOString()}).where(and(eq(promotions.id,order.promotionId),gte(promotions.usedCount,1),redemptionGuard,releaseGuard())),db.delete(promotionRedemptions).where(and(eq(promotionRedemptions.orderId,orderId),eq(promotionRedemptions.promotionId,order.promotionId),releaseGuard())));}
-  const orderUpdate=db.update(orders).set({...(options.orderUpdates??{}),inventoryApplied:false,reservationState:state,reservationExpiresAt:null,updatedAt:options.orderUpdates?.updatedAt??new Date().toISOString()}).where(and(...transitionConditions,exists(db.select({operationKey:inventoryOperations.operationKey}).from(inventoryOperations).where(eq(inventoryOperations.operationKey,releaseOperationKey))))).returning({id:orders.id});
+  const orderUpdate=db.update(orders).set({...(options.orderUpdates??{}),...(options.releasePromotion&&order.promotionId?{promotionClaimState:"released"}:{}),inventoryApplied:false,reservationState:state,reservationExpiresAt:null,updatedAt:options.orderUpdates?.updatedAt??new Date().toISOString()}).where(and(...transitionConditions,exists(db.select({operationKey:inventoryOperations.operationKey}).from(inventoryOperations).where(eq(inventoryOperations.operationKey,releaseOperationKey))))).returning({id:orders.id});
   try{const results=await db.batch([...stockUpdates,...movementInserts,operationInsert,...promotionWrites,orderUpdate]);const released=results.at(-1);return Array.isArray(released)&&released.length>0;}catch{return false;}
 }
 
 export async function releaseExpiredReservations(db:Database){
-  const expired=await db.select({id:orders.id,status:orders.status,updatedAt:orders.updatedAt,promotionId:orders.promotionId,paymentStatus:orders.paymentStatus}).from(orders).where(and(eq(orders.reservationState,"active"),lte(orders.reservationExpiresAt,new Date().toISOString()))).limit(100);
-  let released=0;for(const order of expired){if(await releaseOrderReservation(db,order.id,"expired",false,{expectedStatus:order.status,expectedUpdatedAt:order.updatedAt,releasePromotion:Boolean(order.promotionId&&order.paymentStatus!=="paid"),orderUpdates:{status:"cancelled",internalNote:"24 saatlik stok rezervasyonu otomatik olarak sona erdi.",verificationTokenHash:"",verificationExpiresAt:null}}))released++;}
+  const expired=await db.select({id:orders.id,status:orders.status,updatedAt:orders.updatedAt,creationState:orders.creationState,inventoryApplied:orders.inventoryApplied,inventoryOperationKey:orders.inventoryOperationKey,promotionId:orders.promotionId,promotionClaimState:orders.promotionClaimState,paymentStatus:orders.paymentStatus}).from(orders).where(and(eq(orders.reservationState,"active"),lte(orders.reservationExpiresAt,new Date().toISOString()))).limit(100);
+  let released=0;for(const order of expired){if(["creating","recovering"].includes(order.creationState)&&order.inventoryOperationKey){let inventoryReleased=!order.inventoryApplied||await rollbackInventoryOperation(db,order.inventoryOperationKey);if(!inventoryReleased){const[operation]=await db.select({state:inventoryOperations.state}).from(inventoryOperations).where(eq(inventoryOperations.operationKey,order.inventoryOperationKey)).limit(1);inventoryReleased=operation?.state==="rolled_back";}let promotionReleased=order.promotionClaimState!=="active";if(order.promotionId&&!promotionReleased){promotionReleased=Boolean(await releasePromotionClaim(db,{orderId:order.id,promotionId:order.promotionId}));if(!promotionReleased){const[current]=await db.select({state:orders.promotionClaimState}).from(orders).where(eq(orders.id,order.id)).limit(1);promotionReleased=!current||current.state!=="active";}}if(inventoryReleased&&promotionReleased){await db.delete(orders).where(eq(orders.id,order.id));released++;}continue;}if(await releaseOrderReservation(db,order.id,"expired",false,{expectedStatus:order.status,expectedUpdatedAt:order.updatedAt,releasePromotion:Boolean(order.promotionId&&order.paymentStatus!=="paid"),orderUpdates:{status:"cancelled",internalNote:"24 saatlik stok rezervasyonu otomatik olarak sona erdi.",verificationTokenHash:"",verificationExpiresAt:null}}))released++;}
   return released;
 }
