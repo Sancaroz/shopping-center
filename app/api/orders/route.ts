@@ -14,22 +14,23 @@ import {boundedText,containsLikelyCardNumber,isValidEmail,isValidPhone,isValidRe
 import {canTransitionOrderStatus,isOrderStatus} from "../../order-lifecycle";
 
 const COOKIE = "store_cart";
+const privateNoStore={"Cache-Control":"private, no-store, max-age=0"};
 const tokenFrom = (request:Request) => request.headers.get("cookie")?.split(";").map(value => value.trim()).find(value => value.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1) ?? null;
 async function queueNotification(order:typeof orders.$inferSelect,event:NotificationEvent,verificationUrl=""){const message=buildOrderNotification(order,event,verificationUrl);await getDb().insert(notificationOutbox).values({orderId:order.id,eventKey:`${order.id}:${event}`,eventType:event,recipient:message.recipient,subject:message.subject,body:message.body,status:"draft"}).onConflictDoNothing({target:notificationOutbox.eventKey});}
 
 export async function GET(request:Request) {
-  if (!(await getChatGPTUser())) return Response.json({ error:"Yetkisiz erişim" }, { status:401 });
+  if (!(await getChatGPTUser())) return Response.json({ error:"Yetkisiz erişim" }, { status:401,headers:privateNoStore });
   const db = getDb();
   await releaseExpiredReservations(db);
   const id = Number(new URL(request.url).searchParams.get("id"));
   if (id) {
     const [order] = await db.select().from(orders).where(eq(orders.id,id)).limit(1);
-    if (!order) return Response.json({ error:"Sipariş bulunamadı" }, { status:404 });
+    if (!order) return Response.json({ error:"Sipariş bulunamadı" }, { status:404,headers:privateNoStore });
     const [items,events] = await Promise.all([db.select().from(orderItems).where(eq(orderItems.orderId,id)),db.select().from(shipmentEvents).where(eq(shipmentEvents.orderId,id)).orderBy(asc(shipmentEvents.occurredAt))]);
-    return Response.json({ order, items, events });
+    return Response.json({ order, items, events },{headers:privateNoStore});
   }
   const rows = await db.select().from(orders).orderBy(desc(orders.id));
-  return Response.json({ orders:rows });
+  return Response.json({ orders:rows },{headers:privateNoStore});
 }
 
 export async function POST(request:Request) {

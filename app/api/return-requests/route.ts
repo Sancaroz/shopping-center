@@ -8,9 +8,10 @@ import { containsLikelyCardNumber, isValidEmail, isValidOrderNumber, isValidRequ
 import { canTransitionReturnRequestStatus, isReturnRequestStatus, isTerminalReturnRequestStatus } from "../../return-lifecycle";
 
 export const dynamic="force-dynamic";
+const privateNoStore={"Cache-Control":"private, no-store, max-age=0"};
 
 export async function GET() {
-  if (!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401});
+  if (!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401,headers:privateNoStore});
   const rows=await getDb().select({
     id:returnRequests.id,requestNumber:returnRequests.requestNumber,orderId:returnRequests.orderId,
     requestType:returnRequests.requestType,reason:returnRequests.reason,details:returnRequests.details,
@@ -19,7 +20,7 @@ export async function GET() {
     updatedAt:returnRequests.updatedAt,orderNumber:orders.orderNumber,customerName:orders.customerName,
     email:orders.email,orderStatus:orders.status,total:orders.total,market:orders.market,
   }).from(returnRequests).innerJoin(orders,eq(returnRequests.orderId,orders.id)).orderBy(desc(returnRequests.id)).limit(300);
-  return Response.json({requests:rows});
+  return Response.json({requests:rows},{headers:privateNoStore});
 }
 
 export async function POST(request:Request) {
@@ -66,5 +67,5 @@ export async function PATCH(request:Request) {
   const[row]=await db.update(returnRequests).set({status,adminNote:String(body.adminNote??"").trim().slice(0,2000),updatedAt:new Date().toISOString()}).where(eq(returnRequests.id,id)).returning();
   if(!row)return Response.json({error:"Talep bulunamadı."},{status:404});
   await recordAudit({user,action:"return_request.update",entityType:"return_request",entityId:row.id,summary:`${row.requestNumber} talebi ${status} durumuna alındı.`,before:{status:existing.status,adminNote:existing.adminNote},after:{status:row.status,adminNote:row.adminNote}});
-  return Response.json({request:row});
+  return Response.json({request:row},{headers:privateNoStore});
 }

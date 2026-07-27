@@ -8,7 +8,7 @@ import { containsLikelyCardNumber, isValidEmail, normalizeEmail, readBoundedJson
 import { canTransitionSupportStatus, isTerminalSupportStatus } from "../../support-lifecycle";
 
 export const dynamic = "force-dynamic";
-const noStore={"Cache-Control":"no-store"};
+const noStore={"Cache-Control":"private, no-store, max-age=0"};
 
 export async function GET() {
   if (!(await getChatGPTUser())) return Response.json({ error:"Yetkisiz erişim" }, { status:401 });

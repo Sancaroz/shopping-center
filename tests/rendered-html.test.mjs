@@ -1664,3 +1664,21 @@ test("rejects oversized media requests early and throttles authenticated uploads
   assert.match(library, /readBoundedJson\(request,2_000\)/);
   assert.match(library, /"Cache-Control":"private, no-store, max-age=0"/);
 });
+
+test("keeps sensitive admin summaries private, uncached and role-filtered", async () => {
+  const [orders,returns,operations,catalog,contact] = await Promise.all([
+    source("app/api/orders/route.ts"),
+    source("app/api/return-requests/route.ts"),
+    source("app/api/operations-summary/route.ts"),
+    source("app/api/catalog-quality/route.ts"),
+    source("app/api/contact/route.ts"),
+  ]);
+  for(const api of [orders,returns,operations,catalog,contact])assert.match(api,/"Cache-Control":"private, no-store, max-age=0"/);
+  assert.match(orders, /Response\.json\(\{ order, items, events \},\{headers:privateNoStore\}\)/);
+  assert.match(orders, /Response\.json\(\{ orders:rows \},\{headers:privateNoStore\}\)/);
+  assert.match(returns, /Response\.json\(\{requests:rows\},\{headers:privateNoStore\}\)/);
+  assert.match(operations, /user\.role==="owner"\?db\.select\(\)\.from\(paymentTransactions\)/);
+  assert.match(operations, /user\.role==="owner"\?db\.select\(\)\.from\(privacyRequests\)/);
+  assert.match(operations, /user\.role==="owner"\?db\.select\(\{id:newsletterOutbox\.id,status:newsletterOutbox\.status\}\)/);
+  assert.match(operations, /\},\{headers:privateNoStore\}\);/);
+});

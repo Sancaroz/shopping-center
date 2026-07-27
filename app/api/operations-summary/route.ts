@@ -4,11 +4,12 @@ import { contactMessages, fulfillmentChecklists, newsletterOutbox, notificationO
 import { getChatGPTUser } from "../../chatgpt-auth";
 
 export const dynamic="force-dynamic";
+const privateNoStore={"Cache-Control":"private, no-store, max-age=0"};
 
 type Alert={key:string;level:"urgent"|"warning"|"info";title:string;detail:string;href:string;createdAt?:string};
 
 export async function GET() {
-  if (!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401});
+  const user=await getChatGPTUser();if (!user)return Response.json({error:"Yetkisiz erişim"},{status:401,headers:privateNoStore});
   const db=getDb();
   const [orderRows,productRows,variantRows,returnRows,messageRows,notificationRows,checklistRows,replenishmentRows,paymentRows,privacyRows,newsletterRows]=await Promise.all([
     db.select().from(orders).orderBy(desc(orders.id)).limit(500),
@@ -19,9 +20,9 @@ export async function GET() {
     db.select().from(notificationOutbox).orderBy(desc(notificationOutbox.id)).limit(500),
     db.select().from(fulfillmentChecklists),
     db.select().from(replenishments).orderBy(desc(replenishments.id)).limit(500),
-    db.select().from(paymentTransactions).orderBy(desc(paymentTransactions.id)).limit(500),
-    db.select().from(privacyRequests).orderBy(desc(privacyRequests.id)).limit(500),
-    db.select().from(newsletterOutbox).orderBy(desc(newsletterOutbox.id)).limit(500),
+    user.role==="owner"?db.select().from(paymentTransactions).orderBy(desc(paymentTransactions.id)).limit(500):Promise.resolve([]),
+    user.role==="owner"?db.select().from(privacyRequests).orderBy(desc(privacyRequests.id)).limit(500):Promise.resolve([]),
+    user.role==="owner"?db.select({id:newsletterOutbox.id,status:newsletterOutbox.status}).from(newsletterOutbox).orderBy(desc(newsletterOutbox.id)).limit(500):Promise.resolve([]),
   ]);
   const now=Date.now();const hours=(value:string)=>(now-new Date(value).getTime())/3_600_000;
   const activeOrders=orderRows.filter(order=>!["completed","cancelled"].includes(order.status));
@@ -57,5 +58,5 @@ export async function GET() {
     alerts:alerts.slice(0,30),
     lowStock:lowStock.sort((a,b)=>a.stock-b.stock).slice(0,20),
     recentOrders:activeOrders.slice(0,12).map(order=>({id:order.id,orderNumber:order.orderNumber,status:order.status,customerName:order.customerName,total:order.total,market:order.market,createdAt:order.createdAt})),
-  });
+  },{headers:privateNoStore});
 }
