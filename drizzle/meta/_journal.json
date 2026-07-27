@@ -316,6 +316,13 @@
       "when": 1785177301217,
       "tag": "0044_oval_baron_strucker",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "6",
+      "when": 1785178116778,
+      "tag": "0045_strange_krista_starr",
+      "breakpoints": true
     }
   ]
 }

@@ -42,6 +42,7 @@ export const products = sqliteTable("products", {
   priceGlobal: real("price_global").notNull().default(0),
   currencyGlobal: text("currency_global").notNull().default("EUR"),
   stock: integer("stock").notNull().default(0),
+  lastStockOperationKey: text("last_stock_operation_key").notNull().default(""),
   marketTr: integer("market_tr", { mode: "boolean" }).notNull().default(true),
   marketGlobal: integer("market_global", { mode: "boolean" }).notNull().default(false),
   featured: integer("featured", { mode: "boolean" }).notNull().default(false),
@@ -66,6 +67,7 @@ export const productVariants = sqliteTable("product_variants", {
   optionNameEn: text("option_name_en").notNull().default(""),
   optionValueEn: text("option_value_en").notNull().default(""),
   stock: integer("stock").notNull().default(0),
+  lastStockOperationKey: text("last_stock_operation_key").notNull().default(""),
   priceAdjustment: real("price_adjustment").notNull().default(0),
   active: integer("active", { mode:"boolean" }).notNull().default(true),
 });
@@ -221,6 +223,7 @@ export const shipmentEvents = sqliteTable("shipment_events", {
 
 export const inventoryMovements = sqliteTable("inventory_movements", {
   id: integer("id").primaryKey({ autoIncrement:true }),
+  operationKey: text("operation_key"),
   productId: integer("product_id").notNull().references(() => products.id, { onDelete:"cascade" }),
   variantId: integer("variant_id").references(() => productVariants.id, { onDelete:"cascade" }),
   orderId: integer("order_id").references(() => orders.id, { onDelete:"cascade" }),
@@ -232,7 +235,7 @@ export const inventoryMovements = sqliteTable("inventory_movements", {
   reference: text("reference").notNull().default(""),
   actorEmail: text("actor_email").notNull().default("system"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-});
+}, table => [uniqueIndex("inventory_movements_operation_key").on(table.operationKey).where(sql`${table.operationKey} IS NOT NULL`)]);
 
 export const replenishments = sqliteTable("replenishments", {
   id: integer("id").primaryKey({ autoIncrement:true }),

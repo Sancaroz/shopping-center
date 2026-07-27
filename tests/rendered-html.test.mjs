@@ -1468,7 +1468,7 @@ test("validates manual stock direction, limits, references and active catalog sc
   assert.match(api, /Bu stok kalemi, hareket türü ve referans daha önce işlendi/);
   assert.match(api, /lte\(productVariants\.stock,MAX_STOCK-delta\)/);
   assert.match(api, /lte\(products\.stock,MAX_STOCK-delta\)/);
-  assert.match(api, /miktar önceki değerine geri alındı/);
+  assert.doesNotMatch(api, /miktar önceki değerine geri alındı/);
   assert.match(center, /window\.confirm/);
   assert.match(center, /item\.productId===selectedId&&item\.active/);
   assert.match(center, /minLength=\{10\}/);
@@ -1804,4 +1804,24 @@ test("receives replenishment stock and its ledger entry atomically", async () =>
   assert.match(api, /eq\(replenishments\.status,"ordered"\),movementRecorded/);
   assert.doesNotMatch(api, /stockApplied=false/);
   assert.doesNotMatch(api, /Stok girişi tamamlanamadı; tedarik kaydı beklemeye geri alındı/);
+});
+
+test("writes manual stock and its movement atomically with an idempotency key", async () => {
+  const [schema,inventory,replenishments,migration] = await Promise.all([
+    source("db/schema.ts"),
+    source("app/api/inventory/route.ts"),
+    source("app/api/replenishments/route.ts"),
+    source("drizzle/0045_strange_krista_starr.sql"),
+  ]);
+  assert.match(schema, /lastStockOperationKey: text\("last_stock_operation_key"\)/);
+  assert.match(schema, /operationKey: text\("operation_key"\)/);
+  assert.match(schema, /inventory_movements_operation_key/);
+  assert.match(migration, /CREATE UNIQUE INDEX `inventory_movements_operation_key`/);
+  assert.match(inventory, /const operationKey=`manual:/);
+  assert.match(inventory, /lastStockOperationKey:operationKey/);
+  assert.match(inventory, /db\.insert\(inventoryMovements\)\.select\(db\.select/);
+  assert.match(inventory, /const results=await db\.batch\(\[stockUpdate,movementInsert\]\)/);
+  assert.doesNotMatch(inventory, /miktar önceki değerine geri alındı/);
+  assert.match(replenishments, /const operationKey=`replenishment:/);
+  assert.match(replenishments, /lte\(productVariants\.stock,MAX_STOCK-before\.quantity\)/);
 });
