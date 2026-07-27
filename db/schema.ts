@@ -296,11 +296,13 @@ export const notificationOutbox = sqliteTable("notification_outbox", {
 
 export const returnRequests = sqliteTable("return_requests", {
   id: integer("id").primaryKey({ autoIncrement:true }),
+  requestKey: text("request_key").unique(),
   requestNumber: text("request_number").notNull().unique(),
   orderId: integer("order_id").notNull().references(() => orders.id, { onDelete:"cascade" }),
   requestType: text("request_type").notNull(),
   reason: text("reason").notNull(),
   details: text("details").notNull().default(""),
+  privacyAcknowledgedAt: text("privacy_acknowledged_at").notNull().default(""),
   status: text("status").notNull().default("new"),
   adminNote: text("admin_note").notNull().default(""),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -348,12 +350,14 @@ export const contactMessages = sqliteTable("contact_messages", {
 
 export const privacyRequests = sqliteTable("privacy_requests", {
   id: integer("id").primaryKey({ autoIncrement:true }),
+  requestKey: text("request_key").unique(),
   requestNumber: text("request_number").notNull().unique(),
   name: text("name").notNull(),
   email: text("email").notNull(),
   phone: text("phone").notNull().default(""),
   requestType: text("request_type").notNull(),
   details: text("details").notNull(),
+  privacyAcknowledgedAt: text("privacy_acknowledged_at").notNull().default(""),
   orderNumber: text("order_number").notNull().default(""),
   orderId: integer("order_id").references(() => orders.id, { onDelete:"set null" }),
   identityStatus: text("identity_status").notNull().default("unverified"),

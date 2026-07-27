@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-type RequestItem={id:number;requestNumber:string;orderId:number;orderNumber:string;requestType:string;reason:string;details:string;status:string;adminNote:string;createdAt:string;customerName:string;email:string;orderStatus:string;total:number;market:string};
+type RequestItem={id:number;requestNumber:string;orderId:number;orderNumber:string;requestType:string;reason:string;details:string;privacyAcknowledgedAt:string;status:string;adminNote:string;createdAt:string;customerName:string;email:string;orderStatus:string;total:number;market:string};
 const typeLabels:Record<string,string>={cancellation:"İptal",return:"İade",exchange:"Değişim"};
 const statusLabels:Record<string,string>={new:"Yeni",reviewing:"İnceleniyor",approved:"Onaylandı",rejected:"Reddedildi",completed:"Tamamlandı"};
 
@@ -11,7 +11,7 @@ function RequestCard({item,onSaved}:{item:RequestItem;onSaved:()=>Promise<void>}
   async function save(){setBusy(true);const response=await fetch("/api/return-requests",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:item.id,status,adminNote:note})});const data=await response.json();setMessage(response.ok?"Talep güncellendi.":data.error??"Güncellenemedi.");if(response.ok)await onSaved();setBusy(false);}
   return <article className={`admin-card return-request-card status-${item.status}`}>
     <header><div><span>{typeLabels[item.requestType]??item.requestType} · {statusLabels[item.status]??item.status}</span><h2>{item.requestNumber}</h2><a href={`/admin/siparis/${item.orderId}`}>{item.orderNumber} →</a></div><time>{new Date(item.createdAt).toLocaleString("tr-TR")}</time></header>
-    <div className="request-meta"><p><span>MÜŞTERİ</span><b>{item.customerName}</b><a href={`mailto:${item.email}`}>{item.email}</a></p><p><span>GEREKÇE</span><b>{item.reason}</b><small>{item.details||"Ek açıklama yok."}</small></p><p><span>SİPARİŞ</span><b>{item.market==="TR"?`${item.total.toLocaleString("tr-TR")} TL`:`€${item.total.toLocaleString("en-US")}`}</b><small>Sipariş durumu: {item.orderStatus}</small></p></div>
+    <div className="request-meta"><p><span>MÜŞTERİ</span><b>{item.customerName}</b><a href={`mailto:${item.email}`}>{item.email}</a><small>{item.privacyAcknowledgedAt?`Gizlilik onayı: ${new Date(item.privacyAcknowledgedAt).toLocaleString("tr-TR")}`:"Eski kayıt · onay zamanı yok"}</small></p><p><span>GEREKÇE</span><b>{item.reason}</b><small>{item.details||"Ek açıklama yok."}</small></p><p><span>SİPARİŞ</span><b>{item.market==="TR"?`${item.total.toLocaleString("tr-TR")} TL`:`€${item.total.toLocaleString("en-US")}`}</b><small>Sipariş durumu: {item.orderStatus}</small></p></div>
     <div className="request-actions"><label>Talep durumu<select value={status} onChange={event=>setStatus(event.target.value)}><option value="new">Yeni</option><option value="reviewing">İnceleniyor</option><option value="approved">Onaylandı</option><option value="rejected">Reddedildi</option><option value="completed">Tamamlandı</option></select></label><label>İç değerlendirme notu<textarea rows={3} value={note} onChange={event=>setNote(event.target.value)} placeholder="Müşteriye görünmez."/></label><button onClick={save} disabled={busy}>{busy?"Kaydediliyor…":"Talebi kaydet"}</button></div>{message&&<p className="admin-message">{message}</p>}
   </article>;
 }

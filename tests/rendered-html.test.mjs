@@ -1224,3 +1224,45 @@ test("hardens public contact and newsletter consent workflows", async () => {
   assert.match(schema, /privacyAcknowledgedAt: text\("privacy_acknowledged_at"\)/);
   assert.match(migration, /ADD `privacy_acknowledged_at`/);
 });
+
+test("protects order tracking and makes after-sales requests idempotent", async () => {
+  const [security,trackingApi,trackingPage,returnsApi,returnPage,privacyApi,privacyPage,returnCenter,privacyCenter,schema,migration] = await Promise.all([
+    source("app/public-form-security.ts"),
+    source("app/api/order-tracking/route.ts"),
+    source("app/siparis-takip/page.tsx"),
+    source("app/api/return-requests/route.ts"),
+    source("app/iade-talebi/page.tsx"),
+    source("app/api/privacy-requests/route.ts"),
+    source("app/veri-talebi/page.tsx"),
+    source("app/admin/iade-talepleri/return-request-center.tsx"),
+    source("app/admin/veri-talepleri/privacy-request-center.tsx"),
+    source("db/schema.ts"),
+    source("drizzle/0039_furry_felicia_hardy.sql"),
+  ]);
+  assert.match(security, /isValidRequestKey/);
+  assert.match(security, /isValidOrderNumber/);
+  assert.match(trackingApi, /readBoundedJson\(request,2_000\)/);
+  assert.match(trackingApi, /limit:10,windowMinutes:15/);
+  assert.match(trackingApi, /and\(eq\(orders\.orderNumber, orderNumber\),eq\(orders\.email,email\)\)/);
+  assert.match(trackingPage, /pattern="MS-\[0-9\]\{8\}-\[A-Z0-9\]\{6\}"/);
+  for (const api of [returnsApi, privacyApi]) {
+    assert.match(api, /readBoundedJson\(request,12_000\)/);
+    assert.match(api, /isValidRequestKey\(requestKey\)/);
+    assert.match(api, /body\.privacyAcknowledged!==true/);
+    assert.match(api, /containsLikelyCardNumber/);
+    assert.match(api, /privacyAcknowledgedAt:/);
+    assert.match(api, /onConflictDoNothing/);
+  }
+  for (const page of [returnPage, privacyPage]) {
+    assert.match(page, /useRef\(""\)/);
+    assert.match(page, /crypto\.randomUUID\(\)/);
+    assert.match(page, /privacyAcknowledged:values\.privacyAcknowledged==="on"/);
+  }
+  assert.match(returnPage, /name="company"/);
+  assert.match(returnCenter, /Gizlilik onayı:/);
+  assert.match(privacyCenter, /Gizlilik onayı:/);
+  assert.match(schema, /returnRequests.*requestKey: text\("request_key"\)\.unique\(\)/s);
+  assert.match(schema, /privacyRequests.*requestKey: text\("request_key"\)\.unique\(\)/s);
+  assert.match(migration, /return_requests_request_key_unique/);
+  assert.match(migration, /privacy_requests_request_key_unique/);
+});

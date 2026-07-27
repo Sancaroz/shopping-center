@@ -47,3 +47,11 @@ export function containsLikelyCardNumber(value: string) {
 export function isValidPublicToken(value: unknown) {
   return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 }
+
+export function isValidRequestKey(value: unknown) {
+  return typeof value === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value);
+}
+
+export function isValidOrderNumber(value: string) {
+  return /^MS-\d{8}-[A-Z0-9]{6}$/.test(value);
+}

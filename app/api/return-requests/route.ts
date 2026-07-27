@@ -4,6 +4,7 @@ import { orders, returnRequests } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { recordAudit } from "../../audit-log";
 import { enforceRateLimit } from "../../rate-limit";
+import { containsLikelyCardNumber, isValidEmail, isValidOrderNumber, isValidRequestKey, normalizeEmail, readBoundedJson } from "../../public-form-security";
 
 export const dynamic="force-dynamic";
 
@@ -12,6 +13,7 @@ export async function GET() {
   const rows=await getDb().select({
     id:returnRequests.id,requestNumber:returnRequests.requestNumber,orderId:returnRequests.orderId,
     requestType:returnRequests.requestType,reason:returnRequests.reason,details:returnRequests.details,
+    privacyAcknowledgedAt:returnRequests.privacyAcknowledgedAt,
     status:returnRequests.status,adminNote:returnRequests.adminNote,createdAt:returnRequests.createdAt,
     updatedAt:returnRequests.updatedAt,orderNumber:orders.orderNumber,customerName:orders.customerName,
     email:orders.email,orderStatus:orders.status,total:orders.total,market:orders.market,
@@ -20,25 +22,28 @@ export async function GET() {
 }
 
 export async function POST(request:Request) {
-  const contentLength=Number(request.headers.get("content-length")??0);
-  if(contentLength>12_000)return Response.json({error:"Gönderilen bilgiler çok uzun."},{status:413});
-  const body=await request.json().catch(()=>null) as Record<string,unknown>|null;
-  if(!body)return Response.json({error:"Geçersiz talep."},{status:400});
+  const parsed=await readBoundedJson(request,12_000);if(parsed.error)return parsed.error;const body=parsed.body!;
+  if(String(body.company??"").trim())return Response.json({ok:true},{status:201,headers:{"Cache-Control":"no-store"}});
   const orderNumber=String(body.orderNumber??"").trim().toUpperCase().slice(0,40);
-  const email=String(body.email??"").trim().toLocaleLowerCase("en-US").slice(0,180);
+  const email=normalizeEmail(body.email);
+  const requestKey=String(body.requestKey??"");
   const requestType=String(body.requestType??"").trim();
   const reason=String(body.reason??"").trim().slice(0,120);
   const details=String(body.details??"").trim().slice(0,2000);
-  if(!orderNumber||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!["cancellation","return","exchange"].includes(requestType)||!reason)return Response.json({error:"Zorunlu bilgileri eksiksiz girin."},{status:400});
+  if(!isValidOrderNumber(orderNumber)||!isValidEmail(email)||!isValidRequestKey(requestKey)||!["cancellation","return","exchange"].includes(requestType)||!reason||body.privacyAcknowledged!==true)return Response.json({error:"Zorunlu bilgileri ve gizlilik onayını eksiksiz girin."},{status:400});
+  if(containsLikelyCardNumber(details))return Response.json({error:"Güvenliğiniz için açıklamaya kart numarası yazmayın."},{status:400});
   const limited=await enforceRateLimit(request,{scope:"return_request",identifier:email,limit:5,windowMinutes:60});if(limited)return limited;
   const db=getDb();
+  const[duplicate]=await db.select().from(returnRequests).where(eq(returnRequests.requestKey,requestKey)).limit(1);
+  if(duplicate)return Response.json({requestNumber:duplicate.requestNumber,status:duplicate.status},{status:200});
   const[order]=await db.select().from(orders).where(and(eq(orders.orderNumber,orderNumber),eq(orders.email,email))).limit(1);
   if(!order)return Response.json({error:"Sipariş bilgileri doğrulanamadı."},{status:404});
   if(requestType==="cancellation"&&["completed","cancelled"].includes(order.status))return Response.json({error:"Bu sipariş mevcut durumunda iptal talebine uygun değil."},{status:409});
   const existing=await db.select().from(returnRequests).where(and(eq(returnRequests.orderId,order.id),eq(returnRequests.requestType,requestType),inArray(returnRequests.status,["new","reviewing","approved"]))).limit(1);
   if(existing.length)return Response.json({error:"Bu sipariş için aynı türde açık bir talep zaten bulunuyor.",requestNumber:existing[0].requestNumber},{status:409});
   const requestNumber=`RT-${new Date().toISOString().slice(0,10).replaceAll("-","")}-${crypto.randomUUID().slice(0,6).toUpperCase()}`;
-  const[row]=await db.insert(returnRequests).values({requestNumber,orderId:order.id,requestType,reason,details}).returning();
+  const[row]=await db.insert(returnRequests).values({requestKey,requestNumber,orderId:order.id,requestType,reason,details,privacyAcknowledgedAt:new Date().toISOString()}).onConflictDoNothing({target:returnRequests.requestKey}).returning();
+  if(!row){const[retry]=await db.select().from(returnRequests).where(eq(returnRequests.requestKey,requestKey)).limit(1);if(retry)return Response.json({requestNumber:retry.requestNumber,status:retry.status},{status:200});return Response.json({error:"Talep kaydedilemedi."},{status:409});}
   return Response.json({requestNumber:row.requestNumber,status:row.status},{status:201});
 }
 

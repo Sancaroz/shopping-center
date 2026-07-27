@@ -2,21 +2,22 @@ import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { orderItems, orders, shipmentEvents } from "../../../db/schema";
 import { enforceRateLimit } from "../../rate-limit";
+import { isValidEmail, isValidOrderNumber, normalizeEmail, readBoundedJson } from "../../public-form-security";
 
 const noStoreHeaders = { "Cache-Control": "no-store, max-age=0" };
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => ({})) as { orderNumber?: string; email?: string };
+  const parsed=await readBoundedJson(request,2_000);if(parsed.error)return parsed.error;const body=parsed.body!;
   const orderNumber = String(body.orderNumber ?? "").trim().toUpperCase();
-  const email = String(body.email ?? "").trim().toLocaleLowerCase("en-US");
-  if (!orderNumber || !email.includes("@")) {
+  const email = normalizeEmail(body.email);
+  if (!isValidOrderNumber(orderNumber) || !isValidEmail(email)) {
     return Response.json({ error: "Sipariş numarası ve e-posta adresi gereklidir." }, { status: 400, headers: noStoreHeaders });
   }
-  const limited=await enforceRateLimit(request,{scope:"order_tracking",identifier:email,limit:20,windowMinutes:15});if(limited)return limited;
+  const limited=await enforceRateLimit(request,{scope:"order_tracking",identifier:email,limit:10,windowMinutes:15});if(limited)return limited;
 
   const db = getDb();
-  const [order] = await db.select().from(orders).where(eq(orders.orderNumber, orderNumber)).limit(1);
-  if (!order || order.email.trim().toLocaleLowerCase("en-US") !== email) {
+  const [order] = await db.select().from(orders).where(and(eq(orders.orderNumber, orderNumber),eq(orders.email,email))).limit(1);
+  if (!order) {
     return Response.json({ error: "Bu bilgilerle eşleşen bir sipariş bulunamadı." }, { status: 404, headers: noStoreHeaders });
   }
 
