@@ -1,5 +1,5 @@
 export const BACKUP_FORMAT = "mysa-store-backup";
-export const BACKUP_SCHEMA_VERSION = 18;
+export const BACKUP_SCHEMA_VERSION = 19;
 
 export const backupTableNames = [
   "settings",

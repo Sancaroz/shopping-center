@@ -344,6 +344,13 @@
       "when": 1785179677076,
       "tag": "0048_overjoyed_wild_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "6",
+      "when": 1785180150024,
+      "tag": "0049_silly_tusk",
+      "breakpoints": true
     }
   ]
 }
