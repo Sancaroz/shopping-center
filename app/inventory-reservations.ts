@@ -27,7 +27,7 @@ export async function rollbackInventoryOperation(db:Database,operationKey:string
   const storedItems=knownItems??(await db.select().from(inventoryOperationItems).where(eq(inventoryOperationItems.operationKey,operationKey))).map(item=>({kind:item.variantId?"variant" as const:"product" as const,id:item.variantId??item.productId,productId:item.productId,quantity:item.quantity,productName:""}));const items=storedItems;
   const rollbackKey=`rollback:${operationKey}`;const activeGuard=()=>exists(db.select({operationKey:inventoryOperations.operationKey}).from(inventoryOperations).where(and(eq(inventoryOperations.operationKey,operationKey),eq(inventoryOperations.state,"active"))));
   const stockUpdates=items.map(item=>item.kind==="variant"
-    ?db.update(productVariants).set({stock:sql`${productVariants.stock}+${item.quantity}`,lastStockOperationKey:rollbackKey}).where(and(eq(productVariants.id,item.id),activeGuard()))
+    ?db.update(productVariants).set({stock:sql`${productVariants.stock}+${item.quantity}`,lastStockOperationKey:rollbackKey,updatedAt:new Date().toISOString()}).where(and(eq(productVariants.id,item.id),activeGuard()))
     :db.update(products).set({stock:sql`${products.stock}+${item.quantity}`,lastStockOperationKey:rollbackKey,updatedAt:new Date().toISOString()}).where(and(eq(products.id,item.id),activeGuard())));
   const results=await db.batch([...stockUpdates,db.update(inventoryOperations).set({state:"rolled_back",updatedAt:new Date().toISOString()}).where(and(eq(inventoryOperations.operationKey,operationKey),eq(inventoryOperations.state,"active"))).returning({operationKey:inventoryOperations.operationKey})]);
   const rolledBack=results.at(-1);return Array.isArray(rolledBack)&&rolledBack.length>0;
@@ -37,7 +37,7 @@ export async function reserveInventory(db:Database,lines:Line[]){
   const reserved=combineLines(lines);if(!reserved.length)return{ok:false as const,error:"Sepette ayrılabilecek geçerli ürün bulunmuyor."};
   const operationKey=`reservation:${crypto.randomUUID()}`;
   const stockUpdates=reserved.map(item=>item.kind==="variant"
-    ?db.update(productVariants).set({stock:sql`${productVariants.stock}-${item.quantity}`,lastStockOperationKey:operationKey}).where(and(eq(productVariants.id,item.id),eq(productVariants.productId,item.productId),eq(productVariants.active,true),gte(productVariants.stock,item.quantity)))
+    ?db.update(productVariants).set({stock:sql`${productVariants.stock}-${item.quantity}`,lastStockOperationKey:operationKey,updatedAt:new Date().toISOString()}).where(and(eq(productVariants.id,item.id),eq(productVariants.productId,item.productId),eq(productVariants.active,true),gte(productVariants.stock,item.quantity)))
     :db.update(products).set({stock:sql`${products.stock}-${item.quantity}`,lastStockOperationKey:operationKey,updatedAt:new Date().toISOString()}).where(and(eq(products.id,item.id),eq(products.active,true),gte(products.stock,item.quantity))));
   const applied=reserved.map(item=>item.kind==="variant"
     ?exists(db.select({id:productVariants.id}).from(productVariants).where(and(eq(productVariants.id,item.id),eq(productVariants.productId,item.productId),eq(productVariants.lastStockOperationKey,operationKey))))
@@ -66,7 +66,7 @@ export async function releaseOrderReservation(db:Database,orderId:number,state="
   for(const line of lines){
     const movementKey=`${releaseOperationKey}:${line.kind}:${line.id}`;movementGuards.push(exists(db.select({id:inventoryMovements.id}).from(inventoryMovements).where(eq(inventoryMovements.operationKey,movementKey))));
     if(line.kind==="variant"){
-      stockUpdates.push(db.update(productVariants).set({stock:sql`${productVariants.stock}+${line.quantity}`,lastStockOperationKey:movementKey}).where(and(eq(productVariants.id,line.id),eq(productVariants.productId,line.productId),releaseGuard())));
+      stockUpdates.push(db.update(productVariants).set({stock:sql`${productVariants.stock}+${line.quantity}`,lastStockOperationKey:movementKey,updatedAt:new Date().toISOString()}).where(and(eq(productVariants.id,line.id),eq(productVariants.productId,line.productId),releaseGuard())));
       movementInserts.push(db.insert(inventoryMovements).select(db.select({operationKey:sql<string>`${movementKey}`,productId:sql<number>`${line.productId}`,variantId:sql<number>`${line.id}`,orderId:sql<number>`${orderId}`,movementType:sql<string>`${"reservation_release"}`,quantityDelta:sql<number>`${line.quantity}`,previousStock:sql<number>`${productVariants.stock}-${line.quantity}`,nextStock:productVariants.stock,reason:sql<string>`${state==="expired"?"Süresi dolan rezervasyon serbest bırakıldı":order.reservationState==="committed"?"İptal edilen siparişin kesinleşmiş stoğu geri verildi":"Sipariş rezervasyonu serbest bırakıldı"}`,reference:sql<string>`${order.orderNumber}`,actorEmail:sql<string>`${"system"}`}).from(productVariants).where(and(eq(productVariants.id,line.id),eq(productVariants.productId,line.productId),eq(productVariants.lastStockOperationKey,movementKey),releaseGuard()))).onConflictDoNothing());
     }else{
       stockUpdates.push(db.update(products).set({stock:sql`${products.stock}+${line.quantity}`,lastStockOperationKey:movementKey,updatedAt:new Date().toISOString()}).where(and(eq(products.id,line.id),releaseGuard())));

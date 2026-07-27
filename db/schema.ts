@@ -71,6 +71,7 @@ export const productVariants = sqliteTable("product_variants", {
   lastStockOperationKey: text("last_stock_operation_key").notNull().default(""),
   priceAdjustment: real("price_adjustment").notNull().default(0),
   active: integer("active", { mode:"boolean" }).notNull().default(true),
+  updatedAt: text("updated_at").notNull(),
 });
 
 export const productImages = sqliteTable("product_images", {
@@ -80,6 +81,7 @@ export const productImages = sqliteTable("product_images", {
   altText: text("alt_text").notNull().default(""),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull(),
 });
 
 export const carts = sqliteTable("carts", {

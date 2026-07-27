@@ -54,8 +54,9 @@ export async function POST(request: Request) {
       db.select().from(productImages).where(eq(productImages.productId, duplicateId)),
       db.select().from(productVariants).where(and(eq(productVariants.productId, duplicateId),eq(productVariants.active,true))),
     ]);
-    if (images.length) await db.insert(productImages).values(images.map(image => ({ productId: product.id, imageUrl: image.imageUrl, altText: image.altText, sortOrder: image.sortOrder })));
-    if (variants.length) await db.insert(productVariants).values(variants.map(variant => ({ productId: product.id, sku: `${variant.sku}-COPY-${suffix}`, optionName: variant.optionName, optionValue: variant.optionValue, optionNameEn: variant.optionNameEn, optionValueEn: variant.optionValueEn, stock: 0, priceAdjustment: variant.priceAdjustment })));
+    const copiedAt=new Date().toISOString();
+    if (images.length) await db.insert(productImages).values(images.map(image => ({ productId: product.id, imageUrl: image.imageUrl, altText: image.altText, sortOrder: image.sortOrder, updatedAt:copiedAt })));
+    if (variants.length) await db.insert(productVariants).values(variants.map(variant => ({ productId: product.id, sku: `${variant.sku}-COPY-${suffix}`, optionName: variant.optionName, optionValue: variant.optionValue, optionNameEn: variant.optionNameEn, optionValueEn: variant.optionValueEn, stock: 0, priceAdjustment: variant.priceAdjustment, updatedAt:copiedAt })));
     await recordAudit({user,action:"product.duplicate",entityType:"product",entityId:product.id,summary:`${source.nameTr} ürünü taslak olarak kopyalandı.`,before:{sourceProductId:source.id},after:product});
     return Response.json({ product, copiedImages: images.length, copiedVariants: variants.length }, { status: 201 });
   }
