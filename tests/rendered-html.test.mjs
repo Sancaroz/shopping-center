@@ -1127,6 +1127,18 @@ test("rejects stale support and privacy workflow updates instead of losing newer
   for(const route of [support,privacy])assert.match(route,/status:409,headers:noStore/);
 });
 
+test("serializes management allowlist changes and never caches membership data", async () => {
+  const admins = await source("app/api/admin-users/route.ts");
+  assert.match(admins, /const privateNoStore=\{"Cache-Control":"private, no-store, max-age=0"\}/);
+  assert.match(admins, /onConflictDoNothing\(\{target:adminUsers\.email\}\)\.returning\(\)/);
+  assert.match(admins, /eq\(adminUsers\.active,false\),eq\(adminUsers\.updatedAt,existing\.updatedAt\)/);
+  assert.match(admins, /eq\(adminUsers\.active,member\.active\),eq\(adminUsers\.updatedAt,member\.updatedAt\)/);
+  assert.match(admins, /if\(!reactivated\)return Response\.json/);
+  assert.match(admins, /if\(!created\)return Response\.json/);
+  assert.match(admins, /if\(!updated\)return Response\.json/);
+  assert.match(admins, /return Response\.json\(\{ members, currentAdminId: user\.adminId \},\{headers:privateNoStore\}\)/);
+});
+
 test("partitions media backups deterministically without exceeding safe limits", async () => {
   const {partitionMediaBackup,mediaBackupSnapshot,MEDIA_ARCHIVE_MAX_BYTES}=await importTypescriptModule("app/media-backup.ts");
   const fortyOne=Array.from({length:41},(_,index)=>({key:`products/${String(index).padStart(2,"0")}.webp`,size:1,uploaded:"2026-01-01T00:00:00.000Z",etag:`e${index}`}));
