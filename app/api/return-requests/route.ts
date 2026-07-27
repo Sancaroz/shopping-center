@@ -5,6 +5,7 @@ import { getChatGPTUser } from "../../chatgpt-auth";
 import { recordAudit } from "../../audit-log";
 import { enforceRateLimit } from "../../rate-limit";
 import { containsLikelyCardNumber, isValidEmail, isValidOrderNumber, isValidRequestKey, normalizeEmail, readBoundedJson } from "../../public-form-security";
+import { canTransitionReturnRequestStatus, isReturnRequestStatus, isTerminalReturnRequestStatus } from "../../return-lifecycle";
 
 export const dynamic="force-dynamic";
 
@@ -38,7 +39,8 @@ export async function POST(request:Request) {
   if(duplicate)return Response.json({requestNumber:duplicate.requestNumber,status:duplicate.status},{status:200});
   const[order]=await db.select().from(orders).where(and(eq(orders.orderNumber,orderNumber),eq(orders.email,email))).limit(1);
   if(!order)return Response.json({error:"Sipariş bilgileri doğrulanamadı."},{status:404});
-  if(requestType==="cancellation"&&["completed","cancelled"].includes(order.status))return Response.json({error:"Bu sipariş mevcut durumunda iptal talebine uygun değil."},{status:409});
+  if(requestType==="cancellation"&&!["new","confirmed","preparing"].includes(order.status))return Response.json({error:"Bu sipariş artık iptal talebine uygun değil."},{status:409});
+  if(["return","exchange"].includes(requestType)&&order.status!=="completed")return Response.json({error:"İade veya değişim talebi yalnızca teslimatı tamamlanan siparişler için açılabilir."},{status:409});
   const existing=await db.select().from(returnRequests).where(and(eq(returnRequests.orderId,order.id),eq(returnRequests.requestType,requestType),inArray(returnRequests.status,["new","reviewing","approved"]))).limit(1);
   if(existing.length)return Response.json({error:"Bu sipariş için aynı türde açık bir talep zaten bulunuyor.",requestNumber:existing[0].requestNumber},{status:409});
   const requestNumber=`RT-${new Date().toISOString().slice(0,10).replaceAll("-","")}-${crypto.randomUUID().slice(0,6).toUpperCase()}`;
@@ -50,11 +52,17 @@ export async function POST(request:Request) {
 export async function PATCH(request:Request) {
   const user=await getChatGPTUser();
   if (!user)return Response.json({error:"Yetkisiz erişim"},{status:401});
-  const body=await request.json() as {id?:number;status?:string;adminNote?:string};
+  const parsed=await readBoundedJson(request,5_000);if(parsed.error)return parsed.error;const body=parsed.body as {id?:number;status?:string;adminNote?:string};
   const id=Number(body.id);const status=String(body.status??"");
-  if(!id||!["new","reviewing","approved","rejected","completed"].includes(status))return Response.json({error:"Geçersiz talep durumu."},{status:400});
+  if(!Number.isInteger(id)||id<1||!isReturnRequestStatus(status))return Response.json({error:"Geçersiz talep durumu."},{status:400});
   const db=getDb();const[existing]=await db.select().from(returnRequests).where(eq(returnRequests.id,id)).limit(1);
   if(!existing)return Response.json({error:"Talep bulunamadı."},{status:404});
+  if(isTerminalReturnRequestStatus(existing.status))return Response.json({error:"Tamamlanan veya reddedilen talep yeniden değiştirilemez."},{status:409});
+  if(!canTransitionReturnRequestStatus(existing.status,status))return Response.json({error:`Talep ${existing.status} durumundan ${status} durumuna geçirilemez.`},{status:409});
+  const[order]=await db.select().from(orders).where(eq(orders.id,existing.orderId)).limit(1);
+  if(!order)return Response.json({error:"Talebe bağlı sipariş bulunamadı."},{status:409});
+  if(status==="completed"&&existing.requestType==="cancellation"&&order.status!=="cancelled")return Response.json({error:"İptal talebi, sipariş iptal edilmeden tamamlanamaz."},{status:409});
+  if(status==="completed"&&existing.requestType==="return"&&["paid","partially_refunded"].includes(order.paymentStatus))return Response.json({error:"İade talebi, ödeme defterinde ücret iadesi tamamlanmadan kapatılamaz."},{status:409});
   const[row]=await db.update(returnRequests).set({status,adminNote:String(body.adminNote??"").trim().slice(0,2000),updatedAt:new Date().toISOString()}).where(eq(returnRequests.id,id)).returning();
   if(!row)return Response.json({error:"Talep bulunamadı."},{status:404});
   await recordAudit({user,action:"return_request.update",entityType:"return_request",entityId:row.id,summary:`${row.requestNumber} talebi ${status} durumuna alındı.`,before:{status:existing.status,adminNote:existing.adminNote},after:{status:row.status,adminNote:row.adminNote}});

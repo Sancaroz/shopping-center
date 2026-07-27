@@ -128,7 +128,7 @@ test("supports verified return and cancellation requests without automatic refun
   assert.match(returnApi, /eq\(orders\.email,email\)/);
   assert.match(returnApi, /aynı türde açık bir talep zaten bulunuyor/);
   assert.match(returnApi, /cancellation","return","exchange/);
-  assert.doesNotMatch(returnApi, /paymentStatus|refunded|update\(orders\)/);
+  assert.doesNotMatch(returnApi, /db\.update\(orders\)|paymentStatus\s*:/);
   assert.match(customerPage, /otomatik para iadesi başlatmaz/);
   assert.match(adminPage, /İade ve iptal talepleri/);
 });
@@ -1323,4 +1323,26 @@ test("enforces a forward-only order lifecycle and restores cancelled stock", asy
   assert.match(shipmentApi, /status==="returned"/);
   assert.match(detail, /allowedOrderStatusTargets\(order\.status\)/);
   assert.match(panel, /data\.error\?\?"Sipariş güncellenemedi/);
+});
+
+test("enforces a verified forward-only return and cancellation workflow", async () => {
+  const [lifecycle,api,center] = await Promise.all([
+    source("app/return-lifecycle.ts"),
+    source("app/api/return-requests/route.ts"),
+    source("app/admin/iade-talepleri/return-request-center.tsx"),
+  ]);
+  assert.match(lifecycle, /new: \["reviewing", "rejected"\]/);
+  assert.match(lifecycle, /reviewing: \["approved", "rejected"\]/);
+  assert.match(lifecycle, /approved: \["completed"\]/);
+  assert.match(lifecycle, /rejected: \[\]/);
+  assert.match(lifecycle, /completed: \[\]/);
+  assert.match(api, /readBoundedJson\(request,5_000\)/);
+  assert.match(api, /canTransitionReturnRequestStatus\(existing\.status,status\)/);
+  assert.match(api, /Tamamlanan veya reddedilen talep yeniden değiştirilemez/);
+  assert.match(api, /sipariş iptal edilmeden tamamlanamaz/);
+  assert.match(api, /ücret iadesi tamamlanmadan kapatılamaz/);
+  assert.match(api, /yalnızca teslimatı tamamlanan siparişler/);
+  assert.match(center, /allowedReturnRequestStatusTargets\(item\.status\)/);
+  assert.match(center, /disabled=\{busy\|\|terminal\}/);
+  assert.match(center, /Talep kapalı/);
 });
