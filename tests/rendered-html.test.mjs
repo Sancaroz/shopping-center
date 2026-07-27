@@ -1176,7 +1176,7 @@ test("validates storefront links and preserves audited homepage blocks", async (
   assert.match(settingsApi, /storefrontUrlKeys/);
   assert.match(settingsApi, /imageUrlKeys/);
   assert.match(settingsApi, /externalUrlKeys/);
-  assert.match(settingsApi, /request\.json\(\)\.catch/);
+  assert.match(settingsApi, /readBoundedJson\(request,160_000\)/);
   assert.match(settingsApi, /isSafeStorefrontUrl/);
   assert.match(settingsApi, /isSafeImageUrl/);
   assert.match(settingsApi, /isSafeExternalUrl/);
@@ -1491,4 +1491,27 @@ test("routes every existing catalog stock change through the audited inventory c
   assert.match(importApi, /stock:current\?\.stock\?\?stock/);
   assert.match(importApi, /stok değişikliğini Stok Merkezi'nden kaydedin/);
   assert.match(panel, /if\(changes\.stock!==undefined\)\{window\.location\.assign\("\/admin\/stok"\)/);
+});
+
+test("validates legal launch settings and accepts every status offered by the admin UI", async () => {
+  const [settingsApi,launchOperations,launchCenter,panel] = await Promise.all([
+    source("app/api/settings/route.ts"),
+    source("app/api/launch-operations/route.ts"),
+    source("app/admin/yayina-hazirlik/launch-readiness.tsx"),
+    source("app/admin/panel.tsx"),
+  ]);
+  assert.match(settingsApi, /readBoundedJson\(request,160_000\)/);
+  assert.match(settingsApi, /\["not_started", "application", "sandbox", "active"\]/);
+  assert.match(settingsApi, /\["not_started", "in_progress", "complete"\]/);
+  assert.match(settingsApi, /Vergi numarası 10 veya 11 rakam olmalıdır/);
+  assert.match(settingsApi, /MERSİS numarası 16 rakam olmalıdır/);
+  assert.match(settingsApi, /isValidEmail\(values\.legalEmail\)/);
+  assert.match(settingsApi, /isValidPhone\(values\.legalPhone\)/);
+  assert.match(settingsApi, /Taslak hukuki metinlerle şirket bilgileri yayına hazır olarak işaretlenemez/);
+  assert.match(settingsApi, /countries\.length>50/);
+  assert.match(settingsApi, /value>100_000_000/);
+  assert.match(launchOperations, /readBoundedJson\(request,2_000\)/);
+  assert.match(launchCenter, /option value="application"/);
+  assert.match(launchCenter, /option value="sandbox"/);
+  assert.match(panel, /option value="in_progress"/);
 });

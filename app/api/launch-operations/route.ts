@@ -2,6 +2,7 @@ import { getDb } from "../../../db";
 import { storeSettings } from "../../../db/schema";
 import { recordAudit } from "../../audit-log";
 import { getChatGPTUser } from "../../chatgpt-auth";
+import { readBoundedJson } from "../../public-form-security";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +14,7 @@ async function saveSetting(key:string,value:string) {
 export async function PATCH(request:Request) {
   const user=await getChatGPTUser();
   if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401});
-  const body=await request.json().catch(()=>null) as {action?:string}|null;
-  const action=body?.action;
+  const parsed=await readBoundedJson(request,2_000);if(parsed.error)return parsed.error;const action=parsed.body?.action;
   if(!["pause_intake","resume_intake","safe_mode"].includes(String(action)))return Response.json({error:"Geçersiz operasyon işlemi"},{status:400});
   if(action==="pause_intake"){
     await saveSetting("orderIntakeStatus","paused");
