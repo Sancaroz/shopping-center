@@ -1515,3 +1515,26 @@ test("validates legal launch settings and accepts every status offered by the ad
   assert.match(launchCenter, /option value="sandbox"/);
   assert.match(panel, /option value="in_progress"/);
 });
+
+test("rechecks promotion safety at preview, activation and final claim", async () => {
+  const [adminApi,validateApi,orders,center] = await Promise.all([
+    source("app/api/promotions/route.ts"),
+    source("app/api/promotions/validate/route.ts"),
+    source("app/api/orders/route.ts"),
+    source("app/admin/kampanyalar/promotion-center.tsx"),
+  ]);
+  assert.match(adminApi, /readBoundedJson\(request,5_000\)/);
+  assert.match(adminApi, /readBoundedJson\(request,2_000\)/);
+  assert.match(adminApi, /discountValue>100_000_000/);
+  assert.match(adminApi, /usageLimit>1_000_000/);
+  assert.match(adminApi, /new Date\(startsAtRaw\)\.toISOString\(\)/);
+  assert.match(adminApi, /Kullanım sınırı dolmuş kampanya etkinleştirilemez/);
+  assert.match(validateApi, /line\.variantId&&!line\.variantActive/);
+  assert.match(validateApi, /artık bu mağazada satışta değil/);
+  assert.match(validateApi, /unitPrices\.some\(price=>!Number\.isFinite\(price\)\|\|price<=0\)/);
+  assert.match(orders, /isNull\(promotions\.startsAt\)/);
+  assert.match(orders, /lte\(promotions\.startsAt,nowIso\)/);
+  assert.match(orders, /gte\(promotions\.endsAt,nowIso\)/);
+  assert.match(orders, /eq\(promotions\.market,cart\.market==="GLOBAL"\?"GLOBAL":"TR"\)/);
+  assert.match(center, /window\.confirm/);
+});

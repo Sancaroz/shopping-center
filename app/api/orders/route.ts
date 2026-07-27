@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { cartItems, carts, fulfillmentChecklists, inventoryMovements, notificationOutbox, orderItems, orders, products, promotionRedemptions, promotions, productVariants, shipmentEvents, storeSettings } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
@@ -88,7 +88,7 @@ export async function POST(request:Request) {
   const orderNumber = `MS-${new Date().toISOString().slice(0,10).replaceAll("-","")}-${crypto.randomUUID().slice(0,6).toUpperCase()}`;
   const verificationToken=createVerificationToken();const verificationTokenHash=await hashVerificationToken(verificationToken);const verificationExpiresAt=new Date(Date.now()+24*60*60*1000).toISOString();
   const sellerSnapshotJson=JSON.stringify({legalStatus:settings.legalStatus??"draft",legalName:settings.legalName??"",legalBusinessType:settings.legalBusinessType??"",legalAddress:settings.legalAddress??"",legalTaxOffice:settings.legalTaxOffice??"",legalTaxNumber:settings.legalTaxNumber??"",legalEmail:settings.legalEmail??"",legalPhone:settings.legalPhone??""});
-  let promotionClaimed=false;if(promotionResult.promotion){const promo=promotionResult.promotion;const claimed=await db.update(promotions).set({usedCount:sql`${promotions.usedCount}+1`,updatedAt:new Date().toISOString()}).where(promo.usageLimit>0?and(eq(promotions.id,promo.id),eq(promotions.active,true),lt(promotions.usedCount,promo.usageLimit)):and(eq(promotions.id,promo.id),eq(promotions.active,true))).returning({id:promotions.id});if(!claimed.length){await reservation.rollback();return Response.json({error:"İndirim kodunun kullanım sınırı doldu veya kod kapatıldı."},{status:409});}promotionClaimed=true;}
+  let promotionClaimed=false;if(promotionResult.promotion){const promo=promotionResult.promotion;const nowIso=new Date().toISOString();const claimConditions=[eq(promotions.id,promo.id),eq(promotions.active,true),or(eq(promotions.market,"BOTH"),eq(promotions.market,cart.market==="GLOBAL"?"GLOBAL":"TR"))!,or(isNull(promotions.startsAt),lte(promotions.startsAt,nowIso))!,or(isNull(promotions.endsAt),gte(promotions.endsAt,nowIso))!];if(promo.usageLimit>0)claimConditions.push(lt(promotions.usedCount,promo.usageLimit));const claimed=await db.update(promotions).set({usedCount:sql`${promotions.usedCount}+1`,updatedAt:nowIso}).where(and(...claimConditions)).returning({id:promotions.id});if(!claimed.length){await reservation.rollback();return Response.json({error:"İndirim kodunun kullanım sınırı doldu, süresi geçti veya kod kapatıldı."},{status:409});}promotionClaimed=true;}
   const consentAt=new Date().toISOString();
   let order:typeof orders.$inferSelect|undefined;try{[order] = await db.insert(orders).values({
     orderNumber, market:cart.market, customerName, email, phone, address, city,
