@@ -18,11 +18,11 @@ export async function reserveInventory(db:Database,lines:Line[]){
   return{ok:true as const,reserved,rollback:()=>restore(db,reserved)};
 }
 
-export async function releaseOrderReservation(db:Database,orderId:number,state="released"){
-  const[order]=await db.select().from(orders).where(eq(orders.id,orderId)).limit(1);if(!order||!order.inventoryApplied||order.reservationState!=="active")return false;
+export async function releaseOrderReservation(db:Database,orderId:number,state="released",includeCommitted=false){
+  const[order]=await db.select().from(orders).where(eq(orders.id,orderId)).limit(1);if(!order||!order.inventoryApplied||!(order.reservationState==="active"||(includeCommitted&&order.reservationState==="committed")))return false;
   const lines=await db.select().from(orderItems).where(eq(orderItems.orderId,orderId));await restore(db,lines.filter(line=>line.productId).map(line=>({kind:line.variantId?"variant":"product",id:Number(line.variantId??line.productId),quantity:line.quantity})));
   await db.update(orders).set({inventoryApplied:false,reservationState:state,reservationExpiresAt:null,updatedAt:new Date().toISOString()}).where(eq(orders.id,orderId));
-  for(const line of lines){if(!line.productId)continue;const[current]=line.variantId?await db.select({stock:productVariants.stock}).from(productVariants).where(eq(productVariants.id,line.variantId)).limit(1):await db.select({stock:products.stock}).from(products).where(eq(products.id,line.productId)).limit(1);if(current)await db.insert(inventoryMovements).values({productId:line.productId,variantId:line.variantId,orderId,movementType:"reservation_release",quantityDelta:line.quantity,previousStock:current.stock-line.quantity,nextStock:current.stock,reason:state==="expired"?"Süresi dolan rezervasyon serbest bırakıldı":"Sipariş rezervasyonu serbest bırakıldı",reference:order.orderNumber,actorEmail:"system"}).catch(()=>undefined);}
+  for(const line of lines){if(!line.productId)continue;const[current]=line.variantId?await db.select({stock:productVariants.stock}).from(productVariants).where(eq(productVariants.id,line.variantId)).limit(1):await db.select({stock:products.stock}).from(products).where(eq(products.id,line.productId)).limit(1);if(current)await db.insert(inventoryMovements).values({productId:line.productId,variantId:line.variantId,orderId,movementType:"reservation_release",quantityDelta:line.quantity,previousStock:current.stock-line.quantity,nextStock:current.stock,reason:state==="expired"?"Süresi dolan rezervasyon serbest bırakıldı":order.reservationState==="committed"?"İptal edilen siparişin kesinleşmiş stoğu geri verildi":"Sipariş rezervasyonu serbest bırakıldı",reference:order.orderNumber,actorEmail:"system"}).catch(()=>undefined);}
   return true;
 }
 

@@ -3,6 +3,8 @@ import {getDb} from "../../../db";
 import {notificationOutbox,orders,shipmentEvents} from "../../../db/schema";
 import {recordAudit} from "../../audit-log";
 import {getChatGPTUser} from "../../chatgpt-auth";
+import {isOrderStatus} from "../../order-lifecycle";
+import {readBoundedJson} from "../../public-form-security";
 
 const eventCopy={
   label_created:{tr:"Kargo kaydı oluşturuldu",en:"Shipment created"},
@@ -17,7 +19,7 @@ const eventCopy={
 export async function POST(request:Request){
   const user=await getChatGPTUser();
   if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401});
-  const body=await request.json().catch(()=>null) as {orderId?:number;status?:string;detail?:string;location?:string;occurredAt?:string;visibleToCustomer?:boolean}|null;
+  const parsed=await readBoundedJson(request,5_000);if(parsed.error)return parsed.error;const body=parsed.body as {orderId?:number;status?:string;detail?:string;location?:string;occurredAt?:string;visibleToCustomer?:boolean};
   const orderId=Number(body?.orderId);const status=String(body?.status??"") as keyof typeof eventCopy;
   if(!orderId||!eventCopy[status])return Response.json({error:"Geçerli sipariş ve kargo hareketi zorunludur."},{status:400});
   const occurredAt=String(body?.occurredAt??"").trim();
@@ -27,8 +29,12 @@ export async function POST(request:Request){
   if(!order)return Response.json({error:"Sipariş bulunamadı."},{status:404});
   if(!order.emailVerifiedAt)return Response.json({error:"E-postası doğrulanmamış siparişe kargo hareketi eklenemez."},{status:409});
   if(order.status==="cancelled")return Response.json({error:"İptal edilmiş siparişe kargo hareketi eklenemez."},{status:409});
+  if(!isOrderStatus(order.status))return Response.json({error:"Sipariş durumu geçersiz."},{status:409});
   if(order.deliveredAt&&status!=="returned")return Response.json({error:"Teslim edilmiş gönderiye yalnızca geri dönüş hareketi eklenebilir."},{status:409});
   if(!order.shippingCarrier.trim()||!order.trackingNumber.trim())return Response.json({error:"Önce kargo firması ve takip numarasını kaydedin."},{status:409});
+  if(status==="label_created"&&!['confirmed','preparing','shipped'].includes(order.status))return Response.json({error:"Kargo kaydı yalnızca onaylanmış veya hazırlanan siparişe eklenebilir."},{status:409});
+  if(["picked_up","in_transit","out_for_delivery","delivered","exception"].includes(status)&&order.status!=="shipped")return Response.json({error:"Önce paketleme kontrolünü tamamlayıp siparişi kargoya verildi durumuna alın."},{status:409});
+  if(status==="returned"&&!['shipped','completed'].includes(order.status))return Response.json({error:"Geri dönüş hareketi yalnızca gönderilmiş siparişe eklenebilir."},{status:409});
   const timestamp=new Date(occurredAt).toISOString();
   const[event]=await db.insert(shipmentEvents).values({orderId,status,titleTr:eventCopy[status].tr,titleEn:eventCopy[status].en,detail:String(body?.detail??"").trim().slice(0,500),location:String(body?.location??"").trim().slice(0,120),occurredAt:timestamp,visibleToCustomer:body?.visibleToCustomer!==false,actorEmail:user.email}).returning();
   const isLatest=!order.lastShipmentEventAt||new Date(timestamp)>=new Date(order.lastShipmentEventAt);const updates:Partial<typeof orders.$inferInsert>={lastShipmentEventAt:isLatest?timestamp:order.lastShipmentEventAt,updatedAt:new Date().toISOString()};

@@ -1295,3 +1295,32 @@ test("rejects malformed checkout data before reserving inventory", async () => {
   assert.match(checkout, /name="note"[^>]*maxLength=\{1000\}/);
   assert.match(checkout, /name="company"/);
 });
+
+test("enforces a forward-only order lifecycle and restores cancelled stock", async () => {
+  const [lifecycle,ordersApi,reservations,shipmentApi,detail,panel] = await Promise.all([
+    source("app/order-lifecycle.ts"),
+    source("app/api/orders/route.ts"),
+    source("app/inventory-reservations.ts"),
+    source("app/api/shipment-events/route.ts"),
+    source("app/admin/siparis/[id]/order-detail.tsx"),
+    source("app/admin/panel.tsx"),
+  ]);
+  assert.match(lifecycle, /new: \["confirmed", "cancelled"\]/);
+  assert.match(lifecycle, /confirmed: \["preparing", "cancelled"\]/);
+  assert.match(lifecycle, /preparing: \["shipped", "cancelled"\]/);
+  assert.match(lifecycle, /shipped: \["completed"\]/);
+  assert.match(lifecycle, /completed: \[\]/);
+  assert.match(lifecycle, /cancelled: \[\]/);
+  assert.match(ordersApi, /canTransitionOrderStatus\(existing\.status,nextStatus\)/);
+  assert.match(ordersApi, /Tahsil edilmiş sipariş, ödeme defterinde iade tamamlanmadan iptal edilemez/);
+  assert.match(ordersApi, /teslim edildi kargo hareketi kaydedilmeden tamamlanamaz/);
+  assert.match(ordersApi, /releaseOrderReservation\(db,orderId,"released",true\)/);
+  assert.match(reservations, /includeCommitted=false/);
+  assert.match(reservations, /includeCommitted&&order\.reservationState==="committed"/);
+  assert.match(reservations, /kesinleşmiş stoğu geri verildi/);
+  assert.match(shipmentApi, /readBoundedJson\(request,5_000\)/);
+  assert.match(shipmentApi, /Önce paketleme kontrolünü tamamlayıp siparişi kargoya verildi durumuna alın/);
+  assert.match(shipmentApi, /status==="returned"/);
+  assert.match(detail, /allowedOrderStatusTargets\(order\.status\)/);
+  assert.match(panel, /data\.error\?\?"Sipariş güncellenemedi/);
+});

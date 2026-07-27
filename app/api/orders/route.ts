@@ -11,6 +11,7 @@ import { createVerificationToken, hashVerificationToken } from "../../order-veri
 import {evaluatePromotion,hashPromotionEmail,releasePromotionClaim} from "../../promotions";
 import {buildOrderContractSnapshot} from "../../order-contract";
 import {boundedText,containsLikelyCardNumber,isValidEmail,isValidPhone,isValidRequestKey,normalizeEmail,readBoundedJson} from "../../public-form-security";
+import {canTransitionOrderStatus,isOrderStatus} from "../../order-lifecycle";
 
 const COOKIE = "store_cart";
 const tokenFrom = (request:Request) => request.headers.get("cookie")?.split(";").map(value => value.trim()).find(value => value.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1) ?? null;
@@ -110,22 +111,24 @@ export async function POST(request:Request) {
 export async function PATCH(request:Request) {
   const user=await getChatGPTUser();
   if (!user) return Response.json({ error:"Yetkisiz erişim" }, { status:401 });
-  const body = await request.json() as { id?:number; status?:string; shippingCarrier?:string; trackingNumber?:string; estimatedDeliveryAt?:string; internalNote?:string };
-  const allowed = ["new", "confirmed", "preparing", "shipped", "completed", "cancelled"];
-  if (!body.id) return Response.json({ error:"Geçersiz sipariş" }, { status:400 });
-  if(body.status!==undefined&&!allowed.includes(String(body.status)))return Response.json({error:"Geçersiz sipariş durumu"},{status:400});
+  const parsed=await readBoundedJson(request,10_000);if(parsed.error)return parsed.error;const body=parsed.body as { id?:number; status?:string; shippingCarrier?:string; trackingNumber?:string; estimatedDeliveryAt?:string; internalNote?:string };
+  if (!Number.isInteger(Number(body.id))||Number(body.id)<=0) return Response.json({ error:"Geçersiz sipariş" }, { status:400 });
+  if(body.status!==undefined&&!isOrderStatus(body.status))return Response.json({error:"Geçersiz sipariş durumu"},{status:400});
   const db=getDb();const orderId=Number(body.id);const[existing]=await db.select().from(orders).where(eq(orders.id,orderId)).limit(1);if(!existing)return Response.json({error:"Sipariş bulunamadı"},{status:404});const lines=await db.select().from(orderItems).where(eq(orderItems.orderId,orderId));const nextStatus=body.status===undefined?existing.status:String(body.status);const needsInventory=["confirmed","preparing","shipped","completed"].includes(nextStatus);
+  if(body.status!==undefined&&!canTransitionOrderStatus(existing.status,nextStatus))return Response.json({error:`Sipariş ${existing.status} durumundan ${nextStatus} durumuna geçirilemez.`},{status:409});
   if(needsInventory&&!existing.emailVerifiedAt)return Response.json({error:"Müşteri e-posta adresini doğrulamadan sipariş onaylanamaz."},{status:409});
+  if(body.status==="cancelled"&&["paid","partially_refunded"].includes(existing.paymentStatus))return Response.json({error:"Tahsil edilmiş sipariş, ödeme defterinde iade tamamlanmadan iptal edilemez."},{status:409});
+  if(body.status==="completed"&&(!existing.deliveredAt||existing.deliveryStatus!=="delivered"))return Response.json({error:"Sipariş, teslim edildi kargo hareketi kaydedilmeden tamamlanamaz."},{status:409});
   const effectiveCarrier=body.shippingCarrier===undefined?existing.shippingCarrier:String(body.shippingCarrier).trim();const effectiveTracking=body.trackingNumber===undefined?existing.trackingNumber:String(body.trackingNumber).trim();
   if(body.status==="shipped"&&(!effectiveCarrier||!effectiveTracking))return Response.json({error:"Kargoya verildi durumundan önce kargo firması ve takip numarası kaydedilmelidir."},{status:409});
   if(body.status==="shipped"){const[checklist]=await db.select().from(fulfillmentChecklists).where(eq(fulfillmentChecklists.orderId,orderId)).limit(1);if(!checklist||![checklist.productChecked,checklist.quantityChecked,checklist.qualityChecked,checklist.packageChecked,checklist.addressChecked].every(Boolean))return Response.json({error:"Kargoya vermeden önce paketleme kontrol listesinin tamamı kaydedilmelidir."},{status:409});}
   if(needsInventory&&!existing.inventoryApplied){const checks=[] as Array<{kind:"variant"|"product";id:number;quantity:number;stock:number}>;for(const line of lines){if(line.variantId){const[row]=await db.select().from(productVariants).where(and(eq(productVariants.id,line.variantId),eq(productVariants.active,true))).limit(1);if(!row||row.stock<line.quantity)return Response.json({error:`${line.productName} varyantı artık satışta değil veya yeterli stoğu yok.`},{status:409});checks.push({kind:"variant",id:row.id,quantity:line.quantity,stock:row.stock});}else if(line.productId){const[row]=await db.select().from(products).where(eq(products.id,line.productId)).limit(1);if(!row||row.stock<line.quantity)return Response.json({error:`${line.productName} için yeterli stok yok.`},{status:409});checks.push({kind:"product",id:row.id,quantity:line.quantity,stock:row.stock});}else return Response.json({error:`${line.productName} artık katalogda bulunmuyor.`},{status:409});}for(const item of checks){if(item.kind==="variant")await db.update(productVariants).set({stock:item.stock-item.quantity}).where(eq(productVariants.id,item.id));else await db.update(products).set({stock:item.stock-item.quantity,updatedAt:new Date().toISOString()}).where(eq(products.id,item.id));}}
-  if(body.status!==undefined&&nextStatus==="cancelled"&&existing.reservationState==="active")await releaseOrderReservation(db,orderId);
+  if(body.status!==undefined&&nextStatus==="cancelled"&&["active","committed"].includes(existing.reservationState))await releaseOrderReservation(db,orderId,"released",true);
   const releasePromotion=body.status!==undefined&&nextStatus==="cancelled"&&existing.status!=="cancelled"&&existing.paymentStatus!=="paid"&&Boolean(existing.promotionId);
   const inventoryApplied=needsInventory?true:nextStatus==="cancelled"?false:existing.inventoryApplied;
   const updates:Partial<typeof orders.$inferInsert>={status:nextStatus,inventoryApplied,updatedAt:new Date().toISOString()};
   if(needsInventory&&existing.reservationState==="active"){updates.reservationState="committed";updates.reservationExpiresAt=null;}
-  if(nextStatus==="cancelled"){updates.reservationState=existing.reservationState==="active"?"released":existing.reservationState;updates.reservationExpiresAt=null;updates.verificationTokenHash="";updates.verificationExpiresAt=null;}
+  if(nextStatus==="cancelled"){updates.reservationState=["active","committed"].includes(existing.reservationState)?"released":existing.reservationState;updates.reservationExpiresAt=null;updates.verificationTokenHash="";updates.verificationExpiresAt=null;}
   if(body.shippingCarrier!==undefined)updates.shippingCarrier=String(body.shippingCarrier).trim().slice(0,80);
   if(body.trackingNumber!==undefined)updates.trackingNumber=String(body.trackingNumber).trim().slice(0,160);
   if(body.estimatedDeliveryAt!==undefined){const value=String(body.estimatedDeliveryAt).trim();if(value&&Number.isNaN(new Date(value).getTime()))return Response.json({error:"Tahmini teslim tarihi geçersiz."},{status:400});updates.estimatedDeliveryAt=value?new Date(value).toISOString():null;}
