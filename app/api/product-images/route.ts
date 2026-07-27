@@ -2,46 +2,35 @@ import { env } from "cloudflare:workers";
 import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { productImages, products } from "../../../db/schema";
-import { getChatGPTUser } from "../../chatgpt-auth";
 import { recordAudit } from "../../audit-log";
+import { isCatalogImageUrl } from "../../catalog-input";
+import { getChatGPTUser } from "../../chatgpt-auth";
 import { findMediaUsage, mediaKeyFromUrl } from "../../media-usage";
 
-type MediaBucket = { delete(key:string):Promise<unknown> };
+type MediaBucket={delete(key:string):Promise<unknown>};
+const noStore={"Cache-Control":"no-store"};
 
 export async function GET(request:Request) {
-  const productId=Number(new URL(request.url).searchParams.get("productId"));
-  const db=getDb();
-  const rows=productId?await db.select().from(productImages).where(eq(productImages.productId,productId)).orderBy(asc(productImages.sortOrder),asc(productImages.id)):await db.select().from(productImages).orderBy(asc(productImages.sortOrder),asc(productImages.id));
-  return Response.json({ images:rows });
+  const productId=Number(new URL(request.url).searchParams.get("productId"));if(!Number.isInteger(productId)||productId<1)return Response.json({error:"Geçersiz ürün",images:[]},{status:400,headers:noStore});
+  const db=getDb();const[product]=await db.select().from(products).where(eq(products.id,productId)).limit(1);if(!product)return Response.json({images:[]},{status:404,headers:noStore});const user=await getChatGPTUser();if(!user&&!product.active)return Response.json({images:[]},{status:404,headers:noStore});
+  const rows=await db.select().from(productImages).where(eq(productImages.productId,productId)).orderBy(asc(productImages.sortOrder),asc(productImages.id));return Response.json({images:rows},{headers:noStore});
 }
 
 export async function POST(request:Request) {
-  if(!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401});
-  const body=await request.json() as {productId?:number;imageUrl?:string;altText?:string;sortOrder?:number};
-  if(!body.productId||!body.imageUrl)return Response.json({error:"Ürün ve görsel zorunludur."},{status:400});
-  const[image]=await getDb().insert(productImages).values({productId:Number(body.productId),imageUrl:String(body.imageUrl),altText:String(body.altText??""),sortOrder:Number(body.sortOrder??0)}).returning();
-  return Response.json({image},{status:201});
+  const user=await getChatGPTUser();if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401});const body=await request.json().catch(()=>null)as Record<string,unknown>|null;if(!body)return Response.json({error:"Geçersiz galeri verisi."},{status:400});
+  const productId=Number(body.productId);const imageUrl=String(body.imageUrl??"").trim();const altText=String(body.altText??"").trim();if(!Number.isInteger(productId)||productId<1||!imageUrl)return Response.json({error:"Ürün ve görsel zorunludur."},{status:400});if(!isCatalogImageUrl(imageUrl))return Response.json({error:"Görsel bağlantısı güvenli bir HTTPS veya site içi adres olmalıdır."},{status:400});if(altText.length>300)return Response.json({error:"Görsel açıklaması 300 karakteri aşamaz."},{status:400});
+  const db=getDb();const[product]=await db.select().from(products).where(eq(products.id,productId)).limit(1);if(!product)return Response.json({error:"Ürün bulunamadı."},{status:404});const existing=await db.select().from(productImages).where(eq(productImages.productId,productId)).orderBy(asc(productImages.sortOrder),asc(productImages.id));if(existing.length>=20)return Response.json({error:"Bir ürüne en fazla 20 galeri görseli eklenebilir."},{status:409});if(existing.some(image=>image.imageUrl===imageUrl))return Response.json({error:"Bu görsel ürün galerisinde zaten bulunuyor."},{status:409});
+  const[image]=await db.insert(productImages).values({productId,imageUrl,altText,sortOrder:existing.length}).returning();await recordAudit({user,action:"product_image.create",entityType:"product",entityId:productId,summary:`${product.nameTr} galerisine görsel eklendi.`,after:image});return Response.json({image},{status:201});
 }
 
 export async function PATCH(request:Request) {
-  if(!(await getChatGPTUser()))return Response.json({error:"Yetkisiz erişim"},{status:401});
-  const body=await request.json() as {id?:number;sortOrder?:number;altText?:string;order?:number[]};
-  if(Array.isArray(body.order)&&body.order.length){const ids=body.order.map(Number).filter(Number.isInteger).filter(id=>id>0).slice(0,100);const db=getDb();for(const[sortOrder,id]of ids.entries())await db.update(productImages).set({sortOrder}).where(eq(productImages.id,id));return Response.json({ok:true,updated:ids.length});}
-  if(!body.id)return Response.json({error:"Geçersiz görsel"},{status:400});
-  const updates:Partial<typeof productImages.$inferInsert>={};if(body.sortOrder!==undefined)updates.sortOrder=Number(body.sortOrder);if(body.altText!==undefined)updates.altText=String(body.altText);
-  const[image]=await getDb().update(productImages).set(updates).where(eq(productImages.id,Number(body.id))).returning();
-  return Response.json({image});
+  const user=await getChatGPTUser();if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401});const body=await request.json().catch(()=>null)as Record<string,unknown>|null;if(!body)return Response.json({error:"Geçersiz galeri verisi."},{status:400});const productId=Number(body.productId);if(!Number.isInteger(productId)||productId<1)return Response.json({error:"Geçersiz ürün."},{status:400});const db=getDb();
+  if(Array.isArray(body.order)&&body.order.length){const ids=body.order.map(Number);if(ids.length>20||ids.some(id=>!Number.isInteger(id)||id<1)||new Set(ids).size!==ids.length)return Response.json({error:"Galeri sırası geçersiz."},{status:400});const current=await db.select().from(productImages).where(eq(productImages.productId,productId)).orderBy(asc(productImages.sortOrder),asc(productImages.id));if(current.length!==ids.length||ids.some(id=>!current.some(image=>image.id===id)))return Response.json({error:"Yalnızca bu ürüne ait galerinin tamamı sıralanabilir."},{status:409});for(const[sortOrder,id]of ids.entries())await db.update(productImages).set({sortOrder}).where(and(eq(productImages.id,id),eq(productImages.productId,productId)));await recordAudit({user,action:"product_image.reorder",entityType:"product",entityId:productId,summary:"Ürün galerisi sıralandı.",before:{order:current.map(image=>image.id)},after:{order:ids}});return Response.json({ok:true,updated:ids.length});}
+  const id=Number(body.id);if(!Number.isInteger(id)||id<1)return Response.json({error:"Geçersiz görsel"},{status:400});const[before]=await db.select().from(productImages).where(and(eq(productImages.id,id),eq(productImages.productId,productId))).limit(1);if(!before)return Response.json({error:"Görsel bu ürüne ait değil."},{status:404});if(body.altText===undefined)return Response.json({error:"Güncellenecek görsel açıklaması eksik."},{status:400});const altText=String(body.altText).trim();if(altText.length>300)return Response.json({error:"Görsel açıklaması 300 karakteri aşamaz."},{status:400});const[image]=await db.update(productImages).set({altText}).where(and(eq(productImages.id,id),eq(productImages.productId,productId))).returning();await recordAudit({user,action:"product_image.update",entityType:"product",entityId:productId,summary:"Galeri görseli açıklaması güncellendi.",before:{imageId:id,altText:before.altText},after:{imageId:id,altText}});return Response.json({image});
 }
 
 export async function DELETE(request:Request) {
-  const user=await getChatGPTUser();if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401});
-  const url=new URL(request.url);const id=Number(url.searchParams.get("id"));const productId=Number(url.searchParams.get("productId"));
-  if(!id||!productId)return Response.json({error:"Geçersiz görsel"},{status:400});
-  const db=getDb();const[image]=await db.select().from(productImages).where(and(eq(productImages.id,id),eq(productImages.productId,productId))).limit(1);if(!image)return Response.json({error:"Görsel bulunamadı"},{status:404});
-  await db.delete(productImages).where(eq(productImages.id,id));
-  const[product]=await db.select().from(products).where(eq(products.id,productId)).limit(1);if(product?.imageUrl===image.imageUrl)await db.update(products).set({imageUrl:"",updatedAt:new Date().toISOString()}).where(eq(products.id,productId));
-  const key=mediaKeyFromUrl(image.imageUrl);const usedBy=await findMediaUsage(image.imageUrl);let mediaDeleted=false;
-  if(key&&!usedBy.length){const bucket=(env as unknown as {MEDIA?:MediaBucket}).MEDIA;if(bucket){await bucket.delete(key);mediaDeleted=true;}}
-  await recordAudit({user,action:"product_image.delete",entityType:"product",entityId:productId,summary:"Ürün galerisinden bir görsel kaldırıldı.",before:{imageId:image.id,imageUrl:image.imageUrl},after:{mediaDeleted,remainingUsage:usedBy}});
-  return Response.json({ok:true});
+  const user=await getChatGPTUser();if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401});const url=new URL(request.url);const id=Number(url.searchParams.get("id"));const productId=Number(url.searchParams.get("productId"));if(!Number.isInteger(id)||id<1||!Number.isInteger(productId)||productId<1)return Response.json({error:"Geçersiz görsel"},{status:400});
+  const db=getDb();const[[image],[product]]=await Promise.all([db.select().from(productImages).where(and(eq(productImages.id,id),eq(productImages.productId,productId))).limit(1),db.select().from(products).where(eq(products.id,productId)).limit(1)]);if(!product)return Response.json({error:"Ürün bulunamadı."},{status:404});if(!image)return Response.json({error:"Görsel bulunamadı"},{status:404});if(product.active&&product.imageUrl===image.imageUrl)return Response.json({error:"Yayındaki ürünün kapak görseli silinemez. Önce başka bir görseli kapak yapın."},{status:409});
+  await db.delete(productImages).where(and(eq(productImages.id,id),eq(productImages.productId,productId)));if(product.imageUrl===image.imageUrl)await db.update(products).set({imageUrl:"",updatedAt:new Date().toISOString()}).where(eq(products.id,productId));const key=mediaKeyFromUrl(image.imageUrl);const usedBy=await findMediaUsage(image.imageUrl);let mediaDeleted=false;if(key&&!usedBy.length){const bucket=(env as unknown as{MEDIA?:MediaBucket}).MEDIA;if(bucket){await bucket.delete(key);mediaDeleted=true;}}await recordAudit({user,action:"product_image.delete",entityType:"product",entityId:productId,summary:"Ürün galerisinden bir görsel kaldırıldı.",before:{imageId:image.id,imageUrl:image.imageUrl},after:{mediaDeleted,remainingUsage:usedBy}});return Response.json({ok:true});
 }

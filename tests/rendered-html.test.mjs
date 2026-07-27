@@ -1121,3 +1121,31 @@ test("preserves a valid two-level category tree and blocks unsafe hiding", async
   assert.match(productsApi, /product\.categoryId!==null&&visibleCategoryIds\.has\(product\.categoryId\)/);
   assert.match(panel, /data\.error\?\?"Kategori durumu güncellenemedi/);
 });
+
+test("scopes product-gallery changes to one product and protects live covers", async () => {
+  const [galleryApi,editor,auditCenter] = await Promise.all([
+    source("app/api/product-images/route.ts"),
+    source("app/admin/urun/[id]/product-editor.tsx"),
+    source("app/admin/islem-gecmisi/audit-log-center.tsx"),
+  ]);
+  assert.match(galleryApi, /if\(!user&&!product\.active\)/);
+  assert.match(galleryApi, /isCatalogImageUrl\(imageUrl\)/);
+  assert.match(galleryApi, /existing\.length>=20/);
+  assert.match(galleryApi, /existing\.some\(image=>image\.imageUrl===imageUrl\)/);
+  assert.match(galleryApi, /new Set\(ids\)\.size!==ids\.length/);
+  assert.match(galleryApi, /current\.length!==ids\.length/);
+  assert.match(galleryApi, /Yalnızca bu ürüne ait galerinin tamamı sıralanabilir/);
+  assert.match(galleryApi, /eq\(productImages\.productId,productId\)/);
+  assert.match(galleryApi, /altText\.length>300/);
+  assert.match(galleryApi, /Yayındaki ürünün kapak görseli silinemez/);
+  assert.match(galleryApi, /action:"product_image\.create"/);
+  assert.match(galleryApi, /action:"product_image\.update"/);
+  assert.match(galleryApi, /action:"product_image\.reorder"/);
+  assert.match(editor, /images\.length\+files\.length>20/);
+  assert.match(editor, /JSON\.stringify\(\{productId:id,order:/);
+  assert.match(editor, /JSON\.stringify\(\{id:image\.id,productId:id,altText\}\)/);
+  assert.match(editor, /fetch\("\/api\/media-library",\{method:"DELETE"/);
+  assert.match(auditCenter, /Galeri görseli ekleme/);
+  assert.match(auditCenter, /Galeri açıklaması güncelleme/);
+  assert.match(auditCenter, /Galeri sıralama/);
+});

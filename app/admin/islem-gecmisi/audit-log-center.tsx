@@ -8,6 +8,9 @@ const labels:Record<string,string>={"order.update":"Sipariş güncellemesi","ret
 labels["media.upload"]="Medya yükleme";
 labels["media.delete"]="Medya silme";
 labels["product_image.delete"]="Galeri görseli kaldırma";
+labels["product_image.create"]="Galeri görseli ekleme";
+labels["product_image.update"]="Galeri açıklaması güncelleme";
+labels["product_image.reorder"]="Galeri sıralama";
 labels["product.import"]="CSV ürün aktarımı";
 
 function Changes({log}:{log:AuditLog}) {
