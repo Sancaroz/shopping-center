@@ -1650,3 +1650,17 @@ test("returns only public catalog fields and hides variants of nonpublic product
   assert.doesNotMatch(publicVariantSelect,/productVariants\.sku/);
   assert.doesNotMatch(productDetail,/sku:string/);
 });
+
+test("rejects oversized media requests early and throttles authenticated uploads", async () => {
+  const [uploads,library] = await Promise.all([
+    source("app/api/uploads/route.ts"),
+    source("app/api/media-library/route.ts"),
+  ]);
+  assert.match(uploads, /startsWith\("multipart\/form-data"\)/);
+  assert.match(uploads, /declaredLength>9_000_000/);
+  assert.match(uploads, /status:413/);
+  assert.match(uploads, /scope:"media_upload",identifier:user\.email,limit:30,windowMinutes:60/);
+  assert.match(uploads, /request\.formData\(\)\.catch\(\(\)=>null\)/);
+  assert.match(library, /readBoundedJson\(request,2_000\)/);
+  assert.match(library, /"Cache-Control":"private, no-store, max-age=0"/);
+});
