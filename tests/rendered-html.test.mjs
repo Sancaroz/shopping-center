@@ -1435,3 +1435,20 @@ test("requires triage and a resolution note before closing support tickets", asy
   assert.match(center, /disabled=\{busy\|\|terminal\}/);
   assert.match(center, /Destek kaydı kapalı/);
 });
+
+test("accepts replenishments only for active catalog items with safe confirmation", async () => {
+  const [api,center] = await Promise.all([
+    source("app/api/replenishments/route.ts"),
+    source("app/admin/tedarik/replenishment-center.tsx"),
+  ]);
+  assert.match(api, /readBoundedJson\(request,5_000\)/);
+  assert.match(api, /readBoundedJson\(request,2_000\)/);
+  assert.match(api, /eq\(products\.active,true\)/);
+  assert.match(api, /eq\(productVariants\.active,true\)/);
+  assert.match(api, /Beklenen teslim tarihi geçmişte olamaz/);
+  assert.match(api, /containsLikelyCardNumber\(note\)/);
+  assert.match(api, /Number\.isInteger\(id\)/);
+  assert.match(center, /window\.confirm\(warning\)/);
+  assert.match(center, /Stok yalnızca bir kez artırılır/);
+  assert.match(center, /min=\{new Date\(\)\.toISOString\(\)\.slice\(0,10\)\}/);
+});
