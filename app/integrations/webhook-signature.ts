@@ -8,12 +8,13 @@ function constantTimeEqual(left:string,right:string){
   return difference===0;
 }
 
-export async function verifyWebhookSignature(input:{rawBody:string;signature:string;timestamp:string;secret:string;now?:number}){
+export async function verifyWebhookSignature(input:{rawBody:string;signature:string;timestamp:string;eventId:string;eventType:string;secret:string;now?:number}){
   const timestamp=Number(input.timestamp);
   const now=Math.floor((input.now??Date.now())/1000);
-  if(!Number.isFinite(timestamp)||Math.abs(now-timestamp)>MAX_AGE_SECONDS)return {valid:false,reason:"timestamp"};
+  if(!Number.isSafeInteger(timestamp)||timestamp<1||Math.abs(now-timestamp)>MAX_AGE_SECONDS)return {valid:false,reason:"timestamp"};
   if(!/^[a-f0-9]{64}$/i.test(input.signature)||!input.secret)return {valid:false,reason:"signature"};
   const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(input.secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
-  const expected=hex(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(`${input.timestamp}.${input.rawBody}`)));
+  const canonical=JSON.stringify([input.timestamp,input.eventId,input.eventType,input.rawBody]);
+  const expected=hex(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(canonical)));
   return {valid:constantTimeEqual(expected,input.signature.toLocaleLowerCase("en-US")),reason:"signature"};
 }

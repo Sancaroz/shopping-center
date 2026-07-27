@@ -330,6 +330,13 @@
       "when": 1785178653537,
       "tag": "0046_thick_songbird",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "6",
+      "when": 1785179124729,
+      "tag": "0047_special_banshee",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 export const BACKUP_FORMAT = "mysa-store-backup";
-export const BACKUP_SCHEMA_VERSION = 16;
+export const BACKUP_SCHEMA_VERSION = 17;
 
 export const backupTableNames = [
   "settings",
@@ -14,6 +14,7 @@ export const backupTableNames = [
   "orders",
   "orderItems",
   "paymentTransactions",
+  "paymentWebhookReceipts",
   "fulfillmentChecklists",
   "shipmentEvents",
   "inventoryOperations",

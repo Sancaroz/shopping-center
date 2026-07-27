@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
+import ts from "typescript";
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+async function importTypescriptModule(path){const code=await source(path);const output=ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText;return import(`data:text/javascript;base64,${Buffer.from(output).toString("base64")}`);}
 
 test("ships storefront metadata and crawler controls", async () => {
   const [layout, robots, sitemap] = await Promise.all([
@@ -266,9 +268,17 @@ test("prepares provider integrations without exposing secrets or mutating orders
   assert.match(signature, /HMAC/);
   assert.match(signature, /MAX_AGE_SECONDS=300/);
   assert.match(signature, /constantTimeEqual/);
+  assert.match(signature, /Number\.isSafeInteger\(timestamp\)/);
+  assert.match(signature, /input\.eventId.*input\.eventType.*input\.rawBody/);
   assert.match(webhook, /processed:false/);
+  assert.match(webhook, /paymentWebhookReceipts/);
+  assert.match(webhook, /\.onConflictDoNothing\(\)\.returning\(\)/);
+  assert.match(webhook, /Aynı olay kimliği farklı içerikle tekrar kullanılamaz/);
+  assert.match(webhook, /readBoundedBody/);
+  assert.doesNotMatch(webhook, /values\(\{[^}]*rawBody/);
   assert.doesNotMatch(webhook, /update\(orders\)|paymentStatus/);
   assert.match(statusApi, /getChatGPTOwner/);
+  assert.match(statusApi, /awaitingAdapter/);
   assert.match(center, /Gizli anahtarlar yönetim ekranında gösterilmez/);
   assert.match(center, /Test modu doğrulanmadan canlı moda geçilmez/);
   assert.match(notifications, /providerConfigured/);
@@ -469,7 +479,7 @@ test("captures immutable billing data without issuing a premature invoice", asyn
   assert.match(invoice, /Bu ekran mali belge üretmez/);
   assert.match(invoice, /Sipariş anındaki satıcı şirket bilgileri/);
   assert.doesNotMatch(tracking, /billingTaxNumber|sellerSnapshotJson/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 16/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 17/);
 });
 
 test("manages mixed sourcing and records auditable inventory movements", async () => {
@@ -502,7 +512,7 @@ test("manages mixed sourcing and records auditable inventory movements", async (
   assert.match(reservations, /reservation_release/);
   assert.match(readiness, /Stok ve tedarik/);
   assert.match(backup, /"inventoryMovements"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 16/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 17/);
   assert.match(exportApi, /inventoryMovementRows/);
   assert.match(adminPage, /\/admin\/stok/);
   assert.match(productsApi, /yalnızca Stok Merkezi üzerinden/);
@@ -533,7 +543,7 @@ test("snapshots order costs and reports finance estimates without false accounti
   assert.match(center, /Global ürün maliyetleri avro bazında tanımlanmadığı/);
   assert.match(readiness, /Kârlılık kontrolü/);
   assert.match(adminPage, /\/admin\/finans/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 16/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 17/);
 });
 
 test("applies server-authoritative promotions with safe limits and inactive defaults", async () => {
@@ -572,7 +582,7 @@ test("applies server-authoritative promotions with safe limits and inactive defa
   assert.match(center, /Yeni kampanyalar daima pasif oluşturulur/);
   assert.match(finance, /order\.subtotal-order\.discountAmount/);
   assert.match(backup, /"promotionRedemptions"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 16/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 17/);
   assert.match(exportApi, /promotionRedemptionRows/);
   assert.match(trackingApi, /discountAmount: order\.discountAmount/);
   assert.match(trackingPage, /İNDİRİM/);
@@ -617,7 +627,7 @@ test("requires an audited fulfillment checklist before shipment", async () => {
   assert.match(component, /Kalite kontrolü/);
   assert.match(component, /Adres ve etiket/);
   assert.match(backup, /"fulfillmentChecklists"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 16/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 17/);
   assert.match(exportApi, /fulfillmentChecklistRows/);
   assert.match(operations, /packingIncomplete/);
 });
@@ -643,7 +653,7 @@ test("tracks replenishments without sending suppliers and receives stock once", 
   assert.match(inventory, /\/admin\/tedarik/);
   assert.match(operations, /overdueReplenishments/);
   assert.match(backup, /"replenishments"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 16/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 17/);
   assert.match(exportApi, /replenishmentRows/);
 });
 
@@ -670,7 +680,7 @@ test("runs authenticated auditable support tickets with safe order matching", as
   assert.match(operations, /message-urgent/);
   assert.match(panel, /\/admin\/destek/);
   assert.match(backup, /Destek-sipariş/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 16/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 17/);
   assert.match(auditCenter, /Destek kaydı güncellemesi/);
   assert.match(auditCenter, /contact_message","Destek/);
 });
@@ -707,7 +717,7 @@ test("reconciles immutable payment and refund records without collecting card da
   assert.match(orderDetail, /Ödeme defteri/);
   assert.match(auditCenter, /Ödeme işlemi kaydı/);
   assert.match(backup, /"paymentTransactions"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 16/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 17/);
   assert.match(exportApi, /paymentTransactionRows/);
 });
 
@@ -741,7 +751,7 @@ test("tracks privacy rights requests without automatic deletion or identity docu
   assert.match(panel, /\/admin\/veri-talepleri/);
   assert.match(auditCenter, /Veri talebi güncellemesi/);
   assert.match(backup, /"privacyRequests"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 16/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 17/);
   assert.match(exportApi, /privacyRequestRows/);
 });
 
@@ -781,7 +791,7 @@ test("requires newsletter verification and supports one-click unsubscribe", asyn
   assert.match(operations, /draftNewsletter/);
   assert.match(auditCenter, /Bülten aboneliği durdurma/);
   assert.match(backup, /"newsletterOutbox"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 16/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 17/);
   assert.match(exportApi, /newsletterOutboxRows/);
   assert.match(migration, /SET `status` = 'pending_verification'/);
   assert.match(notificationsApi, /newsletterOutbox/);
@@ -829,7 +839,7 @@ test("protects every admin surface with an owner-managed email allowlist", async
   assert.match(auditCenter, /Yönetici erişimi güncellemesi/);
   assert.match(readiness, /Yönetim erişimi/);
   assert.match(backup, /"adminUsers"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 16/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 17/);
   assert.match(exportApi, /adminUserRows/);
   assert.match(migration, /CREATE TABLE `admin_users`/);
   assert.match(ownerMigration, /CREATE UNIQUE INDEX `admin_users_single_owner`/);
@@ -928,7 +938,7 @@ test("archives variants while preserving inventory history and blocking new sale
   assert.match(panel, /Stok hareketleri ve sipariş geçmişi korunacak/);
   assert.match(editor, /Satışta kullanılabilir/);
   assert.match(replenishments, /eq\(productVariants\.active,true\)/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 16/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 17/);
   assert.match(migration, /ADD `active` integer DEFAULT true NOT NULL/);
   assert.match(auditCenter, /Varyant arşivleme/);
 });
@@ -981,7 +991,7 @@ test("stores an immutable hashed snapshot of the terms accepted with each order"
   assert.match(evidence, /SÖZLEŞME KANITI/);
   assert.match(evidence, /SHA-256/);
   assert.doesNotMatch(tracking, /termsSnapshotJson|termsSnapshotHash/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 16/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 17/);
   assert.match(migration, /ADD `terms_snapshot_json`/);
   assert.match(migration, /ADD `terms_snapshot_hash`/);
 });
@@ -1850,6 +1860,45 @@ test("reserves and releases every order line in one guarded inventory transactio
   assert.match(orders, /cancellationReleasesInventory/);
   assert.match(verification, /expectedUpdatedAt:expired\.updatedAt/);
   assert.match(backup, /"inventoryOperations"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 16/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 17/);
   assert.match(exportApi, /inventoryOperations:inventoryOperationRows/);
+});
+
+test("stores only replay-safe payment webhook metadata until a provider adapter is connected", async () => {
+  const [schema,webhook,signature,statusApi,center,migration,backup,exportApi] = await Promise.all([
+    source("db/schema.ts"),
+    source("app/api/webhooks/payment/route.ts"),
+    source("app/integrations/webhook-signature.ts"),
+    source("app/api/integrations/status/route.ts"),
+    source("app/admin/entegrasyonlar/integration-center.tsx"),
+    source("drizzle/0047_special_banshee.sql"),
+    source("app/backup-format.ts"),
+    source("app/api/export/route.ts"),
+  ]);
+  assert.match(schema, /paymentWebhookReceipts = sqliteTable\("payment_webhook_receipts"/);
+  assert.match(schema, /eventKey: text\("event_key"\)\.notNull\(\)\.unique\(\)/);
+  assert.match(migration, /CREATE UNIQUE INDEX `payment_webhook_receipts_event_key_unique`/);
+  assert.match(webhook, /MAX_WEBHOOK_BYTES=100_000/);
+  assert.match(webhook, /x-mysa-event-id/);
+  assert.match(webhook, /x-mysa-event-type/);
+  assert.match(webhook, /payloadHash=await sha256\(bodyBytes\)/);
+  assert.match(webhook, /status:"awaiting_adapter"/);
+  assert.match(webhook, /duplicate:true/);
+  assert.doesNotMatch(schema, /payment_webhook_receipts[\s\S]{0,1200}raw_body/);
+  assert.match(signature, /canonical=JSON\.stringify\(\[input\.timestamp,input\.eventId,input\.eventType,input\.rawBody\]\)/);
+  assert.match(statusApi, /limit\(100\)/);
+  assert.match(center, /Ham ödeme içeriği saklanmaz/);
+  assert.match(backup, /"paymentWebhookReceipts"/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 17/);
+  assert.match(exportApi, /paymentWebhookReceipts:paymentWebhookReceiptRows/);
+});
+
+test("binds payment webhook signatures to the timestamp, event identity, type and body", async () => {
+  const {verifyWebhookSignature}=await importTypescriptModule("app/integrations/webhook-signature.ts");
+  const secret="sandbox-webhook-secret";const rawBody=JSON.stringify({order:"MS-TEST",status:"paid"});const eventId="evt_test_0001";const eventType="payment.succeeded";const now=Date.UTC(2026,6,27,18,0,0);const timestamp=String(Math.floor(now/1000));
+  const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);const canonical=JSON.stringify([timestamp,eventId,eventType,rawBody]);const bytes=new Uint8Array(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(canonical)));const signature=[...bytes].map(byte=>byte.toString(16).padStart(2,"0")).join("");
+  const valid=await verifyWebhookSignature({rawBody,eventId,eventType,signature,timestamp,secret,now});assert.equal(valid.valid,true);
+  const changedIdentity=await verifyWebhookSignature({rawBody,eventId:"evt_test_0002",eventType,signature,timestamp,secret,now});assert.equal(changedIdentity.valid,false);
+  const changedType=await verifyWebhookSignature({rawBody,eventId,eventType:"refund.succeeded",signature,timestamp,secret,now});assert.equal(changedType.valid,false);
+  const expired=await verifyWebhookSignature({rawBody,eventId,eventType,signature,timestamp,secret,now:now+301_000});assert.equal(expired.valid,false);
 });

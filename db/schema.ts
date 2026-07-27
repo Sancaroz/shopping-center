@@ -193,6 +193,21 @@ export const paymentTransactions = sqliteTable("payment_transactions", {
   uniqueIndex("payment_transactions_order_ledger_sequence").on(table.orderId,table.ledgerSequence).where(sql`${table.ledgerSequence} IS NOT NULL`),
 ]);
 
+export const paymentWebhookReceipts = sqliteTable("payment_webhook_receipts", {
+  id: integer("id").primaryKey({ autoIncrement:true }),
+  eventKey: text("event_key").notNull().unique(),
+  provider: text("provider").notNull(),
+  mode: text("mode").notNull(),
+  eventType: text("event_type").notNull(),
+  payloadHash: text("payload_hash").notNull(),
+  payloadBytes: integer("payload_bytes").notNull(),
+  signatureTimestamp: integer("signature_timestamp").notNull(),
+  status: text("status").notNull().default("awaiting_adapter"),
+  processedAt: text("processed_at"),
+  lastError: text("last_error").notNull().default(""),
+  receivedAt: text("received_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const fulfillmentChecklists = sqliteTable("fulfillment_checklists", {
   id: integer("id").primaryKey({ autoIncrement:true }),
   orderId: integer("order_id").notNull().unique().references(() => orders.id, { onDelete:"cascade" }),
