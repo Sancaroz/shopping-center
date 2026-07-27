@@ -1,4 +1,4 @@
-import {and,eq,gte,lte,sql} from "drizzle-orm";
+import {and,eq,exists,gte,inArray,lte,sql} from "drizzle-orm";
 import {getDb} from "../db";
 import {inventoryMovements,orderItems,orders,products,productVariants} from "../db/schema";
 import {releasePromotionClaim} from "./promotions";
@@ -20,8 +20,16 @@ export async function reserveInventory(db:Database,lines:Line[]){
 
 export async function releaseOrderReservation(db:Database,orderId:number,state="released",includeCommitted=false){
   const[order]=await db.select().from(orders).where(eq(orders.id,orderId)).limit(1);if(!order||!order.inventoryApplied||!(order.reservationState==="active"||(includeCommitted&&order.reservationState==="committed")))return false;
-  const lines=await db.select().from(orderItems).where(eq(orderItems.orderId,orderId));await restore(db,lines.filter(line=>line.productId).map(line=>({kind:line.variantId?"variant":"product",id:Number(line.variantId??line.productId),quantity:line.quantity})));
-  await db.update(orders).set({inventoryApplied:false,reservationState:state,reservationExpiresAt:null,updatedAt:new Date().toISOString()}).where(eq(orders.id,orderId));
+  const lines=await db.select().from(orderItems).where(eq(orderItems.orderId,orderId));
+  const eligibleStates=includeCommitted?["active","committed"]:["active"];
+  const releaseGuard=()=>exists(db.select({id:orders.id}).from(orders).where(and(eq(orders.id,orderId),eq(orders.inventoryApplied,true),inArray(orders.reservationState,eligibleStates))));
+  const stockUpdates=lines.flatMap(line=>{
+    if(!line.productId)return[];
+    if(line.variantId)return[db.update(productVariants).set({stock:sql`${productVariants.stock}+${line.quantity}`}).where(and(eq(productVariants.id,line.variantId),releaseGuard()))];
+    return[db.update(products).set({stock:sql`${products.stock}+${line.quantity}`,updatedAt:new Date().toISOString()}).where(and(eq(products.id,line.productId),releaseGuard()))];
+  });
+  const results=await db.batch([...stockUpdates,db.update(orders).set({inventoryApplied:false,reservationState:state,reservationExpiresAt:null,updatedAt:new Date().toISOString()}).where(and(eq(orders.id,orderId),eq(orders.inventoryApplied,true),inArray(orders.reservationState,eligibleStates))).returning({id:orders.id})]);
+  const released=results.at(-1);if(!Array.isArray(released)||!released.length)return false;
   for(const line of lines){if(!line.productId)continue;const[current]=line.variantId?await db.select({stock:productVariants.stock}).from(productVariants).where(eq(productVariants.id,line.variantId)).limit(1):await db.select({stock:products.stock}).from(products).where(eq(products.id,line.productId)).limit(1);if(current)await db.insert(inventoryMovements).values({productId:line.productId,variantId:line.variantId,orderId,movementType:"reservation_release",quantityDelta:line.quantity,previousStock:current.stock-line.quantity,nextStock:current.stock,reason:state==="expired"?"Süresi dolan rezervasyon serbest bırakıldı":order.reservationState==="committed"?"İptal edilen siparişin kesinleşmiş stoğu geri verildi":"Sipariş rezervasyonu serbest bırakıldı",reference:order.orderNumber,actorEmail:"system"}).catch(()=>undefined);}
   return true;
 }

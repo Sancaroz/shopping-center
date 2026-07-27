@@ -1694,3 +1694,13 @@ test("increments rate-limit windows atomically under concurrent requests", async
   assert.doesNotMatch(rateLimit, /db\.select\(\)\.from\(requestThrottles\)/);
   assert.doesNotMatch(rateLimit, /requestCount:row\.requestCount\+1/);
 });
+
+test("releases each inventory reservation only once under concurrent requests", async () => {
+  const reservations = await source("app/inventory-reservations.ts");
+  assert.match(reservations, /const releaseGuard=\(\)=>exists/);
+  assert.match(reservations, /eq\(orders\.inventoryApplied,true\)/);
+  assert.match(reservations, /inArray\(orders\.reservationState,eligibleStates\)/);
+  assert.match(reservations, /const results=await db\.batch/);
+  assert.match(reservations, /returning\(\{id:orders\.id\}\)/);
+  assert.match(reservations, /if\(!Array\.isArray\(released\)\|\|!released\.length\)return false/);
+});
