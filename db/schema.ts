@@ -221,6 +221,14 @@ export const shipmentEvents = sqliteTable("shipment_events", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const inventoryOperations = sqliteTable("inventory_operations", {
+  operationKey: text("operation_key").notNull().primaryKey(),
+  kind: text("kind").notNull(),
+  state: text("state").notNull().default("active"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const inventoryMovements = sqliteTable("inventory_movements", {
   id: integer("id").primaryKey({ autoIncrement:true }),
   operationKey: text("operation_key"),

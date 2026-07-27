@@ -1,9 +1,8 @@
-import {and,eq,gt,lte,ne,or} from "drizzle-orm";
+import {and,eq,gt,lte,ne} from "drizzle-orm";
 import {getDb} from "../../db";
 import {orders} from "../../db/schema";
 import {releaseOrderReservation} from "../inventory-reservations";
 import {hashVerificationToken} from "../order-verification";
-import {releasePromotionClaim} from "../promotions";
 import "./verification.css";
 
 export const dynamic="force-dynamic";
@@ -17,8 +16,8 @@ async function verifyToken(token:string){
   const now=new Date().toISOString();
   const[verified]=await db.update(orders).set({emailVerifiedAt:now,verificationTokenHash:"",verificationExpiresAt:null,updatedAt:now}).where(and(eq(orders.verificationTokenHash,hash),gt(orders.verificationExpiresAt,now),ne(orders.status,"cancelled"))).returning();
   if(verified){state="verified";orderNumber=verified.orderNumber;return{state,orderNumber};}
-  const[expired]=await db.update(orders).set({status:"cancelled",verificationTokenHash:"",verificationExpiresAt:null,updatedAt:now}).where(and(eq(orders.verificationTokenHash,hash),or(eq(orders.status,"cancelled"),lte(orders.verificationExpiresAt,now)))).returning();
-  if(expired){orderNumber=expired.orderNumber;await releaseOrderReservation(db,expired.id,"expired");if(expired.promotionId&&expired.paymentStatus!=="paid")await releasePromotionClaim(db,{orderId:expired.id,promotionId:expired.promotionId});state="expired";}
+  const[expired]=await db.select().from(orders).where(and(eq(orders.verificationTokenHash,hash),lte(orders.verificationExpiresAt,now),ne(orders.status,"cancelled"))).limit(1);
+  if(expired&&await releaseOrderReservation(db,expired.id,"expired",false,{expectedStatus:expired.status,expectedUpdatedAt:expired.updatedAt,releasePromotion:Boolean(expired.promotionId&&expired.paymentStatus!=="paid"),orderUpdates:{status:"cancelled",verificationTokenHash:"",verificationExpiresAt:null,internalNote:"24 saatlik doğrulama süresi sona erdi."}})){orderNumber=expired.orderNumber;state="expired";}
   return{state,orderNumber};
 }
 
