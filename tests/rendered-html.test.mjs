@@ -497,7 +497,7 @@ test("manages mixed sourcing and records auditable inventory movements", async (
   assert.match(inventoryApi, /inventory\.adjust/);
   assert.match(center, /Fabrika \/ tedarik ürünü/);
   assert.match(center, /El işçiliği \/ atölye üretimi/);
-  assert.match(center, /Stok sıfırın altına indirilemez/);
+  assert.match(center, /Tedarik, üretim ve iade girişleri pozitif/);
   assert.match(orders, /movementType:"reservation"/);
   assert.match(reservations, /movementType:"reservation_release"/);
   assert.match(readiness, /Stok ve tedarik/);
@@ -1451,4 +1451,26 @@ test("accepts replenishments only for active catalog items with safe confirmatio
   assert.match(center, /window\.confirm\(warning\)/);
   assert.match(center, /Stok yalnızca bir kez artırılır/);
   assert.match(center, /min=\{new Date\(\)\.toISOString\(\)\.slice\(0,10\)\}/);
+});
+
+test("validates manual stock direction, limits, references and active catalog scope", async () => {
+  const [api,center] = await Promise.all([
+    source("app/api/inventory/route.ts"),
+    source("app/admin/stok/inventory-center.tsx"),
+  ]);
+  assert.match(api, /const MAX_STOCK=1_000_000/);
+  assert.match(api, /readBoundedJson\(request,5_000\)/);
+  assert.match(api, /eq\(products\.active,true\)/);
+  assert.match(api, /eq\(productVariants\.active,true\)/);
+  assert.match(api, /Tedarik, üretim ve müşteri iadesi stok miktarını artırmalıdır/);
+  assert.match(api, /Hasar veya fire kaydı stok miktarını azaltmalıdır/);
+  assert.match(api, /benzersiz referans zorunludur/);
+  assert.match(api, /Bu stok kalemi, hareket türü ve referans daha önce işlendi/);
+  assert.match(api, /lte\(productVariants\.stock,MAX_STOCK-delta\)/);
+  assert.match(api, /lte\(products\.stock,MAX_STOCK-delta\)/);
+  assert.match(api, /miktar önceki değerine geri alındı/);
+  assert.match(center, /window\.confirm/);
+  assert.match(center, /item\.productId===selectedId&&item\.active/);
+  assert.match(center, /minLength=\{10\}/);
+  assert.match(center, /Benzersiz belge \/ referans/);
 });
