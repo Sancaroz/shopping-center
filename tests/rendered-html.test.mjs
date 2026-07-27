@@ -698,7 +698,7 @@ test("reconciles immutable payment and refund records without collecting card da
   assert.match(api, /order_closed/);
   assert.match(api, /payment_transaction\.create/);
   assert.doesNotMatch(ordersApi, /body\.paymentStatus/);
-  assert.doesNotMatch(api, /cardNumber|cvv|pan:/i);
+  assert.doesNotMatch(api, /body\.(?:cardNumber|cvv|pan)|(?:cardNumber|cvv|pan)\s*:/i);
   assert.match(center, /Gerçek tahsilat başlatmaz/);
   assert.match(center, /Kart bilgisi girmeyin/);
   assert.match(page, /requireChatGPTUser\("\/admin\/odemeler"\)/);
@@ -1345,4 +1345,21 @@ test("enforces a verified forward-only return and cancellation workflow", async 
   assert.match(center, /allowedReturnRequestStatusTargets\(item\.status\)/);
   assert.match(center, /disabled=\{busy\|\|terminal\}/);
   assert.match(center, /Talep kapalı/);
+});
+
+test("keeps successful payment recording behind the legal launch gate", async () => {
+  const [api,center] = await Promise.all([
+    source("app/api/payment-transactions/route.ts"),
+    source("app/admin/odemeler/payment-center.tsx"),
+  ]);
+  assert.match(api, /readBoundedJson\(request,8_000\)/);
+  assert.match(api, /containsLikelyCardNumber/);
+  assert.match(api, /İşlem tarihi gelecekte olamaz/);
+  assert.match(api, /İşlem tarihi sipariş tarihinden önce olamaz/);
+  assert.match(api, /settings\.salesMode!=="live"/);
+  assert.match(api, /settings\.legalStatus!=="complete"/);
+  assert.match(api, /settings\.paymentProviderStatus!=="active"/);
+  assert.match(api, /Şirket, aktif ödeme sağlayıcısı ve canlı satış modu tamamlanmadan/);
+  assert.match(center, /successfulPaymentsEnabled/);
+  assert.match(center, /disabled=\{kind==="payment"&&!data\.controls\.successfulPaymentsEnabled\}/);
 });
