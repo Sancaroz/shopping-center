@@ -1538,3 +1538,21 @@ test("rechecks promotion safety at preview, activation and final claim", async (
   assert.match(orders, /eq\(promotions\.market,cart\.market==="GLOBAL"\?"GLOBAL":"TR"\)/);
   assert.match(center, /window\.confirm/);
 });
+
+test("exports sensitive business data as inert audited no-store downloads", async () => {
+  const [exportApi,auditCenter] = await Promise.all([
+    source("app/api/export/route.ts"),
+    source("app/admin/islem-gecmisi/audit-log-center.tsx"),
+  ]);
+  assert.match(exportApi, /\^\[\\s\\u00a0\]\*\[=\+\\-@\]/);
+  assert.match(exportApi, /action:"data\.export"/);
+  assert.match(exportApi, /rowCount:rows\.length/);
+  assert.match(exportApi, /"Cache-Control":"private, no-store, max-age=0"/);
+  assert.match(exportApi, /"Pragma":"no-cache"/);
+  assert.match(exportApi, /"X-Content-Type-Options":"nosniff"/);
+  assert.match(exportApi, /"Content-Security-Policy":"default-src 'none'; sandbox"/);
+  assert.match(exportApi, /"Cross-Origin-Resource-Policy":"same-origin"/);
+  assert.match(exportApi, /downloadHeaders\("application\/json; charset=utf-8"/);
+  assert.match(auditCenter, /labels\["data\.export"\]="Veri dışa aktarma"/);
+  assert.match(auditCenter, /\["export","Dışa aktarma"\]/);
+});
