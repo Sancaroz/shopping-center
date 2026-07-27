@@ -37,7 +37,8 @@ export async function POST(request:Request){
   if(status==="succeeded"&&reconciliationStatus==="matched"){
     const paymentStatus=kind==="payment"?"paid":roundMoney(refundedTotal+amount)>=legacyPaidBase?"refunded":"partially_refunded";
     const recordedTransaction=exists(db.select({id:paymentTransactions.id}).from(paymentTransactions).where(and(eq(paymentTransactions.orderId,orderId),eq(paymentTransactions.transactionKey,transactionKey))));
-    const results=await db.batch([transactionInsert,db.update(orders).set({paymentStatus,paymentProvider:provider,paymentReference:providerReference,updatedAt:new Date().toISOString()}).where(and(eq(orders.id,orderId),recordedTransaction))]);transaction=results[0][0];
+    try{const results=await db.batch([transactionInsert,db.update(orders).set({paymentStatus,paymentProvider:provider,paymentReference:providerReference,updatedAt:new Date().toISOString()}).where(and(eq(orders.id,orderId),recordedTransaction))]);transaction=results[0][0];}
+    catch(error){if(kind==="refund"&&String(error).includes("refund_exceeds_captured"))return Response.json({error:"İade toplamı tahsil edilen tutarı aşamaz. Ödeme kayıtlarını yenileyip tekrar deneyin."},{status:409,headers:noStore});throw error;}
   }else [transaction]=await transactionInsert;
   if(!transaction)return Response.json({error:kind==="payment"&&status==="succeeded"?"Bu sipariş için başarılı tahsilat daha önce kaydedildi.":"Bu sağlayıcı referansı ve işlem türü daha önce kaydedildi."},{status:409,headers:noStore});
   await recordAudit({user,action:"payment_transaction.create",entityType:"payment_transaction",entityId:transaction.id,summary:`${order.orderNumber} için ${kind==="payment"?"ödeme":"iade"} işlemi kaydedildi.`,after:{orderId,kind,status,provider,providerReference,amount,currency:transaction.currency,reconciliationStatus}});

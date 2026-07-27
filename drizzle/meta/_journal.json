@@ -295,6 +295,13 @@
       "when": 1785175661373,
       "tag": "0041_silly_lethal_legion",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "6",
+      "when": 1785176286210,
+      "tag": "0042_protect_refund_total",
+      "breakpoints": true
     }
   ]
 }

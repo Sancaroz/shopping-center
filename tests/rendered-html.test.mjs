@@ -1720,3 +1720,16 @@ test("records a matched payment and paid order state atomically only once", asyn
   assert.match(api, /const results=await db\.batch\(\[transactionInsert/);
   assert.match(api, /Bu sipariş için başarılı tahsilat daha önce kaydedildi/);
 });
+
+test("prevents concurrent refunds from exceeding the captured payment", async () => {
+  const [api,migration] = await Promise.all([
+    source("app/api/payment-transactions/route.ts"),
+    source("drizzle/0042_protect_refund_total.sql"),
+  ]);
+  assert.match(migration, /CREATE TRIGGER `payment_transactions_refund_limit`/);
+  assert.match(migration, /BEFORE INSERT ON `payment_transactions`/);
+  assert.match(migration, /NEW\.`kind` = 'refund'/);
+  assert.match(migration, /RAISE\(ABORT, 'refund_exceeds_captured'\)/);
+  assert.match(api, /String\(error\)\.includes\("refund_exceeds_captured"\)/);
+  assert.match(api, /İade toplamı tahsil edilen tutarı aşamaz/);
+});
