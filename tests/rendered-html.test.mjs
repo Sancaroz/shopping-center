@@ -2165,3 +2165,21 @@ test("proves backup uniqueness, metadata integrity and product-variant ownership
   const tampered={...clean,exportedAt:"2026-01-01T00:00:00.000Z"};const tamperedReport=await verifyBackupEnvelope(tampered);
   assert.equal(tamperedReport.valid,false);assert.ok(tamperedReport.errors.some(error=>error.includes("bütünlük özeti")));
 });
+
+test("rejects stale category edits, reorders and archives", async () => {
+  const [schema,api,panel,editor,migration] = await Promise.all([
+    source("db/schema.ts"),
+    source("app/api/categories/route.ts"),
+    source("app/admin/panel.tsx"),
+    source("app/admin/kategori/[id]/category-editor.tsx"),
+    source("drizzle/0051_category_record_versions.sql"),
+  ]);
+  assert.match(schema, /categories = sqliteTable[\s\S]*updatedAt: text\("updated_at"\)/);
+  assert.match(migration, /ALTER TABLE `categories` ADD `updated_at`/);
+  assert.match(api, /eq\(categories\.updatedAt,expectedUpdatedAt\)/);
+  assert.match(api, /eq\(categories\.updatedAt,String\(item\.expectedUpdatedAt\)\)/);
+  assert.match(api, /db\.batch\(order\.map/);
+  assert.match(panel, /expectedUpdatedAt:category\.updatedAt/);
+  assert.match(panel, /encodeURIComponent\(category\.updatedAt\)/);
+  assert.match(editor, /expectedUpdatedAt:category\.updatedAt/);
+});
