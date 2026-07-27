@@ -113,6 +113,7 @@ export const orders = sqliteTable("orders", {
   shippingAmount: real("shipping_amount").notNull().default(0),
   total: real("total").notNull().default(0),
   requestKey: text("request_key").unique(),
+  creationState: text("creation_state").notNull().default("ready"),
   privacyConsentAt: text("privacy_consent_at"),
   termsConsentAt: text("terms_consent_at"),
   termsVersion: text("terms_version").notNull().default("order-request-v1"),

@@ -1,4 +1,4 @@
-import {and,eq,gte,sql} from "drizzle-orm";
+import {and,eq,exists,gte,sql} from "drizzle-orm";
 import {getDb} from "../db";
 import {promotionRedemptions,promotions} from "../db/schema";
 
@@ -19,7 +19,8 @@ export async function evaluatePromotion(db:Database,input:{code:string;market:"T
 
 export async function hashPromotionEmail(email:string){const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(email.trim().toLocaleLowerCase("en-US")));return Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,"0")).join("");}
 
-export async function releasePromotionClaim(db:Database,input:{orderId:number;promotionId:number}){
-  await db.delete(promotionRedemptions).where(eq(promotionRedemptions.orderId,input.orderId));
-  await db.update(promotions).set({usedCount:sql`${promotions.usedCount}-1`,updatedAt:new Date().toISOString()}).where(and(eq(promotions.id,input.promotionId),gte(promotions.usedCount,1)));
+export async function releasePromotionClaim(db:Database,input:{orderId:number;promotionId:number;provisional?:boolean}){
+  const decrement=db.update(promotions).set({usedCount:sql`${promotions.usedCount}-1`,updatedAt:new Date().toISOString()}).where(and(eq(promotions.id,input.promotionId),gte(promotions.usedCount,1),input.provisional?sql`1 = 1`:exists(db.select({id:promotionRedemptions.id}).from(promotionRedemptions).where(and(eq(promotionRedemptions.orderId,input.orderId),eq(promotionRedemptions.promotionId,input.promotionId))))));
+  if(input.provisional){await decrement;return;}
+  await db.batch([decrement,db.delete(promotionRedemptions).where(and(eq(promotionRedemptions.orderId,input.orderId),eq(promotionRedemptions.promotionId,input.promotionId)))]);
 }

@@ -1,0 +1,1 @@
+ALTER TABLE `orders` ADD `creation_state` text DEFAULT 'ready' NOT NULL;

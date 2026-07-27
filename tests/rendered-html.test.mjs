@@ -1734,3 +1734,25 @@ test("serializes concurrent refunds before recalculating the remaining amount", 
   assert.match(api, /ledgerSequence=status==="succeeded"&&reconciliationStatus==="matched"\?successful\.length\+1:null/);
   assert.match(api, /Bu sırada başka bir iade kaydedildi/);
 });
+
+test("makes duplicate checkout and promotion release idempotent", async () => {
+  const [schema,ordersApi,promotions,migration] = await Promise.all([
+    source("db/schema.ts"),
+    source("app/api/orders/route.ts"),
+    source("app/promotions.ts"),
+    source("drizzle/0043_lovely_fat_cobra.sql"),
+  ]);
+  assert.match(schema, /creationState: text\("creation_state"\)\.notNull\(\)\.default\("ready"\)/);
+  assert.match(migration, /ADD `creation_state` text DEFAULT 'ready' NOT NULL/);
+  assert.match(ordersApi, /creationState:"creating"/);
+  assert.match(ordersApi, /set\(\{creationState:"ready"/);
+  assert.match(ordersApi, /if\(!completed\)throw new Error\("order finalization failed"\)/);
+  assert.match(ordersApi, /retry\.creationState!=="ready"/);
+  assert.match(ordersApi, /provisional:true/);
+  assert.match(ordersApi, /const\[retry\]=await db\.select\(\)\.from\(orders\)\.where\(eq\(orders\.requestKey,requestKey\)\)/);
+  assert.match(ordersApi, /orderNumber:retry\.orderNumber/);
+  assert.match(promotions, /input:\{orderId:number;promotionId:number;provisional\?:boolean\}/);
+  assert.match(promotions, /exists\(db\.select\(\{id:promotionRedemptions\.id\}\)/);
+  assert.match(promotions, /if\(input\.provisional\)\{await decrement;return;\}/);
+  assert.match(promotions, /await db\.batch\(\[decrement,db\.delete\(promotionRedemptions\)/);
+});
