@@ -6,6 +6,6 @@ import "./notification-center.css";
 export const dynamic="force-dynamic";
 
 export default async function NotificationsPage() {
-  await requireChatGPTUser("/admin/bildirimler");
-  return <NotificationCenter/>;
+  const user=await requireChatGPTUser("/admin/bildirimler");
+  return <NotificationCenter isOwner={user.role==="owner"}/>;
 }

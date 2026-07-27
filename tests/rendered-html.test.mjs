@@ -1614,3 +1614,21 @@ test("keeps owner-only navigation and draft secrets out of lower-privilege respo
   assert.doesNotMatch(newsletter, /newsletterSubscribers\.id\)\),db\.select\(\)\.from\(newsletterOutbox\)/);
   assert.match(newsletter, /returning\(\{id:newsletterSubscribers\.id/);
 });
+
+test("keeps emergency sales controls and newsletter action links owner-only", async () => {
+  const [launchOperations,notifications,notificationsPage,notificationCenter] = await Promise.all([
+    source("app/api/launch-operations/route.ts"),
+    source("app/api/notifications/route.ts"),
+    source("app/admin/bildirimler/page.tsx"),
+    source("app/admin/bildirimler/notification-center.tsx"),
+  ]);
+  assert.match(launchOperations, /getChatGPTOwner/);
+  assert.match(launchOperations, /Acil satış kontrolleri yalnızca mağaza sahibine açıktır/);
+  assert.doesNotMatch(launchOperations, /getChatGPTUser/);
+  assert.match(notifications, /user\.role==="owner"\?db\.select\(\{id:newsletterOutbox\.id/);
+  assert.match(notifications, /source==="newsletter"&&user\.role!=="owner"/);
+  assert.match(notifications, /Doğrulama ve abonelikten çıkma bağlantıları güvenlik nedeniyle gizlendi/);
+  assert.doesNotMatch(notifications, /db\.select\(\)\.from\(newsletterOutbox\)/);
+  assert.match(notificationsPage, /isOwner=\{user\.role==="owner"\}/);
+  assert.match(notificationCenter, /\{isOwner&&<a href="\/admin\/yayina-hazirlik"/);
+});
