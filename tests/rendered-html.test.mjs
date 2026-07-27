@@ -1139,6 +1139,45 @@ test("serializes management allowlist changes and never caches membership data",
   assert.match(admins, /return Response\.json\(\{ members, currentAdminId: user\.adminId \},\{headers:privateNoStore\}\)/);
 });
 
+test("serializes every settings editor through an atomic revision claim", async () => {
+  const [api,client,migration,operations,...editors] = await Promise.all([
+    source("app/api/settings/route.ts"),
+    source("app/admin/settings-client.ts"),
+    source("drizzle/0050_settings_revision.sql"),
+    source("app/api/launch-operations/route.ts"),
+    ...[
+      "app/admin/duyuru/announcement-editor.tsx",
+      "app/admin/footer/footer-editor.tsx",
+      "app/admin/global/global-editor.tsx",
+      "app/admin/manifesto/manifesto-editor.tsx",
+      "app/admin/marka/brand-editor.tsx",
+      "app/admin/navigasyon/navigation-editor.tsx",
+      "app/admin/panel.tsx",
+      "app/admin/seo/seo-editor.tsx",
+      "app/admin/siralama/section-order-editor.tsx",
+      "app/admin/teslimat-ayarlari/shipping-settings.tsx",
+      "app/admin/yayina-hazirlik/launch-readiness.tsx",
+    ].map(source),
+  ]);
+  assert.match(migration, /INSERT OR IGNORE INTO `store_settings`/);
+  assert.match(migration, /'__settings_revision'/);
+  assert.match(api, /requestedKeys=allowed\.filter\(key=>body\[key\]!==undefined\)/);
+  assert.match(api, /expectedRevision=String\(body\._settingsRevision/);
+  assert.match(api, /eq\(storeSettings\.value,expectedRevision\)/);
+  assert.match(api, /const ownsRevision=exists/);
+  assert.match(api, /setWhere:ownsRevision/);
+  assert.match(api, /db\.batch\(\[revisionClaim,\.\.\.writes\]\)/);
+  assert.doesNotMatch(api, /db\.batch\(allowed\.map/);
+  assert.match(client, /_settingsRevision:revision/);
+  assert.match(client, /cache:"no-store"/);
+  for(const editor of editors){
+    assert.match(editor, /settings-client/);
+    assert.doesNotMatch(editor, /fetch\("\/api\/settings"/);
+  }
+  assert.match(operations, /db\.batch\(\[/);
+  assert.match(operations, /where\(eq\(storeSettings\.key,"__settings_revision"\)\)/);
+});
+
 test("partitions media backups deterministically without exceeding safe limits", async () => {
   const {partitionMediaBackup,mediaBackupSnapshot,MEDIA_ARCHIVE_MAX_BYTES}=await importTypescriptModule("app/media-backup.ts");
   const fortyOne=Array.from({length:41},(_,index)=>({key:`products/${String(index).padStart(2,"0")}.webp`,size:1,uploaded:"2026-01-01T00:00:00.000Z",etag:`e${index}`}));

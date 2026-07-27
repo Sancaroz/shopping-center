@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import {fetchSettings,updateSettings} from "../settings-client";
 
 type Check={key:string;label:string;ready:boolean;detail:string};
 type Health={key:string;level:"healthy"|"warning"|"paused"|"info";label:string;detail:string};
@@ -14,8 +15,8 @@ export default function LaunchReadiness() {
   const [message,setMessage]=useState("Yükleniyor…");
   const [busy,setBusy]=useState(false);
   const load=async()=>{
-    const [readinessResponse,settingsResponse]=await Promise.all([fetch("/api/launch-readiness"),fetch("/api/settings")]);
-    const [readinessData,settingsData]=await Promise.all([readinessResponse.json(),settingsResponse.json()]);
+    const [readinessResponse,settingsResult]=await Promise.all([fetch("/api/launch-readiness"),fetchSettings()]);
+    const readinessData=await readinessResponse.json();const{response:settingsResponse,data:settingsData}=settingsResult;
     if(readinessResponse.ok)setReadiness(readinessData);
     if(settingsResponse.ok)setSettings({
       salesMode:settingsData.settings.salesMode??"order_request",
@@ -27,8 +28,7 @@ export default function LaunchReadiness() {
   useEffect(()=>{void load();},[]);
   async function save(event:FormEvent<HTMLFormElement>){
     event.preventDefault();setBusy(true);setMessage("");
-    const response=await fetch("/api/settings",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(settings)});
-    const data=await response.json();
+    const{response,data}=await updateSettings(settings);
     setMessage(response.ok?"Satış modu ayarları güncellendi.":data.error??"Ayarlar güncellenemedi.");
     if(response.ok)await load();
     setBusy(false);

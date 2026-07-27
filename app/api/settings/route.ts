@@ -1,5 +1,5 @@
 import { getDb } from "../../../db";
-import { eq } from "drizzle-orm";
+import { and, eq, exists, sql } from "drizzle-orm";
 import { products, storeSettings } from "../../../db/schema";
 import { recordAudit } from "../../audit-log";
 import { getChatGPTUser } from "../../chatgpt-auth";
@@ -7,6 +7,8 @@ import { isValidEmail, isValidPhone, normalizeEmail, readBoundedJson } from "../
 import { isSafeExternalUrl, isSafeImageUrl, isSafeStorefrontUrl } from "../../safe-url";
 
 export const dynamic = "force-dynamic";
+const SETTINGS_REVISION_KEY="__settings_revision";
+const privateNoStore={"Cache-Control":"private, no-store, max-age=0"};
 const defaults = {
   brandName: "MYSA",
   brandSuffix: "OBJETS",
@@ -135,16 +137,18 @@ function visibleSettings(values:typeof defaults,user:Awaited<ReturnType<typeof g
   else if(values.legalStatus!=="complete")for(const key of draftPrivateKeys)delete (visible as Partial<typeof defaults>)[key];
   return visible;
 }
-export async function GET() { const user=await getChatGPTUser();try { const rows = await getDb().select().from(storeSettings);const values={...defaults,...Object.fromEntries(rows.map(row => [row.key, row.value]))} as typeof defaults;return Response.json({settings:visibleSettings(values,user)}); } catch { return Response.json({settings:visibleSettings({...defaults},user)}); } }
+export async function GET() { const user=await getChatGPTUser();try { const rows = await getDb().select().from(storeSettings);const allowed=Object.keys(defaults) as (keyof typeof defaults)[];const stored=Object.fromEntries(rows.filter(row=>allowed.includes(row.key as keyof typeof defaults)).map(row => [row.key, row.value]));const values={...defaults,...stored} as typeof defaults;const revision=rows.find(row=>row.key===SETTINGS_REVISION_KEY)?.value??"";return Response.json({settings:visibleSettings(values,user),revision},{headers:privateNoStore}); } catch { return Response.json({settings:visibleSettings({...defaults},user),revision:""},{headers:privateNoStore}); } }
 export async function PUT(request: Request) {
   const user=await getChatGPTUser();
   if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
   const parsed=await readBoundedJson(request,160_000);if(parsed.error)return parsed.error;const body=parsed.body!;
   const db = getDb(); const allowed = Object.keys(defaults) as (keyof typeof defaults)[];
+  const requestedKeys=allowed.filter(key=>body[key]!==undefined);if(!requestedKeys.length)return Response.json({error:"Kaydedilecek mağaza ayarı bulunamadı."},{status:400,headers:privateNoStore});
+  const expectedRevision=String(body._settingsRevision??"");if(!expectedRevision)return Response.json({error:"Ayar ekranı güncel değil. Sayfayı yenileyip tekrar deneyin."},{status:409,headers:privateNoStore});
   const protectedKey=allowed.find(key=>ownerOnlyKeys.has(key)&&body[key]!==undefined);if(user.role!=="owner"&&protectedKey)return Response.json({error:"Şirket, ödeme ve canlı satış ayarlarını yalnızca mağaza sahibi değiştirebilir."},{status:403});
   const invalidType=allowed.find(key=>body[key]!==undefined&&!(["string","number","boolean"].includes(typeof body[key])));
   if(invalidType)return Response.json({error:`${invalidType} alanı geçersiz.`},{status:400});
-  const rows=await db.select().from(storeSettings);const current=Object.fromEntries(rows.map(row=>[row.key,row.value]));const values=Object.fromEntries(allowed.map(key=>[key,String(body[key]??current[key]??defaults[key])]));
+  const rows=await db.select().from(storeSettings);const currentRevision=rows.find(row=>row.key===SETTINGS_REVISION_KEY)?.value??"";if(!currentRevision||currentRevision!==expectedRevision)return Response.json({error:"Mağaza ayarları bu sırada başka bir ekrandan güncellendi. Sayfayı yenileyip değişikliğinizi yeniden uygulayın."},{status:409,headers:privateNoStore});const current=Object.fromEntries(rows.filter(row=>row.key!==SETTINGS_REVISION_KEY).map(row=>[row.key,row.value]));const values=Object.fromEntries(allowed.map(key=>[key,String(body[key]??current[key]??defaults[key])])) as Record<keyof typeof defaults,string>;
   const oversized=allowed.find(key=>values[key].length>(longTextKeys.has(key)?50_000:10_000));
   if(oversized)return Response.json({error:`${oversized} alanı izin verilen uzunluğu aşıyor.`},{status:400});
   const unsafeStorefrontUrl=storefrontUrlKeys.find(key=>!isSafeStorefrontUrl(values[key],{allowEmpty:false}));
@@ -165,8 +169,13 @@ export async function PUT(request: Request) {
   const isDraftLegalText=(value:string)=>value.trimStart().toLocaleUpperCase("tr-TR").startsWith("TASLAK");
   if(values.legalStatus==="complete"){const required=[["Ticari unvan",values.legalName],["Şirket türü",values.legalBusinessType],["Merkez adresi",values.legalAddress],["Vergi dairesi",values.legalTaxOffice],["Vergi numarası",values.legalTaxNumber],["Hukuki e-posta",values.legalEmail],["Telefon",values.legalPhone],["İade adresi",values.returnAddress],["Ön bilgilendirme",values.preliminaryInformationTr],["Mesafeli satış sözleşmesi",values.distanceSalesTermsTr]];const missing=required.filter(([,value])=>!value.trim()).map(([label])=>label);if(missing.length)return Response.json({error:`Yayına hazır durumu için eksik alanlar: ${missing.join(", ")}.`},{status:409});if(values.legalBusinessType.trim()==="Şirket türü belirlenecek")return Response.json({error:"Yayına hazır durumu için gerçek şirket türünü seçin."},{status:409});if(!/^\d{10,11}$/.test(values.legalTaxNumber.trim()))return Response.json({error:"Vergi numarası 10 veya 11 rakam olmalıdır."},{status:409});if(values.legalMersisNumber.trim()&&!/^\d{16}$/.test(values.legalMersisNumber.trim()))return Response.json({error:"MERSİS numarası 16 rakam olmalıdır."},{status:409});if(!isValidEmail(values.legalEmail)||!isValidPhone(values.legalPhone))return Response.json({error:"Hukuki iletişim e-postası veya telefonu geçersiz."},{status:409});if(isDraftLegalText(values.preliminaryInformationTr)||isDraftLegalText(values.distanceSalesTermsTr))return Response.json({error:"Taslak hukuki metinlerle şirket bilgileri yayına hazır olarak işaretlenemez."},{status:409});}
   if(values.salesMode==="live"){const blockers:string[]=["ödeme sağlayıcısı teknik entegrasyonu"];if(values.legalStatus!=="complete")blockers.push("şirket ve hukuki bilgiler");if(values.paymentProviderStatus!=="active"||!values.paymentProviderName.trim())blockers.push("aktif ödeme sağlayıcısı");if(values.etbisStatus!=="complete")blockers.push("ETBİS kaydı");if(!values.returnCarrier.trim())blockers.push("anlaşmalı iade kargosu");if(values.taxDisplayMode!=="tax_included")blockers.push("vergiler dâhil tüketici fiyatı onayı");if(isDraftLegalText(values.preliminaryInformationTr)||isDraftLegalText(values.distanceSalesTermsTr))blockers.push("onaylı sözleşme metinleri");const activeProducts=await db.select({id:products.id}).from(products).where(eq(products.active,true)).limit(1);if(!activeProducts.length)blockers.push("yayındaki ürün");if(blockers.length)return Response.json({error:`Canlı satış modu için tamamlanmalı: ${blockers.join(", ")}.`},{status:409});}
-  const changedKeys=allowed.filter(key=>(current[key]??defaults[key])!==values[key]);
-  await db.batch(allowed.map(key => db.insert(storeSettings).values({ key, value: values[key], updatedAt: new Date().toISOString() }).onConflictDoUpdate({ target: storeSettings.key, set: { value: values[key], updatedAt: new Date().toISOString() } })));
+  const changedKeys=requestedKeys.filter(key=>(current[key]??defaults[key])!==values[key]);
+  if(!changedKeys.length)return Response.json({settings:visibleSettings(values,user),revision:currentRevision},{headers:privateNoStore});
+  const nextRevision=crypto.randomUUID();const now=new Date().toISOString();
+  const revisionClaim=db.update(storeSettings).set({value:nextRevision,updatedAt:now}).where(and(eq(storeSettings.key,SETTINGS_REVISION_KEY),eq(storeSettings.value,expectedRevision))).returning({value:storeSettings.value});
+  const ownsRevision=exists(db.select({key:storeSettings.key}).from(storeSettings).where(and(eq(storeSettings.key,SETTINGS_REVISION_KEY),eq(storeSettings.value,nextRevision))));
+  const writes=changedKeys.map(key=>db.insert(storeSettings).select(db.select({key:sql<string>`${key}`,value:sql<string>`${values[key]}`,updatedAt:sql<string>`${now}`}).from(storeSettings).where(and(eq(storeSettings.key,SETTINGS_REVISION_KEY),eq(storeSettings.value,nextRevision))).limit(1)).onConflictDoUpdate({target:storeSettings.key,set:{value:values[key],updatedAt:now},setWhere:ownsRevision}).returning({key:storeSettings.key}));
+  const results=await db.batch([revisionClaim,...writes]);if(!results[0][0]||results.slice(1).some(result=>!result[0]))return Response.json({error:"Mağaza ayarları bu sırada başka bir ekrandan güncellendi. Sayfayı yenileyip değişikliğinizi yeniden uygulayın."},{status:409,headers:privateNoStore});
   if(changedKeys.length)await recordAudit({user,action:"settings.update",entityType:"settings",summary:`${changedKeys.length} mağaza ayarı güncellendi.`,before:Object.fromEntries(changedKeys.map(key=>[key,current[key]??defaults[key]])),after:Object.fromEntries(changedKeys.map(key=>[key,values[key]]))});
-  return Response.json({ settings: values });
+  return Response.json({settings:visibleSettings(values,user),revision:nextRevision},{headers:privateNoStore});
 }

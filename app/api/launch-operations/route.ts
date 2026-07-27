@@ -1,5 +1,6 @@
 import { getDb } from "../../../db";
 import { storeSettings } from "../../../db/schema";
+import { eq } from "drizzle-orm";
 import { recordAudit } from "../../audit-log";
 import { getChatGPTOwner } from "../../chatgpt-auth";
 import { readBoundedJson } from "../../public-form-security";
@@ -7,8 +8,11 @@ import { readBoundedJson } from "../../public-form-security";
 export const dynamic = "force-dynamic";
 
 async function saveSetting(key:string,value:string) {
-  await getDb().insert(storeSettings).values({key,value,updatedAt:new Date().toISOString()})
-    .onConflictDoUpdate({target:storeSettings.key,set:{value,updatedAt:new Date().toISOString()}});
+  const db=getDb();const updatedAt=new Date().toISOString();
+  await db.batch([
+    db.insert(storeSettings).values({key,value,updatedAt}).onConflictDoUpdate({target:storeSettings.key,set:{value,updatedAt}}),
+    db.update(storeSettings).set({value:crypto.randomUUID(),updatedAt}).where(eq(storeSettings.key,"__settings_revision")),
+  ]);
 }
 
 export async function PATCH(request:Request) {
