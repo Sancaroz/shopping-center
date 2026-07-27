@@ -1416,3 +1416,22 @@ test("requires verified identity and a forward-only privacy request workflow", a
   assert.match(center, /disabled=\{busy\|\|terminal\}/);
   assert.match(center, /Talep sonuçlandı/);
 });
+
+test("requires triage and a resolution note before closing support tickets", async () => {
+  const [lifecycle,api,center] = await Promise.all([
+    source("app/support-lifecycle.ts"),
+    source("app/api/contact/route.ts"),
+    source("app/admin/destek/support-center.tsx"),
+  ]);
+  assert.match(lifecycle, /new:\["read"\]/);
+  assert.match(lifecycle, /read:\["resolved"\]/);
+  assert.match(lifecycle, /resolved:\[\]/);
+  assert.match(api, /readBoundedJson\(request,8_000\)/);
+  assert.match(api, /isTerminalSupportStatus\(before\.status\)/);
+  assert.match(api, /canTransitionSupportStatus\(before\.status,status\)/);
+  assert.match(api, /en az 10 karakterlik çözüm notu zorunludur/);
+  assert.match(api, /containsLikelyCardNumber\(adminNote\)/);
+  assert.match(center, /allowedSupportStatusTargets\(ticket\.status\)/);
+  assert.match(center, /disabled=\{busy\|\|terminal\}/);
+  assert.match(center, /Destek kaydı kapalı/);
+});
