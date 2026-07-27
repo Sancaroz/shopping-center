@@ -505,8 +505,8 @@ test("manages mixed sourcing and records auditable inventory movements", async (
   assert.match(backup, /BACKUP_SCHEMA_VERSION = 15/);
   assert.match(exportApi, /inventoryMovementRows/);
   assert.match(adminPage, /\/admin\/stok/);
-  assert.match(productsApi, /Ürün düzenleyicisinden stok düzeltmesi/);
-  assert.match(variantsApi, /Varyant düzenleyicisinden stok düzeltmesi/);
+  assert.match(productsApi, /yalnızca Stok Merkezi üzerinden/);
+  assert.match(variantsApi, /yalnızca Stok Merkezi üzerinden/);
   assert.match(variantsApi, /Varyant açılış stoğu/);
 });
 
@@ -1473,4 +1473,22 @@ test("validates manual stock direction, limits, references and active catalog sc
   assert.match(center, /item\.productId===selectedId&&item\.active/);
   assert.match(center, /minLength=\{10\}/);
   assert.match(center, /Benzersiz belge \/ referans/);
+});
+
+test("routes every existing catalog stock change through the audited inventory center", async () => {
+  const [productsApi,variantsApi,importApi,panel] = await Promise.all([
+    source("app/api/products/route.ts"),
+    source("app/api/variants/route.ts"),
+    source("app/api/import/products/route.ts"),
+    source("app/admin/panel.tsx"),
+  ]);
+  assert.match(productsApi, /requestedStock!==currentBefore\.stock/);
+  assert.match(productsApi, /Mevcut ürün stoğu yalnızca Stok Merkezi üzerinden/);
+  assert.doesNotMatch(productsApi, /reference:"product-editor"/);
+  assert.match(variantsApi, /requestedStock!==before\.stock/);
+  assert.match(variantsApi, /Mevcut varyant stoğu yalnızca Stok Merkezi üzerinden/);
+  assert.doesNotMatch(variantsApi, /reference:"variant-editor"/);
+  assert.match(importApi, /stock:current\?\.stock\?\?stock/);
+  assert.match(importApi, /stok değişikliğini Stok Merkezi'nden kaydedin/);
+  assert.match(panel, /if\(changes\.stock!==undefined\)\{window\.location\.assign\("\/admin\/stok"\)/);
 });

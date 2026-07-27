@@ -112,6 +112,7 @@ export async function PATCH(request: Request) {
   if (!id) return Response.json({ error: "Geçersiz ürün" }, { status: 400 });
   const db = getDb();
   const[currentBefore]=await db.select().from(products).where(eq(products.id,id)).limit(1);if(!currentBefore)return Response.json({error:"Ürün bulunamadı."},{status:404});
+  if(body.stock!==undefined){const requestedStock=parseCatalogStock(body.stock);if(requestedStock===null)return Response.json({error:"Stok değeri geçersiz."},{status:400});if(requestedStock!==currentBefore.stock)return Response.json({error:"Mevcut ürün stoğu yalnızca Stok Merkezi üzerinden, açıklama ve benzersiz referansla değiştirilebilir."},{status:409});}
   const updates: Partial<typeof products.$inferInsert> = { updatedAt: new Date().toISOString() };
   if (body.nameTr !== undefined){const value=String(body.nameTr).trim();if(value.length>200)return Response.json({error:"Ürün adı 200 karakteri aşamaz."},{status:400});updates.nameTr=value;}
   if (body.nameEn !== undefined){const value=String(body.nameEn).trim();if(value.length>200)return Response.json({error:"İngilizce ürün adı 200 karakteri aşamaz."},{status:400});updates.nameEn=value;}
@@ -138,7 +139,6 @@ export async function PATCH(request: Request) {
     }, { status: 409 });
   }
   const [product] = await db.update(products).set(updates).where(eq(products.id, id)).returning().catch(()=>[]);if(!product)return Response.json({error:"Ürün kodu başka bir kayıtta kullanılıyor veya veri geçersiz."},{status:409});
-  if(product&&updates.stock!==undefined&&updates.stock!==currentBefore.stock)await db.insert(inventoryMovements).values({productId:id,movementType:"correction",quantityDelta:updates.stock-currentBefore.stock,previousStock:currentBefore.stock,nextStock:updates.stock,reason:"Ürün düzenleyicisinden stok düzeltmesi",reference:"product-editor",actorEmail:user.email});
   if(product)await recordAudit({user,action:"product.update",entityType:"product",entityId:id,summary:`${product.nameTr} ürünü güncellendi.`,before:currentBefore,after:product});
   return Response.json({ product });
 }
