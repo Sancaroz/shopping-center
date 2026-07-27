@@ -12,7 +12,7 @@ export async function GET() {
   if (!(await getChatGPTOwner())) return Response.json({ error: "Yedekleme yalnızca mağaza sahibine açıktır." }, { status: 403 });
   const rows = await getDb().select().from(auditLogs).orderBy(desc(auditLogs.id)).limit(300);
   const history = rows
-    .filter((row) => row.entityType === "backup" || row.action === "data.retention_cleanup")
+    .filter((row) => row.entityType === "backup" || row.action === "media.backup.download" || row.action === "data.retention_cleanup")
     .slice(0, 20)
     .map((row) => ({ id: row.id, action: row.action, summary: row.summary, actorName: row.actorName, createdAt: row.createdAt }));
   return Response.json({ history, retention: { requestThrottleHours: 48, abandonedCartDays: 35 } });

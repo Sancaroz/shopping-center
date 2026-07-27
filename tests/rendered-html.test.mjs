@@ -1100,6 +1100,21 @@ test("exports owner-only integrity-checked media backup parts", async () => {
   assert.match(pkg, /"fflate": "0\.7\.4"/);
 });
 
+test("tracks database and media backups separately in launch operations", async () => {
+  const [backups,readiness,center,styles] = await Promise.all([
+    source("app/api/backups/route.ts"),
+    source("app/api/launch-readiness/route.ts"),
+    source("app/admin/yayina-hazirlik/launch-readiness.tsx"),
+    source("app/admin/yayina-hazirlik/launch-readiness.css"),
+  ]);
+  assert.match(backups, /row\.action === "media\.backup\.download"/);
+  assert.match(readiness, /latestMediaBackup=auditRows\.find\(row=>row\.action==="media\.backup\.download"\)/);
+  assert.match(readiness, /key:"media_backup"/);
+  assert.match(readiness, /Henüz indirilen görsel yedeği yok/);
+  assert.match(center, /Veri ve görsel yedeği alın/);
+  assert.match(styles, /grid-template-columns:repeat\(3,1fr\)/);
+});
+
 test("partitions media backups deterministically without exceeding safe limits", async () => {
   const {partitionMediaBackup,mediaBackupSnapshot,MEDIA_ARCHIVE_MAX_BYTES}=await importTypescriptModule("app/media-backup.ts");
   const fortyOne=Array.from({length:41},(_,index)=>({key:`products/${String(index).padStart(2,"0")}.webp`,size:1,uploaded:"2026-01-01T00:00:00.000Z",etag:`e${index}`}));

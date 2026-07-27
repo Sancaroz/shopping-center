@@ -51,7 +51,9 @@ export async function GET() {
   const staleOrders=activeOrders.filter(order=>hoursSince(order.updatedAt)>=24);
   const staleReturns=returnRows.filter(item=>["new","reviewing","approved"].includes(item.status)&&hoursSince(item.updatedAt)>=24);
   const latestBackup=auditRows.find(row=>row.action==="backup.create");
+  const latestMediaBackup=auditRows.find(row=>row.action==="media.backup.download");
   const backupAgeHours=latestBackup?hoursSince(latestBackup.createdAt):null;
+  const mediaBackupAgeHours=latestMediaBackup?hoursSince(latestMediaBackup.createdAt):null;
   const draftNotifications=notificationRows.filter(item=>item.status==="draft");
   const orderIntakeStatus=settings.orderIntakeStatus==="paused"?"paused":"open";
   const operations={
@@ -68,6 +70,7 @@ export async function GET() {
       {key:"database",level:"healthy",label:"Veri altyapısı",detail:"Mağaza veritabanı okunabiliyor."},
       {key:"intake",level:orderIntakeStatus==="open"?"healthy":"paused",label:"Sipariş alımı",detail:orderIntakeStatus==="open"?"Müşteri taleplerine açık.":"Acil durum anahtarıyla durduruldu."},
       {key:"backup",level:backupAgeHours!==null&&backupAgeHours<=168?"healthy":"warning",label:"Son yedek",detail:backupAgeHours===null?"Henüz kayıtlı tam yedek yok.":backupAgeHours<=24?"Son 24 saat içinde oluşturuldu.":`${Math.floor(backupAgeHours/24)} gün önce oluşturuldu.`},
+      {key:"media_backup",level:mediaBackupAgeHours!==null&&mediaBackupAgeHours<=168?"healthy":"warning",label:"Görsel yedeği",detail:mediaBackupAgeHours===null?"Henüz indirilen görsel yedeği yok.":mediaBackupAgeHours<=24?"Son 24 saat içinde indirildi.":`${Math.floor(mediaBackupAgeHours/24)} gün önce indirildi.`},
       {key:"workload",level:staleOrders.length||staleReturns.length?"warning":"healthy",label:"Geciken işlemler",detail:staleOrders.length||staleReturns.length?`${staleOrders.length} sipariş ve ${staleReturns.length} iade 24 saati aştı.`:"24 saati aşan açık işlem yok."},
       {key:"notifications",level:"info",label:"Bildirim kuyruğu",detail:`${draftNotifications.length} gönderim taslağı bekliyor; sağlayıcı bağlanana kadar otomatik gönderim kapalı.`},
     ],
