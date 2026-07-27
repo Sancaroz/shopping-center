@@ -312,7 +312,7 @@ export const returnRequests = sqliteTable("return_requests", {
   adminNote: text("admin_note").notNull().default(""),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-});
+}, table => [uniqueIndex("return_requests_one_open_type_per_order").on(table.orderId,table.requestType).where(sql`${table.status} IN ('new', 'reviewing', 'approved')`)]);
 
 export const auditLogs = sqliteTable("audit_logs", {
   id: integer("id").primaryKey({ autoIncrement:true }),

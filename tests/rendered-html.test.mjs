@@ -1774,3 +1774,22 @@ test("serializes order, shipment and packing workflow updates", async () => {
   assert.match(fulfillment, /const results=await db\.batch\(\[orderClaim,checklistWrite\]\)/);
   assert.match(fulfillment, /if\(!claimed\)/);
 });
+
+test("consumes order verification once and serializes open return requests", async () => {
+  const [schema,verification,returnsApi,migration] = await Promise.all([
+    source("db/schema.ts"),
+    source("app/siparis-dogrula/page.tsx"),
+    source("app/api/return-requests/route.ts"),
+    source("drizzle/0044_oval_baron_strucker.sql"),
+  ]);
+  assert.match(verification, /eq\(orders\.verificationTokenHash,hash\),gt\(orders\.verificationExpiresAt,now\)/);
+  assert.match(verification, /\.returning\(\)/);
+  assert.match(verification, /if\(expired\.promotionId&&expired\.paymentStatus!=="paid"\)await releasePromotionClaim/);
+  assert.doesNotMatch(verification, /db\.select\(\)\.from\(orders\)\.where\(eq\(orders\.verificationTokenHash,hash\)\)/);
+  assert.match(schema, /return_requests_one_open_type_per_order/);
+  assert.match(migration, /Aynı sipariş ve talep türü için yinelenen açık kayıt/);
+  assert.match(migration, /CREATE UNIQUE INDEX `return_requests_one_open_type_per_order`/);
+  assert.match(returnsApi, /\.onConflictDoNothing\(\)\.returning\(\)/);
+  assert.match(returnsApi, /eq\(returnRequests\.status,existing\.status\)/);
+  assert.match(returnsApi, /eq\(returnRequests\.updatedAt,existing\.updatedAt\)/);
+});

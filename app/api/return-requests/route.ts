@@ -45,8 +45,8 @@ export async function POST(request:Request) {
   const existing=await db.select().from(returnRequests).where(and(eq(returnRequests.orderId,order.id),eq(returnRequests.requestType,requestType),inArray(returnRequests.status,["new","reviewing","approved"]))).limit(1);
   if(existing.length)return Response.json({error:"Bu sipariş için aynı türde açık bir talep zaten bulunuyor.",requestNumber:existing[0].requestNumber},{status:409});
   const requestNumber=`RT-${new Date().toISOString().slice(0,10).replaceAll("-","")}-${crypto.randomUUID().slice(0,6).toUpperCase()}`;
-  const[row]=await db.insert(returnRequests).values({requestKey,requestNumber,orderId:order.id,requestType,reason,details,privacyAcknowledgedAt:new Date().toISOString()}).onConflictDoNothing({target:returnRequests.requestKey}).returning();
-  if(!row){const[retry]=await db.select().from(returnRequests).where(eq(returnRequests.requestKey,requestKey)).limit(1);if(retry)return Response.json({requestNumber:retry.requestNumber,status:retry.status},{status:200});return Response.json({error:"Talep kaydedilemedi."},{status:409});}
+  const[row]=await db.insert(returnRequests).values({requestKey,requestNumber,orderId:order.id,requestType,reason,details,privacyAcknowledgedAt:new Date().toISOString()}).onConflictDoNothing().returning();
+  if(!row){const[retry]=await db.select().from(returnRequests).where(eq(returnRequests.requestKey,requestKey)).limit(1);if(retry)return Response.json({requestNumber:retry.requestNumber,status:retry.status},{status:200});const[openRequest]=await db.select().from(returnRequests).where(and(eq(returnRequests.orderId,order.id),eq(returnRequests.requestType,requestType),inArray(returnRequests.status,["new","reviewing","approved"]))).limit(1);if(openRequest)return Response.json({error:"Bu sipariş için aynı türde açık bir talep zaten bulunuyor.",requestNumber:openRequest.requestNumber},{status:409});return Response.json({error:"Talep kaydedilemedi."},{status:409});}
   return Response.json({requestNumber:row.requestNumber,status:row.status},{status:201});
 }
 
@@ -64,8 +64,8 @@ export async function PATCH(request:Request) {
   if(!order)return Response.json({error:"Talebe bağlı sipariş bulunamadı."},{status:409});
   if(status==="completed"&&existing.requestType==="cancellation"&&order.status!=="cancelled")return Response.json({error:"İptal talebi, sipariş iptal edilmeden tamamlanamaz."},{status:409});
   if(status==="completed"&&existing.requestType==="return"&&["paid","partially_refunded"].includes(order.paymentStatus))return Response.json({error:"İade talebi, ödeme defterinde ücret iadesi tamamlanmadan kapatılamaz."},{status:409});
-  const[row]=await db.update(returnRequests).set({status,adminNote:String(body.adminNote??"").trim().slice(0,2000),updatedAt:new Date().toISOString()}).where(eq(returnRequests.id,id)).returning();
-  if(!row)return Response.json({error:"Talep bulunamadı."},{status:404});
+  const[row]=await db.update(returnRequests).set({status,adminNote:String(body.adminNote??"").trim().slice(0,2000),updatedAt:new Date().toISOString()}).where(and(eq(returnRequests.id,id),eq(returnRequests.status,existing.status),eq(returnRequests.updatedAt,existing.updatedAt))).returning();
+  if(!row)return Response.json({error:"Talep bu sırada başka bir işlem tarafından güncellendi. Güncel kaydı açıp tekrar deneyin."},{status:409,headers:privateNoStore});
   await recordAudit({user,action:"return_request.update",entityType:"return_request",entityId:row.id,summary:`${row.requestNumber} talebi ${status} durumuna alındı.`,before:{status:existing.status,adminNote:existing.adminNote},after:{status:row.status,adminNote:row.adminNote}});
   return Response.json({request:row},{headers:privateNoStore});
 }

@@ -1,8 +1,9 @@
-import {eq} from "drizzle-orm";
+import {and,eq,gt,lte,ne,or} from "drizzle-orm";
 import {getDb} from "../../db";
 import {orders} from "../../db/schema";
 import {releaseOrderReservation} from "../inventory-reservations";
 import {hashVerificationToken} from "../order-verification";
+import {releasePromotionClaim} from "../promotions";
 import "./verification.css";
 
 export const dynamic="force-dynamic";
@@ -13,18 +14,11 @@ async function verifyToken(token:string){
   if(!/^[a-f0-9]{64}$/i.test(token))return{state,orderNumber};
   const hash=await hashVerificationToken(token);
   const db=getDb();
-  const[order]=await db.select().from(orders).where(eq(orders.verificationTokenHash,hash)).limit(1);
-  if(!order)return{state,orderNumber};
-  orderNumber=order.orderNumber;
-  const now=new Date();
-  if(order.status==="cancelled"||!order.verificationExpiresAt||new Date(order.verificationExpiresAt)<now){
-    await releaseOrderReservation(db,order.id,"expired");
-    await db.update(orders).set({status:"cancelled",verificationTokenHash:"",verificationExpiresAt:null,updatedAt:now.toISOString()}).where(eq(orders.id,order.id));
-    state="expired";
-  }else{
-    await db.update(orders).set({emailVerifiedAt:now.toISOString(),verificationTokenHash:"",verificationExpiresAt:null,updatedAt:now.toISOString()}).where(eq(orders.id,order.id));
-    state="verified";
-  }
+  const now=new Date().toISOString();
+  const[verified]=await db.update(orders).set({emailVerifiedAt:now,verificationTokenHash:"",verificationExpiresAt:null,updatedAt:now}).where(and(eq(orders.verificationTokenHash,hash),gt(orders.verificationExpiresAt,now),ne(orders.status,"cancelled"))).returning();
+  if(verified){state="verified";orderNumber=verified.orderNumber;return{state,orderNumber};}
+  const[expired]=await db.update(orders).set({status:"cancelled",verificationTokenHash:"",verificationExpiresAt:null,updatedAt:now}).where(and(eq(orders.verificationTokenHash,hash),or(eq(orders.status,"cancelled"),lte(orders.verificationExpiresAt,now)))).returning();
+  if(expired){orderNumber=expired.orderNumber;await releaseOrderReservation(db,expired.id,"expired");if(expired.promotionId&&expired.paymentStatus!=="paid")await releasePromotionClaim(db,{orderId:expired.id,promotionId:expired.promotionId});state="expired";}
   return{state,orderNumber};
 }
 
