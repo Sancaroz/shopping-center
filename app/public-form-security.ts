@@ -55,3 +55,14 @@ export function isValidRequestKey(value: unknown) {
 export function isValidOrderNumber(value: string) {
   return /^MS-\d{8}-[A-Z0-9]{6}$/.test(value);
 }
+
+export function boundedText(value: unknown, maxLength: number) {
+  if (value === undefined || value === null) return "";
+  if (typeof value !== "string" || value.length > maxLength || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value)) return null;
+  return value.trim();
+}
+
+export function isValidPhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits.length >= 7 && digits.length <= 15 && /^[+0-9 ().-]+$/.test(value);
+}

@@ -1,6 +1,7 @@
 import {and,eq,isNull} from "drizzle-orm";
 import {getDb} from "../../../db";
 import {cartItems,carts,products,productVariants} from "../../../db/schema";
+import {readBoundedJson} from "../../public-form-security";
 
 const COOKIE="store_cart";
 function cookieToken(request:Request){return request.headers.get("cookie")?.split(";").map(value=>value.trim()).find(value=>value.startsWith(`${COOKIE}=`))?.slice(COOKIE.length+1)??null;}
@@ -17,7 +18,7 @@ export async function GET(request:Request){
 }
 
 export async function POST(request:Request){
-  const session=await lookupCart(request);const{db}=session;const body=await request.json().catch(()=>null) as{productId?:number;variantId?:number|null;quantity?:number;market?:string}|null;
+  const session=await lookupCart(request);const{db}=session;const parsed=await readBoundedJson(request,2_000);if(parsed.error)return parsed.error;const body=parsed.body as{productId?:number;variantId?:number|null;quantity?:number;market?:string};
   if(!body)return response({error:"Geçersiz sepet isteği."},session.token,false,400,request);
   const productId=Number(body.productId);const variantId=body.variantId?Number(body.variantId):null;const quantity=Number(body.quantity??1);const market=body.market==="GLOBAL"?"GLOBAL":"TR";
   if(!productId||!Number.isInteger(quantity)||quantity<1||quantity>100)return response({error:"Geçersiz ürün veya adet."},session.token,false,400,request);
@@ -34,7 +35,7 @@ export async function POST(request:Request){
 
 export async function PATCH(request:Request){
   const{db,cart,token}=await lookupCart(request);if(!cart)return response({error:"Sepet bulunamadı."},token,false,404,request);
-  const body=await request.json().catch(()=>null) as{id?:number;quantity?:number}|null;const id=Number(body?.id);const quantity=Number(body?.quantity);if(!id||!Number.isInteger(quantity)||quantity<0||quantity>100)return response({error:"Geçersiz sepet adedi."},token,false,400,request);
+  const parsed=await readBoundedJson(request,2_000);if(parsed.error)return parsed.error;const body=parsed.body as{id?:number;quantity?:number};const id=Number(body?.id);const quantity=Number(body?.quantity);if(!id||!Number.isInteger(quantity)||quantity<0||quantity>100)return response({error:"Geçersiz sepet adedi."},token,false,400,request);
   const[item]=await db.select().from(cartItems).where(and(eq(cartItems.id,id),eq(cartItems.cartId,cart.id))).limit(1);if(!item)return response({error:"Sepet ürünü bulunamadı"},token,false,404,request);if(quantity===0){await db.delete(cartItems).where(eq(cartItems.id,id));return response({ok:true},token,false,200,request);}
   const[product]=await db.select().from(products).where(eq(products.id,item.productId)).limit(1);if(!product||!product.active)return response({error:"Ürün artık satışta değil."},token,false,409,request);if((cart.market==="TR"&&!product.marketTr)||(cart.market==="GLOBAL"&&!product.marketGlobal))return response({error:cart.market==="GLOBAL"?"Product is no longer available in the global store.":"Ürün artık Türkiye mağazasında satışta değil."},token,false,409,request);let maximum=product.stock;if(item.variantId){const[variant]=await db.select().from(productVariants).where(and(eq(productVariants.id,item.variantId),eq(productVariants.active,true))).limit(1);if(!variant)return response({error:"Ürün seçeneği artık satışta değil."},token,false,409,request);maximum=variant.stock;}if(quantity>maximum)return response({error:`En fazla ${maximum} adet seçebilirsiniz.`,maximum},token,false,409,request);await db.update(cartItems).set({quantity}).where(eq(cartItems.id,id));return response({ok:true,quantity},token,false,200,request);
 }

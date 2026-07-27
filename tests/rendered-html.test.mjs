@@ -1266,3 +1266,32 @@ test("protects order tracking and makes after-sales requests idempotent", async 
   assert.match(migration, /return_requests_request_key_unique/);
   assert.match(migration, /privacy_requests_request_key_unique/);
 });
+
+test("rejects malformed checkout data before reserving inventory", async () => {
+  const [security,ordersApi,cartApi,promotionApi,checkout] = await Promise.all([
+    source("app/public-form-security.ts"),
+    source("app/api/orders/route.ts"),
+    source("app/api/cart/route.ts"),
+    source("app/api/promotions/validate/route.ts"),
+    source("app/teslimat/page.tsx"),
+  ]);
+  assert.match(security, /export function boundedText/);
+  assert.match(security, /digits\.length >= 7 && digits\.length <= 15/);
+  assert.match(ordersApi, /readBoundedJson\(request,20_000\)/);
+  assert.match(ordersApi, /body\.company/);
+  assert.match(ordersApi, /isValidEmail\(email\)/);
+  assert.match(ordersApi, /isValidPhone\(phone\)/);
+  assert.match(ordersApi, /isValidRequestKey\(requestKey\)/);
+  assert.match(ordersApi, /body\.privacyConsent!==true/);
+  assert.match(ordersApi, /body\.termsConsent!==true/);
+  assert.match(ordersApi, /containsLikelyCardNumber/);
+  assert.match(ordersApi, /duplicate\.email!==email/);
+  assert.match(ordersApi, /billingSameAsDelivery===true&&billingTypeInput!=="corporate"/);
+  assert.match(ordersApi, /postalCode, country:quote\.country/);
+  assert.match(cartApi, /readBoundedJson\(request,2_000\)/);
+  assert.match(promotionApi, /readBoundedJson\(request,2_000\)/);
+  assert.match(checkout, /name="customerName"[^>]*minLength=\{2\}[^>]*maxLength=\{120\}/);
+  assert.match(checkout, /name="address"[^>]*maxLength=\{600\}/);
+  assert.match(checkout, /name="note"[^>]*maxLength=\{1000\}/);
+  assert.match(checkout, /name="company"/);
+});

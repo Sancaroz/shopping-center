@@ -10,6 +10,7 @@ import { releaseExpiredReservations, releaseOrderReservation, reserveInventory }
 import { createVerificationToken, hashVerificationToken } from "../../order-verification";
 import {evaluatePromotion,hashPromotionEmail,releasePromotionClaim} from "../../promotions";
 import {buildOrderContractSnapshot} from "../../order-contract";
+import {boundedText,containsLikelyCardNumber,isValidEmail,isValidPhone,isValidRequestKey,normalizeEmail,readBoundedJson} from "../../public-form-security";
 
 const COOKIE = "store_cart";
 const tokenFrom = (request:Request) => request.headers.get("cookie")?.split(";").map(value => value.trim()).find(value => value.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1) ?? null;
@@ -33,34 +34,30 @@ export async function GET(request:Request) {
 export async function POST(request:Request) {
   const token = tokenFrom(request);
   if (!token) return Response.json({ error:"Çantanız bulunamadı." }, { status:400 });
-  const contentLength=Number(request.headers.get("content-length")??0);
-  if(contentLength>20_000)return Response.json({error:"Gönderilen bilgiler çok uzun."},{status:413});
-  const body = await request.json().catch(()=>null) as Record<string, unknown>|null;
-  if(!body)return Response.json({error:"Geçersiz sipariş bilgisi."},{status:400});
-  const customerName = String(body.customerName ?? "").trim().slice(0,120);
-  const email = String(body.email ?? "").trim().toLocaleLowerCase("en-US").slice(0,180);
-  const phone = String(body.phone ?? "").trim().slice(0,40);
-  const address = String(body.address ?? "").trim().slice(0,600);
-  const city = String(body.city ?? "").trim().slice(0,120);
-  const country = String(body.country ?? "").trim().slice(0,100);
-  const billingType=body.billingType==="corporate"?"corporate":"individual";const billingSameAsDelivery=body.billingSameAsDelivery===true||body.billingSameAsDelivery==="on";
-  const billingName=(billingSameAsDelivery?customerName:String(body.billingName??"")).trim().slice(0,180);
-  const billingAddress=(billingSameAsDelivery?address:String(body.billingAddress??"")).trim().slice(0,600);
-  const billingCity=(billingSameAsDelivery?city:String(body.billingCity??"")).trim().slice(0,120);
-  const billingPostalCode=(billingSameAsDelivery?String(body.postalCode??""):String(body.billingPostalCode??"")).trim().slice(0,30);
-  const billingCountry=(billingSameAsDelivery?country:String(body.billingCountry??"")).trim().slice(0,100);
-  const billingTaxOffice=String(body.billingTaxOffice??"").trim().slice(0,120);const billingTaxNumber=String(body.billingTaxNumber??"").replace(/\s/g,"").slice(0,30);
-  const requestKey=String(body.requestKey??"").trim().slice(0,80);
-  const consent=body.privacyConsent===true||body.privacyConsent==="on";
-  const termsConsent=body.termsConsent===true||body.termsConsent==="on";
-  if (!customerName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || phone.replace(/\D/g,"").length<7 || !address || !city || !country || !consent || !termsConsent || !/^[a-f0-9-]{20,80}$/i.test(requestKey)) return Response.json({ error:"Lütfen zorunlu teslimat ve onay bilgilerini eksiksiz girin." }, { status:400 });
+  const parsed=await readBoundedJson(request,20_000);if(parsed.error)return parsed.error;const body=parsed.body!;
+  if(String(body.company??"").trim())return Response.json({ok:true},{status:201,headers:{"Cache-Control":"no-store"}});
+  const customerName=boundedText(body.customerName,120);const email=normalizeEmail(body.email);const phone=boundedText(body.phone,40);
+  const address=boundedText(body.address,600);const city=boundedText(body.city,120);const postalCode=boundedText(body.postalCode,30);const country=boundedText(body.country,100);const note=boundedText(body.note,1000);
+  const billingTypeInput=body.billingType;const billingSameAsDelivery=body.billingSameAsDelivery;
+  const billingName=billingSameAsDelivery===true&&billingTypeInput!=="corporate"?customerName:boundedText(body.billingName,180);
+  const billingAddress=billingSameAsDelivery===true?address:boundedText(body.billingAddress,600);
+  const billingCity=billingSameAsDelivery===true?city:boundedText(body.billingCity,120);
+  const billingPostalCode=billingSameAsDelivery===true?postalCode:boundedText(body.billingPostalCode,30);
+  const billingCountry=billingSameAsDelivery===true?country:boundedText(body.billingCountry,100);
+  const billingTaxOffice=boundedText(body.billingTaxOffice,120);const rawTaxNumber=boundedText(body.billingTaxNumber,30);const billingTaxNumber=rawTaxNumber?.replace(/\s/g,"")??null;
+  const requestKey=String(body.requestKey??"");
+  if(!["individual","corporate"].includes(String(billingTypeInput))||typeof billingSameAsDelivery!=="boolean")return Response.json({error:"Fatura seçimi geçersiz."},{status:400});
+  const billingType=billingTypeInput as "individual"|"corporate";
+  if (!customerName || customerName.length<2 || !isValidEmail(email) || !phone || !isValidPhone(phone) || !address || address.length<5 || !city || city.length<2 || !country || postalCode===null || note===null || body.privacyConsent!==true || body.termsConsent!==true || !isValidRequestKey(requestKey)) return Response.json({ error:"Lütfen zorunlu teslimat ve onay bilgilerini eksiksiz girin." }, { status:400 });
   if(!billingName||!billingAddress||!billingCity||!billingCountry)return Response.json({error:"Fatura adı ve adres bilgileri eksiksiz girilmelidir."},{status:400});
-  if(billingType==="corporate"&&(!/^[A-Za-z0-9.-]{5,30}$/.test(billingTaxNumber)||(country==="Türkiye"&&!billingTaxOffice)))return Response.json({error:"Kurumsal fatura için geçerli vergi numarası ve Türkiye siparişlerinde vergi dairesi zorunludur."},{status:400});
+  if([billingPostalCode,billingTaxOffice,billingTaxNumber].includes(null))return Response.json({error:"Fatura bilgileri izin verilen uzunluğu aşıyor."},{status:400});
+  if(containsLikelyCardNumber([address,billingAddress,note].join(" ")))return Response.json({error:"Güvenliğiniz için sipariş veya adres alanlarına kart numarası yazmayın."},{status:400});
+  if(billingType==="corporate"&&(!billingTaxNumber||!/^[A-Za-z0-9.-]{5,30}$/.test(billingTaxNumber)||(country==="Türkiye"&&!billingTaxOffice)))return Response.json({error:"Kurumsal fatura için geçerli vergi numarası ve Türkiye siparişlerinde vergi dairesi zorunludur."},{status:400});
   const limited=await enforceRateLimit(request,{scope:"order_create",identifier:email,limit:10,windowMinutes:60});if(limited)return limited;
 
   const db = getDb();
   const[duplicate]=await db.select().from(orders).where(eq(orders.requestKey,requestKey)).limit(1);
-  if(duplicate)return Response.json({orderNumber:duplicate.orderNumber,subtotal:duplicate.subtotal,discountAmount:duplicate.discountAmount,shippingAmount:duplicate.shippingAmount,total:duplicate.total,market:duplicate.market},{status:200});
+  if(duplicate){if(duplicate.email!==email)return Response.json({error:"Bu sipariş isteği doğrulanamadı."},{status:409});return Response.json({orderNumber:duplicate.orderNumber,subtotal:duplicate.subtotal,discountAmount:duplicate.discountAmount,shippingAmount:duplicate.shippingAmount,total:duplicate.total,market:duplicate.market},{status:200});}
   const settingRows=await db.select().from(storeSettings);const settings=Object.fromEntries(settingRows.map(row=>[row.key,row.value]));
   if(settings.orderIntakeStatus==="paused")return Response.json({error:"Sipariş talepleri kısa süreliğine durduruldu. Lütfen daha sonra yeniden deneyin."},{status:503,headers:{"Retry-After":"900","Cache-Control":"no-store"}});
   const [cart] = await db.select().from(carts).where(eq(carts.token, token)).limit(1);
@@ -94,8 +91,8 @@ export async function POST(request:Request) {
   const consentAt=new Date().toISOString();
   let order:typeof orders.$inferSelect|undefined;try{[order] = await db.insert(orders).values({
     orderNumber, market:cart.market, customerName, email, phone, address, city,
-    postalCode:String(body.postalCode ?? "").trim().slice(0,30), country:quote.country,
-    note:String(body.note ?? "").trim().slice(0,1000), subtotal,shippingAmount,total,discountAmount,promotionId:promotionResult.promotion?.id??null,promoCode:promotionResult.promotion?.code??"",requestKey,privacyConsentAt:consentAt,termsConsentAt:consentAt,termsVersion:contractSnapshot.version,termsSnapshotJson:contractSnapshot.json,termsSnapshotHash:contractSnapshot.hash,inventoryApplied:true,reservationState:"active",reservationExpiresAt:verificationExpiresAt,verificationTokenHash,verificationExpiresAt,billingType,billingName,billingAddress,billingCity,billingPostalCode,billingCountry,billingTaxOffice,billingTaxNumber,pricingTaxStatus:settings.taxDisplayMode??"pending",sellerSnapshotJson,
+    postalCode, country:quote.country,
+    note, subtotal,shippingAmount,total,discountAmount,promotionId:promotionResult.promotion?.id??null,promoCode:promotionResult.promotion?.code??"",requestKey,privacyConsentAt:consentAt,termsConsentAt:consentAt,termsVersion:contractSnapshot.version,termsSnapshotJson:contractSnapshot.json,termsSnapshotHash:contractSnapshot.hash,inventoryApplied:true,reservationState:"active",reservationExpiresAt:verificationExpiresAt,verificationTokenHash,verificationExpiresAt,billingType,billingName,billingAddress,billingCity,billingPostalCode:billingPostalCode??"",billingCountry,billingTaxOffice:billingTaxOffice??"",billingTaxNumber:billingTaxNumber??"",pricingTaxStatus:settings.taxDisplayMode??"pending",sellerSnapshotJson,
   }).returning();
   await db.insert(orderItems).values(priced.map(line => ({
     orderId:order.id, productId:line.productId, variantId:line.variantId, productName:cart.market==="GLOBAL"?(line.productNameEn||line.productName):line.productName,
