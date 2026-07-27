@@ -1,6 +1,6 @@
 import {and,desc,eq} from "drizzle-orm";
 import {getDb} from "../../../db";
-import {newsletterOutbox,notificationOutbox,orders} from "../../../db/schema";
+import {newsletterOutbox,newsletterSubscribers,notificationOutbox,orders} from "../../../db/schema";
 import {recordAudit} from "../../audit-log";
 import {getChatGPTUser} from "../../chatgpt-auth";
 import {getIntegrationStatus} from "../../integrations/runtime";
@@ -27,6 +27,7 @@ export async function PATCH(request:Request){
   const db=getDb();const table=source==="newsletter"?newsletterOutbox:notificationOutbox;const[current]=await db.select().from(table).where(eq(table.id,id)).limit(1);
   if(!current)return Response.json({error:"Bildirim bulunamadı"},{status:404,headers:noStore});
   if(current.status==="cancelled")return Response.json({error:"Geçersiz doğrulama bağlantısı yeniden kuyruğa alınamaz."},{status:409,headers:noStore});
+  if(source==="newsletter"&&status==="draft"){const[subscriber]=await db.select({status:newsletterSubscribers.status,verificationExpiresAt:newsletterSubscribers.verificationExpiresAt}).from(newsletterSubscribers).where(eq(newsletterSubscribers.id,current.subscriberId)).limit(1);const eligible=current.eventType==="verification"?subscriber?.status==="pending_verification"&&Boolean(subscriber.verificationExpiresAt&&subscriber.verificationExpiresAt>new Date().toISOString()):subscriber?.status==="active";if(!eligible)return Response.json({error:"Abonelik durumu veya doğrulama süresi bu iletiyi yeniden göndermeye uygun değil."},{status:409,headers:noStore});}
   if(!canManageNotificationStatus(current.status,status,current.attempts))return Response.json({error:current.status==="failed"&&current.attempts>=3?"Bildirim üç başarısız denemeden sonra otomatik yeniden kuyruğa alınamaz.":"Bildirim mevcut durumundan bu duruma geçirilemez."},{status:409,headers:noStore});
   const now=new Date().toISOString();const[row]=await db.update(table).set({status,deliveryClaimKey:"",deliveryClaimedAt:null,nextAttemptAt:null,...(status==="draft"?{lastError:""}:{}),updatedAt:now}).where(and(eq(table.id,id),eq(table.status,current.status),eq(table.updatedAt,current.updatedAt))).returning();
   if(!row)return Response.json({error:"Bildirim bu sırada başka bir işlem tarafından güncellendi. Güncel kuyruğu açıp tekrar deneyin."},{status:409,headers:noStore});

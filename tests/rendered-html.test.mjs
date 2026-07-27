@@ -756,9 +756,10 @@ test("tracks privacy rights requests without automatic deletion or identity docu
 });
 
 test("requires newsletter verification and supports one-click unsubscribe", async () => {
-  const [schema,api,verifyApi,unsubscribeApi,home,verifyPage,preferencePage,panel,operations,auditCenter,backup,exportApi,migration,notificationsApi,notificationsCenter] = await Promise.all([
+  const [schema,api,contract,verifyApi,unsubscribeApi,home,verifyPage,preferencePage,panel,operations,auditCenter,backup,exportApi,migration,notificationsApi,notificationsCenter] = await Promise.all([
     source("db/schema.ts"),
     source("app/api/newsletter/route.ts"),
+    source("app/newsletter-subscription.ts"),
     source("app/api/newsletter/verify/route.ts"),
     source("app/api/newsletter/unsubscribe/route.ts"),
     source("app/page.tsx"),
@@ -779,10 +780,12 @@ test("requires newsletter verification and supports one-click unsubscribe", asyn
   assert.match(api, /pending_verification/);
   assert.match(api, /body\.consent!==true/);
   assert.match(api, /48\*60\*60\*1000/);
-  assert.match(api, /status:"draft"/);
+  assert.match(contract, /status:sql<string>`\$\{"draft"\}`/);
   assert.match(api, /newsletter\.unsubscribe/);
-  assert.match(verifyApi, /verificationExpiresAt/);
-  assert.match(unsubscribeApi, /status:"unsubscribed"/);
+  assert.match(contract, /verificationExpiresAt/);
+  assert.match(contract, /status:"unsubscribed"/);
+  assert.match(verifyApi, /verifyNewsletterSubscriber/);
+  assert.match(unsubscribeApi, /unsubscribeNewsletterSubscriber/);
   assert.match(home, /Doğrulama bağlantınız hazırlandı/);
   assert.match(home, /consent:true/);
   assert.match(verifyPage, /Aboneliğiniz aktif/);
@@ -1205,12 +1208,13 @@ test("validates storefront links and preserves audited homepage blocks", async (
 });
 
 test("hardens public contact and newsletter consent workflows", async () => {
-  const [security,contactApi,contactPage,supportCenter,newsletterApi,verifyApi,unsubscribeApi,notificationsApi,notificationCenter,schema,migration] = await Promise.all([
+  const [security,contactApi,contactPage,supportCenter,newsletterApi,newsletterContract,verifyApi,unsubscribeApi,notificationsApi,notificationCenter,schema,migration] = await Promise.all([
     source("app/public-form-security.ts"),
     source("app/api/contact/route.ts"),
     source("app/iletisim/page.tsx"),
     source("app/admin/destek/support-center.tsx"),
     source("app/api/newsletter/route.ts"),
+    source("app/newsletter-subscription.ts"),
     source("app/api/newsletter/verify/route.ts"),
     source("app/api/newsletter/unsubscribe/route.ts"),
     source("app/api/notifications/route.ts"),
@@ -1231,12 +1235,12 @@ test("hardens public contact and newsletter consent workflows", async () => {
   assert.match(supportCenter, /Gizlilik onayı:/);
   assert.match(newsletterApi, /body\.company/);
   assert.match(newsletterApi, /10\*60_000/);
-  assert.match(newsletterApi, /status:"cancelled"/);
-  assert.match(newsletterApi, /unsubscribeTokenHash:""/);
+  assert.match(newsletterContract, /status:"cancelled"/);
+  assert.match(newsletterContract, /unsubscribeTokenHash:""/);
   assert.match(verifyApi, /isValidPublicToken/);
   assert.match(verifyApi, /newsletter_verify/);
   assert.match(unsubscribeApi, /newsletter_unsubscribe/);
-  assert.match(unsubscribeApi, /unsubscribeTokenHash:""/);
+  assert.match(unsubscribeApi, /unsubscribeNewsletterSubscriber/);
   assert.match(notificationsApi, /current\.status==="cancelled"/);
   assert.match(notificationCenter, /notificationStatusLabel/);
   assert.match(schema, /privacyAcknowledgedAt: text\("privacy_acknowledged_at"\)/);
@@ -1600,13 +1604,14 @@ test("reserves sensitive governance data and controls for the store owner", asyn
 });
 
 test("keeps owner-only navigation and draft secrets out of lower-privilege responses", async () => {
-  const [adminPage,panel,operationsPage,operationsCenter,settings,newsletter] = await Promise.all([
+  const [adminPage,panel,operationsPage,operationsCenter,settings,newsletter,newsletterContract] = await Promise.all([
     source("app/admin/page.tsx"),
     source("app/admin/panel.tsx"),
     source("app/admin/operasyon/page.tsx"),
     source("app/admin/operasyon/operations-center.tsx"),
     source("app/api/settings/route.ts"),
     source("app/api/newsletter/route.ts"),
+    source("app/newsletter-subscription.ts"),
   ]);
   assert.match(adminPage, /isOwner=user\.role==="owner"/);
   assert.match(adminPage, /<AdminPanel userName=\{user\.displayName\} isOwner=\{isOwner\}/);
@@ -1622,7 +1627,7 @@ test("keeps owner-only navigation and draft secrets out of lower-privilege respo
   assert.match(newsletter, /id:newsletterSubscribers\.id,email:newsletterSubscribers\.email/);
   assert.doesNotMatch(newsletter, /const\[subscribers,outbox\]=await Promise\.all\(\[db\.select\(\)/);
   assert.doesNotMatch(newsletter, /newsletterSubscribers\.id\)\),db\.select\(\)\.from\(newsletterOutbox\)/);
-  assert.match(newsletter, /returning\(\{id:newsletterSubscribers\.id/);
+  assert.match(newsletterContract, /returning\(\{id:newsletterSubscribers\.id/);
 });
 
 test("keeps emergency sales controls and newsletter action links owner-only", async () => {
@@ -1976,4 +1981,29 @@ test("derives a stable opaque provider idempotency key for every email event", a
   const {notificationProviderIdempotencyKey}=await importTypescriptModule("app/notification-delivery-key.ts");
   const first=await notificationProviderIdempotencyKey("order","42:confirmed");const retry=await notificationProviderIdempotencyKey("order","42:confirmed");const otherEvent=await notificationProviderIdempotencyKey("order","42:shipped");const otherQueue=await notificationProviderIdempotencyKey("newsletter","42:confirmed");
   assert.equal(first,retry);assert.match(first,/^mysa_[a-f0-9]{64}$/);assert.notEqual(first,otherEvent);assert.notEqual(first,otherQueue);assert.doesNotMatch(first,/confirmed|42/);
+});
+
+test("serializes newsletter consent and blocks delivery to ineligible subscribers", async () => {
+  const [contract,api,verify,unsubscribe,queue,notifications] = await Promise.all([
+    source("app/newsletter-subscription.ts"),
+    source("app/api/newsletter/route.ts"),
+    source("app/api/newsletter/verify/route.ts"),
+    source("app/api/newsletter/unsubscribe/route.ts"),
+    source("app/notification-queue.ts"),
+    source("app/api/notifications/route.ts"),
+  ]);
+  assert.match(contract, /setWhere:ne\(newsletterSubscribers\.status,"active"\)/);
+  assert.match(contract, /db\.batch\(\[subscriberWrite,cancelPrior,enqueue\]\)/);
+  assert.match(contract, /eventKey=`newsletter:verify:\$\{input\.verificationTokenHash\}`/);
+  assert.doesNotMatch(contract, /verificationTokenHash\.slice/);
+  assert.match(contract, /inArray\(newsletterOutbox\.status,cancellableStatuses\)/);
+  assert.match(contract, /db\.batch\(\[subscriberWrite,cancelQueued\]\)/);
+  assert.match(api, /createNewsletterVerification\(db,/);
+  assert.match(api, /result==="active"/);
+  assert.match(verify, /verifyNewsletterSubscriber\(db,/);
+  assert.match(unsubscribe, /unsubscribeNewsletterSubscriber\(db,/);
+  assert.match(queue, /const newsletterEligible=/);
+  assert.match(queue, /eq\(newsletterSubscribers\.status,"pending_verification"\),gt\(newsletterSubscribers\.verificationExpiresAt,nowIso\)/);
+  assert.match(queue, /not\(newsletterEligible\(\)\)/);
+  assert.match(notifications, /Abonelik durumu veya doğrulama süresi bu iletiyi yeniden göndermeye uygun değil/);
 });
