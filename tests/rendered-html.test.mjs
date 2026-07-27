@@ -1957,7 +1957,7 @@ test("receives replenishment stock and its ledger entry atomically", async () =>
   assert.match(api, /const movementRecorded=exists\(movementLookup\)/);
   assert.match(api, /db\.insert\(inventoryMovements\)\.select\(db\.select/);
   assert.match(api, /const results=await db\.batch\(\[stockUpdate,movementInsert,claimUpdate\]\)/);
-  assert.match(api, /eq\(replenishments\.status,"ordered"\),movementRecorded/);
+  assert.match(api, /eq\(replenishments\.status,"ordered"\),eq\(replenishments\.updatedAt,expectedUpdatedAt\),movementRecorded/);
   assert.doesNotMatch(api, /stockApplied=false/);
   assert.doesNotMatch(api, /Stok girişi tamamlanamadı; tedarik kaydı beklemeye geri alındı/);
 });
@@ -2213,4 +2213,21 @@ test("rejects stale variant and gallery mutations after inventory or editor chan
   assert.match(migration, /UPDATE `product_images` SET `updated_at`/);
   assert.match(migration, /UPDATE `product_variants` SET `updated_at`/);
   assert.match(backup, /BACKUP_SCHEMA_VERSION = 21/);
+});
+
+test("rejects stale promotion and replenishment actions before changing limits or stock", async () => {
+  const [promotionsApi,promotionCenter,replenishmentsApi,replenishmentCenter] = await Promise.all([
+    source("app/api/promotions/route.ts"),
+    source("app/admin/kampanyalar/promotion-center.tsx"),
+    source("app/api/replenishments/route.ts"),
+    source("app/admin/tedarik/replenishment-center.tsx"),
+  ]);
+  assert.match(promotionsApi, /eq\(promotions\.updatedAt,expectedUpdatedAt\)/);
+  assert.match(promotionsApi, /eq\(promotions\.usedCount,before\.usedCount\)/);
+  assert.match(promotionCenter, /expectedUpdatedAt:item\.updatedAt/);
+  assert.match(replenishmentsApi, /before\.updatedAt!==expectedUpdatedAt/);
+  assert.match(replenishmentsApi, /eq\(replenishments\.status,"draft"\),eq\(replenishments\.updatedAt,expectedUpdatedAt\)/);
+  assert.match(replenishmentsApi, /eq\(replenishments\.status,before\.status\),eq\(replenishments\.updatedAt,expectedUpdatedAt\)/);
+  assert.match(replenishmentsApi, /pendingClaim=exists[\s\S]*eq\(replenishments\.updatedAt,expectedUpdatedAt\)/);
+  assert.match(replenishmentCenter, /expectedUpdatedAt:row\.updatedAt/);
 });
