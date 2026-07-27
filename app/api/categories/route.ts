@@ -23,7 +23,7 @@ export async function POST(request:Request) {
   if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)||slug.length>160)return Response.json({error:"Kategori kodu yalnızca küçük harf, rakam ve tire içermelidir."},{status:400});
   if(parentId!==null&&(!Number.isInteger(parentId)||parentId<1))return Response.json({error:"Üst kategori geçersiz."},{status:400});if(sortOrder===null)return Response.json({error:"Kategori sırası 0 ile 10.000 arasında tam sayı olmalıdır."},{status:400});if(!isCatalogImageUrl(imageUrl))return Response.json({error:"Görsel bağlantısı güvenli bir HTTPS veya site içi adres olmalıdır."},{status:400});
   const db=getDb();const rows=await db.select().from(categories);const parentIssue=categoryParentIssue(rows,parentId,undefined,true);if(parentIssue)return Response.json({error:parentIssue},{status:409});
-  const[category]=await db.insert(categories).values({nameTr,nameEn,slug,parentId,imageUrl,sortOrder}).returning().catch(()=>[]);if(!category)return Response.json({error:"Bu kategori kodu daha önce kullanılmış."},{status:409});
+  const[category]=await db.insert(categories).values({nameTr,nameEn,slug,parentId,imageUrl,sortOrder,updatedAt:new Date().toISOString()}).returning().catch(()=>[]);if(!category)return Response.json({error:"Bu kategori kodu daha önce kullanılmış."},{status:409});
   await recordAudit({user,action:"category.create",entityType:"category",entityId:category.id,summary:`${category.nameTr} kategorisi oluşturuldu.`,after:category});return Response.json({category},{status:201});
 }
 
