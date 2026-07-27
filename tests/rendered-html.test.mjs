@@ -1793,3 +1793,15 @@ test("consumes order verification once and serializes open return requests", asy
   assert.match(returnsApi, /eq\(returnRequests\.status,existing\.status\)/);
   assert.match(returnsApi, /eq\(returnRequests\.updatedAt,existing\.updatedAt\)/);
 });
+
+test("receives replenishment stock and its ledger entry atomically", async () => {
+  const api = await source("app/api/replenishments/route.ts");
+  assert.match(api, /const movementLookup=db\.select/);
+  assert.match(api, /const movementMissing=notExists\(movementLookup\)/);
+  assert.match(api, /const movementRecorded=exists\(movementLookup\)/);
+  assert.match(api, /db\.insert\(inventoryMovements\)\.select\(db\.select/);
+  assert.match(api, /const results=await db\.batch\(\[stockUpdate,movementInsert,claimUpdate\]\)/);
+  assert.match(api, /eq\(replenishments\.status,"ordered"\),movementRecorded/);
+  assert.doesNotMatch(api, /stockApplied=false/);
+  assert.doesNotMatch(api, /Stok girişi tamamlanamadı; tedarik kaydı beklemeye geri alındı/);
+});
