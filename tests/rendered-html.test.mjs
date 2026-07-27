@@ -1704,3 +1704,19 @@ test("releases each inventory reservation only once under concurrent requests", 
   assert.match(reservations, /returning\(\{id:orders\.id\}\)/);
   assert.match(reservations, /if\(!Array\.isArray\(released\)\|\|!released\.length\)return false/);
 });
+
+test("records a matched payment and paid order state atomically only once", async () => {
+  const [schema,api,migration] = await Promise.all([
+    source("db/schema.ts"),
+    source("app/api/payment-transactions/route.ts"),
+    source("drizzle/0041_silly_lethal_legion.sql"),
+  ]);
+  assert.match(schema, /payment_transactions_one_matched_payment/);
+  assert.match(schema, /table\.kind\} = 'payment'/);
+  assert.match(migration, /CREATE UNIQUE INDEX `payment_transactions_one_matched_payment`/);
+  assert.match(api, /const transactionInsert=db\.insert\(paymentTransactions\)/);
+  assert.match(api, /\.onConflictDoNothing\(\)\.returning\(\)/);
+  assert.match(api, /const recordedTransaction=exists/);
+  assert.match(api, /const results=await db\.batch\(\[transactionInsert/);
+  assert.match(api, /Bu sipariş için başarılı tahsilat daha önce kaydedildi/);
+});

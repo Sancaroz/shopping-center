@@ -288,6 +288,13 @@
       "when": 1785167933613,
       "tag": "0040_vengeful_vargas",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1785175661373,
+      "tag": "0041_silly_lethal_legion",
+      "breakpoints": true
     }
   ]
 }

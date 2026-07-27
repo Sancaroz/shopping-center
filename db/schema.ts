@@ -184,7 +184,7 @@ export const paymentTransactions = sqliteTable("payment_transactions", {
   occurredAt: text("occurred_at").notNull(),
   actorEmail: text("actor_email").notNull().default(""),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-});
+}, table => [uniqueIndex("payment_transactions_one_matched_payment").on(table.orderId).where(sql`${table.kind} = 'payment' AND ${table.status} = 'succeeded' AND ${table.reconciliationStatus} = 'matched'`)]);
 
 export const fulfillmentChecklists = sqliteTable("fulfillment_checklists", {
   id: integer("id").primaryKey({ autoIncrement:true }),

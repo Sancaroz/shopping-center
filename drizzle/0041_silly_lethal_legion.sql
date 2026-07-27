@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `payment_transactions_one_matched_payment` ON `payment_transactions` (`order_id`) WHERE "payment_transactions"."kind" = 'payment' AND "payment_transactions"."status" = 'succeeded' AND "payment_transactions"."reconciliation_status" = 'matched';
