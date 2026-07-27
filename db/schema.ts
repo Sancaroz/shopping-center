@@ -336,6 +336,7 @@ export const contactMessages = sqliteTable("contact_messages", {
   orderId: integer("order_id").references(() => orders.id, { onDelete:"set null" }),
   subject: text("subject").notNull(),
   message: text("message").notNull(),
+  privacyAcknowledgedAt: text("privacy_acknowledged_at").notNull().default(""),
   status: text("status").notNull().default("new"),
   priority: text("priority").notNull().default("normal"),
   assignedTo: text("assigned_to").notNull().default(""),

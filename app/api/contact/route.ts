@@ -4,28 +4,31 @@ import { contactMessages, orders } from "../../../db/schema";
 import { recordAudit } from "../../audit-log";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { enforceRateLimit } from "../../rate-limit";
+import { containsLikelyCardNumber, isValidEmail, normalizeEmail, readBoundedJson } from "../../public-form-security";
 
 export const dynamic = "force-dynamic";
+const noStore={"Cache-Control":"no-store"};
 
 export async function GET() {
   if (!(await getChatGPTUser())) return Response.json({ error:"Yetkisiz erişim" }, { status:401 });
   const messages=await getDb().select().from(contactMessages).orderBy(desc(contactMessages.id));
-  return Response.json({ messages },{headers:{"Cache-Control":"no-store"}});
+  return Response.json({ messages },{headers:noStore});
 }
 
 export async function POST(request:Request) {
-  const body=await request.json().catch(()=>({})) as Record<string,unknown>;
-  if(String(body.company??"").trim()) return Response.json({ ok:true }, { status:201 });
+  const parsed=await readBoundedJson(request);if(parsed.error)return parsed.error;const body=parsed.body!;
+  if(String(body.company??"").trim()) return Response.json({ ok:true }, { status:201,headers:noStore });
   const name=String(body.name??"").trim().slice(0,120);
-  const email=String(body.email??"").trim().toLocaleLowerCase("en-US").slice(0,180);
+  const email=normalizeEmail(body.email);
   const subject=String(body.subject??"").trim().slice(0,160);
   const message=String(body.message??"").trim().slice(0,4000);
   const orderNumber=String(body.orderNumber??"").trim().toUpperCase().slice(0,40);
-  if(!name||!email.includes("@")||!subject||message.length<10)return Response.json({error:"Lütfen zorunlu alanları eksiksiz doldurun."},{status:400});
+  if(name.length<2||!isValidEmail(email)||!subject||message.length<10||body.privacyAcknowledged!==true)return Response.json({error:"Zorunlu alanları ve gizlilik onayını eksiksiz doldurun."},{status:400,headers:noStore});
+  if(containsLikelyCardNumber(message))return Response.json({error:"Güvenliğiniz için mesajınıza kart numarası yazmayın."},{status:400,headers:noStore});
   const limited=await enforceRateLimit(request,{scope:"contact",identifier:email,limit:5,windowMinutes:60});if(limited)return limited;
   const db=getDb();const[matchedOrder]=orderNumber?await db.select({id:orders.id}).from(orders).where(and(eq(orders.orderNumber,orderNumber),eq(orders.email,email))).limit(1):[];
-  await db.insert(contactMessages).values({name,email,subject,message,orderNumber,orderId:matchedOrder?.id??null});
-  return Response.json({ok:true},{status:201});
+  await db.insert(contactMessages).values({name,email,subject,message,orderNumber,orderId:matchedOrder?.id??null,privacyAcknowledgedAt:new Date().toISOString()});
+  return Response.json({ok:true},{status:201,headers:noStore});
 }
 
 export async function PATCH(request:Request) {

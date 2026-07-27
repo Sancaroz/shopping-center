@@ -1185,3 +1185,42 @@ test("validates storefront links and preserves audited homepage blocks", async (
   assert.match(announcementEditor, /data\.error\?\?"Duyuru ayarları kaydedilemedi/);
   assert.match(auditCenter, /Vitrin bloğu arşivleme/);
 });
+
+test("hardens public contact and newsletter consent workflows", async () => {
+  const [security,contactApi,contactPage,supportCenter,newsletterApi,verifyApi,unsubscribeApi,notificationsApi,notificationCenter,schema,migration] = await Promise.all([
+    source("app/public-form-security.ts"),
+    source("app/api/contact/route.ts"),
+    source("app/iletisim/page.tsx"),
+    source("app/admin/destek/support-center.tsx"),
+    source("app/api/newsletter/route.ts"),
+    source("app/api/newsletter/verify/route.ts"),
+    source("app/api/newsletter/unsubscribe/route.ts"),
+    source("app/api/notifications/route.ts"),
+    source("app/admin/bildirimler/notification-center.tsx"),
+    source("db/schema.ts"),
+    source("drizzle/0038_first_captain_cross.sql"),
+  ]);
+  assert.match(security, /readBoundedJson/);
+  assert.match(security, /TextEncoder/);
+  assert.match(security, /local\.length <= 64/);
+  assert.match(security, /passesLuhn/);
+  assert.match(security, /\^\[a-f0-9\]\{64\}\$/);
+  assert.match(contactApi, /body\.privacyAcknowledged!==true/);
+  assert.match(contactApi, /containsLikelyCardNumber/);
+  assert.match(contactApi, /privacyAcknowledgedAt:new Date\(\)\.toISOString\(\)/);
+  assert.match(contactPage, /name="privacyAcknowledged"/);
+  assert.match(contactPage, /maxLength=\{4000\}/);
+  assert.match(supportCenter, /Gizlilik onayı:/);
+  assert.match(newsletterApi, /body\.company/);
+  assert.match(newsletterApi, /10\*60_000/);
+  assert.match(newsletterApi, /status:"cancelled"/);
+  assert.match(newsletterApi, /unsubscribeTokenHash:""/);
+  assert.match(verifyApi, /isValidPublicToken/);
+  assert.match(verifyApi, /newsletter_verify/);
+  assert.match(unsubscribeApi, /newsletter_unsubscribe/);
+  assert.match(unsubscribeApi, /unsubscribeTokenHash:""/);
+  assert.match(notificationsApi, /current\.status==="cancelled"/);
+  assert.match(notificationCenter, /Geçersiz bağlantı · yeniden gönderilemez/);
+  assert.match(schema, /privacyAcknowledgedAt: text\("privacy_acknowledged_at"\)/);
+  assert.match(migration, /ADD `privacy_acknowledged_at`/);
+});

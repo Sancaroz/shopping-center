@@ -267,6 +267,13 @@
       "when": 1785099957191,
       "tag": "0037_panoramic_skreet",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1785134237756,
+      "tag": "0038_first_captain_cross",
+      "breakpoints": true
     }
   ]
 }

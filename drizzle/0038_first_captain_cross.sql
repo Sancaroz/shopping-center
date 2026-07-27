@@ -1,0 +1,1 @@
+ALTER TABLE `contact_messages` ADD `privacy_acknowledged_at` text DEFAULT '' NOT NULL;
