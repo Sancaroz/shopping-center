@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { getDb } from "../db";
-import { adminUsers } from "../db/schema";
+import { adminUsers, orders, products, storeSettings } from "../db/schema";
 
 export type ChatGPTUser = {
   adminId: number;
@@ -73,6 +73,12 @@ async function authorizeChatGPTUser(user: AuthenticatedChatGPTUser): Promise<Cha
   if (!member) {
     const [existingMember] = await db.select({ id: adminUsers.id }).from(adminUsers).limit(1);
     if (!existingMember) {
+      const [existingSetting,existingProduct,existingOrder]=await Promise.all([
+        db.select({key:storeSettings.key}).from(storeSettings).limit(1),
+        db.select({id:products.id}).from(products).limit(1),
+        db.select({id:orders.id}).from(orders).limit(1),
+      ]);
+      if(existingSetting||existingProduct||existingOrder)return null;
       // Private preview access limits bootstrap to the first authenticated operator.
       [member] = await db.insert(adminUsers).values({
         email: user.email,
@@ -80,7 +86,7 @@ async function authorizeChatGPTUser(user: AuthenticatedChatGPTUser): Promise<Cha
         role: "owner",
         active: true,
         createdBy: "private-site-bootstrap",
-      }).onConflictDoNothing({ target: adminUsers.email }).returning();
+      }).onConflictDoNothing().returning();
       if (!member) [member] = await db.select().from(adminUsers).where(eq(adminUsers.email, user.email)).limit(1);
     }
   }

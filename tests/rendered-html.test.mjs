@@ -789,7 +789,7 @@ test("requires newsletter verification and supports one-click unsubscribe", asyn
 });
 
 test("protects every admin surface with an owner-managed email allowlist", async () => {
-  const [schema,auth,api,page,center,denied,panel,operations,auditCenter,readiness,backup,exportApi,migration,dataSafety] = await Promise.all([
+  const [schema,auth,api,page,center,denied,panel,operations,auditCenter,readiness,backup,exportApi,migration,dataSafety,ownerMigration] = await Promise.all([
     source("db/schema.ts"),
     source("app/chatgpt-auth.ts"),
     source("app/api/admin-users/route.ts"),
@@ -804,17 +804,24 @@ test("protects every admin surface with an owner-managed email allowlist", async
     source("app/api/export/route.ts"),
     source("drizzle/0035_nifty_mauler.sql"),
     source("app/admin/veri-guvenligi/data-safety-center.tsx"),
+    source("drizzle/0040_vengeful_vargas.sql"),
   ]);
   assert.match(schema, /adminUsers/);
   assert.match(schema, /email: text\("email"\)\.notNull\(\)\.unique\(\)/);
+  assert.match(schema, /admin_users_single_owner/);
   assert.match(auth, /getAuthenticatedChatGPTUser/);
   assert.match(auth, /private-site-bootstrap/);
+  assert.match(auth, /existingSetting\|\|existingProduct\|\|existingOrder/);
+  assert.match(auth, /onConflictDoNothing\(\)/);
   assert.match(auth, /authorizeChatGPTUser/);
   assert.match(auth, /\/admin\/erisim-yok/);
   assert.match(api, /user\?\.role === "owner"/);
   assert.match(api, /Mağaza sahibi erişimi kapatılamaz/);
+  assert.match(api, /readBoundedJson\(request,2_000\)/);
+  assert.match(api, /body\.role!==undefined/);
   assert.doesNotMatch(api, /export async function DELETE/);
   assert.match(page, /requireOwner\("\/admin\/ekip"\)/);
+  assert.match(center, /Mağaza sahibi hesabı tektir ve kapatılamaz/);
   assert.match(center, /otomatik davet e-postası gönderilmez/);
   assert.match(denied, /Bu hesap yönetim listesinde değil/);
   assert.match(panel, /\/admin\/ekip/);
@@ -825,6 +832,7 @@ test("protects every admin surface with an owner-managed email allowlist", async
   assert.match(backup, /BACKUP_SCHEMA_VERSION = 15/);
   assert.match(exportApi, /adminUserRows/);
   assert.match(migration, /CREATE TABLE `admin_users`/);
+  assert.match(ownerMigration, /CREATE UNIQUE INDEX `admin_users_single_owner`/);
   assert.match(dataSafety, /Yönetim kullanıcıları/);
 });
 

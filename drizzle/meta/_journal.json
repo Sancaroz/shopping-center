@@ -281,6 +281,13 @@
       "when": 1785134709161,
       "tag": "0039_furry_felicia_hardy",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1785167933613,
+      "tag": "0040_vengeful_vargas",
+      "breakpoints": true
     }
   ]
 }

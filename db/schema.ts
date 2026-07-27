@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const storeSettings = sqliteTable("store_settings", {
   key: text("key").primaryKey(),
@@ -16,7 +16,7 @@ export const adminUsers = sqliteTable("admin_users", {
   createdBy: text("created_by").notNull().default("system"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-});
+}, table => [uniqueIndex("admin_users_single_owner").on(table.role).where(sql`${table.role} = 'owner'`)]);
 
 export const categories = sqliteTable("categories", {
   id: integer("id").primaryKey({ autoIncrement: true }),
