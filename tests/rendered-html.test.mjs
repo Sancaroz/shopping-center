@@ -1115,6 +1115,18 @@ test("tracks database and media backups separately in launch operations", async 
   assert.match(styles, /grid-template-columns:repeat\(3,1fr\)/);
 });
 
+test("rejects stale support and privacy workflow updates instead of losing newer work", async () => {
+  const [support,privacy] = await Promise.all([
+    source("app/api/contact/route.ts"),
+    source("app/api/privacy-requests/route.ts"),
+  ]);
+  assert.match(support, /where\(and\(eq\(contactMessages\.id,id\),eq\(contactMessages\.status,before\.status\),eq\(contactMessages\.updatedAt,before\.updatedAt\)\)\)/);
+  assert.match(support, /if\(!message\)return Response\.json\(\{error:"Destek kaydı bu sırada başka bir işlem tarafından güncellendi/);
+  assert.match(privacy, /where\(and\(eq\(privacyRequests\.id,id\),eq\(privacyRequests\.status,before\.status\),eq\(privacyRequests\.identityStatus,before\.identityStatus\),eq\(privacyRequests\.updatedAt,before\.updatedAt\)\)\)/);
+  assert.match(privacy, /if\(!updated\)return Response\.json\(\{error:"Veri talebi bu sırada başka bir işlem tarafından güncellendi/);
+  for(const route of [support,privacy])assert.match(route,/status:409,headers:noStore/);
+});
+
 test("partitions media backups deterministically without exceeding safe limits", async () => {
   const {partitionMediaBackup,mediaBackupSnapshot,MEDIA_ARCHIVE_MAX_BYTES}=await importTypescriptModule("app/media-backup.ts");
   const fortyOne=Array.from({length:41},(_,index)=>({key:`products/${String(index).padStart(2,"0")}.webp`,size:1,uploaded:"2026-01-01T00:00:00.000Z",etag:`e${index}`}));
