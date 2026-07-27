@@ -1,6 +1,6 @@
 import {asc,eq} from "drizzle-orm";
 import {getDb} from "../../../db";
-import {inventoryMovements,products,productVariants} from "../../../db/schema";
+import {categories,inventoryMovements,products,productVariants} from "../../../db/schema";
 import {recordAudit} from "../../audit-log";
 import {getChatGPTUser} from "../../chatgpt-auth";
 import {parseCatalogMoney,parseCatalogStock} from "../../catalog-input";
@@ -11,8 +11,15 @@ export async function GET(){
   try{
     const db=getDb();
     const user=await getChatGPTUser();
-    const variants=user?await db.select().from(productVariants).orderBy(asc(productVariants.productId),asc(productVariants.id)):await db.select().from(productVariants).where(eq(productVariants.active,true)).orderBy(asc(productVariants.productId),asc(productVariants.id));
-    return Response.json({variants});
+    if(user)return Response.json({variants:await db.select().from(productVariants).orderBy(asc(productVariants.productId),asc(productVariants.id))});
+    const[variants,productRows,categoryRows]=await Promise.all([
+      db.select({id:productVariants.id,productId:productVariants.productId,optionName:productVariants.optionName,optionValue:productVariants.optionValue,optionNameEn:productVariants.optionNameEn,optionValueEn:productVariants.optionValueEn,stock:productVariants.stock,priceAdjustment:productVariants.priceAdjustment}).from(productVariants).where(eq(productVariants.active,true)).orderBy(asc(productVariants.productId),asc(productVariants.id)),
+      db.select({id:products.id,categoryId:products.categoryId}).from(products).where(eq(products.active,true)),
+      db.select({id:categories.id,parentId:categories.parentId}).from(categories).where(eq(categories.active,true)),
+    ]);
+    const visibleCategoryIds=new Set(categoryRows.filter(category=>category.parentId===null||categoryRows.some(parent=>parent.id===category.parentId)).map(category=>category.id));
+    const visibleProductIds=new Set(productRows.filter(product=>product.categoryId!==null&&visibleCategoryIds.has(product.categoryId)).map(product=>product.id));
+    return Response.json({variants:variants.filter(variant=>visibleProductIds.has(variant.productId))});
   }catch{return Response.json({variants:[]});}
 }
 

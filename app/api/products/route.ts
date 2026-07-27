@@ -9,6 +9,13 @@ import { isCatalogImageUrl, parseCatalogMoney, parseCatalogStock } from "../../c
 export const dynamic = "force-dynamic";
 
 type ProductRecord = typeof products.$inferSelect;
+const publicProductColumns={
+  id:products.id,nameTr:products.nameTr,nameEn:products.nameEn,slug:products.slug,
+  descriptionTr:products.descriptionTr,descriptionEn:products.descriptionEn,categoryId:products.categoryId,
+  imageUrl:products.imageUrl,priceTr:products.priceTr,priceGlobal:products.priceGlobal,
+  currencyGlobal:products.currencyGlobal,stock:products.stock,marketTr:products.marketTr,
+  marketGlobal:products.marketGlobal,featured:products.featured,active:products.active,
+};
 
 function publicationIssues(product: ProductRecord, variants: Array<typeof productVariants.$inferSelect>, categoryActive?:boolean) {
   return catalogQuality(product,variants,[],categoryActive).blockers;
@@ -19,7 +26,7 @@ export async function GET() {
     const db = getDb();
     const user = await getChatGPTUser();
     if(user)return Response.json({products:await db.select().from(products).orderBy(desc(products.id))});
-    const[rows,categoryRows]=await Promise.all([db.select().from(products).where(eq(products.active,true)).orderBy(desc(products.id)),db.select().from(categories).where(eq(categories.active,true))]);
+    const[rows,categoryRows]=await Promise.all([db.select(publicProductColumns).from(products).where(eq(products.active,true)).orderBy(desc(products.id)),db.select().from(categories).where(eq(categories.active,true))]);
     const visibleCategoryIds=new Set(categoryRows.filter(category=>category.parentId===null||categoryRows.some(parent=>parent.id===category.parentId)).map(category=>category.id));
     return Response.json({products:rows.filter(product=>product.categoryId!==null&&visibleCategoryIds.has(product.categoryId))});
   } catch {

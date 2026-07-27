@@ -6,7 +6,7 @@ import "./gallery.css";
 import {getPreferredMarket,setPreferredMarket} from "../../market-preference";
 
 type Product={id:number;slug:string;nameTr:string;nameEn:string;descriptionTr:string;descriptionEn:string;imageUrl:string;priceTr:number;priceGlobal:number;stock:number;marketTr:boolean;marketGlobal:boolean;active:boolean};
-type Variant={id:number;productId:number;optionName:string;optionValue:string;optionNameEn:string;optionValueEn:string;sku:string;stock:number;priceAdjustment:number};
+type Variant={id:number;productId:number;optionName:string;optionValue:string;optionNameEn:string;optionValueEn:string;stock:number;priceAdjustment:number};
 type ProductImage={id:number;productId:number;imageUrl:string;altText:string;sortOrder:number};
 
 export default function ProductDetail({slug}:{slug:string}){

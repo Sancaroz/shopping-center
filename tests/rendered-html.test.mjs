@@ -1632,3 +1632,21 @@ test("keeps emergency sales controls and newsletter action links owner-only", as
   assert.match(notificationsPage, /isOwner=\{user\.role==="owner"\}/);
   assert.match(notificationCenter, /\{isOwner&&<a href="\/admin\/yayina-hazirlik"/);
 });
+
+test("returns only public catalog fields and hides variants of nonpublic products", async () => {
+  const [productsApi,variantsApi,productDetail] = await Promise.all([
+    source("app/api/products/route.ts"),
+    source("app/api/variants/route.ts"),
+    source("app/urun/[slug]/product-detail.tsx"),
+  ]);
+  assert.match(productsApi, /const publicProductColumns=\{/);
+  assert.match(productsApi, /db\.select\(publicProductColumns\)\.from\(products\)/);
+  const publicColumns=productsApi.slice(productsApi.indexOf("const publicProductColumns="),productsApi.indexOf("function publicationIssues"));
+  for(const privateField of ["sourcingType","supplierName","supplierContact","supplierSku","unitCost","leadTimeDays","reorderPoint"])assert.doesNotMatch(publicColumns,new RegExp(privateField));
+  assert.match(variantsApi, /db\.select\(\{id:productVariants\.id,productId:productVariants\.productId/);
+  assert.match(variantsApi, /visibleProductIds=new Set/);
+  assert.match(variantsApi, /variants\.filter\(variant=>visibleProductIds\.has\(variant\.productId\)\)/);
+  const publicVariantSelect=variantsApi.slice(variantsApi.indexOf("db.select({id:productVariants.id"),variantsApi.indexOf("db.select({id:products.id"));
+  assert.doesNotMatch(publicVariantSelect,/productVariants\.sku/);
+  assert.doesNotMatch(productDetail,/sku:string/);
+});
