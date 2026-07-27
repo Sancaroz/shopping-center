@@ -1756,3 +1756,21 @@ test("makes duplicate checkout and promotion release idempotent", async () => {
   assert.match(promotions, /if\(input\.provisional\)\{await decrement;return;\}/);
   assert.match(promotions, /await db\.batch\(\[decrement,db\.delete\(promotionRedemptions\)/);
 });
+
+test("serializes order, shipment and packing workflow updates", async () => {
+  const [ordersApi,shipments,fulfillment] = await Promise.all([
+    source("app/api/orders/route.ts"),
+    source("app/api/shipment-events/route.ts"),
+    source("app/api/fulfillment-checklist/route.ts"),
+  ]);
+  assert.match(ordersApi, /eq\(orders\.status,existing\.status\)/);
+  assert.match(ordersApi, /eq\(orders\.updatedAt,existing\.updatedAt\)/);
+  assert.match(ordersApi, /if\(!claimedOrder\)/);
+  assert.match(ordersApi, /Güncel kaydı açıp tekrar deneyin/);
+  assert.match(ordersApi, /if\(nextStatus==="cancelled".*releaseOrderReservation/s);
+  assert.match(shipments, /eq\(orders\.updatedAt,order\.updatedAt\)/);
+  assert.match(shipments, /await db\.delete\(shipmentEvents\)\.where\(eq\(shipmentEvents\.id,event\.id\)\)/);
+  assert.match(fulfillment, /readBoundedJson\(request,3_000\)/);
+  assert.match(fulfillment, /const results=await db\.batch\(\[orderClaim,checklistWrite\]\)/);
+  assert.match(fulfillment, /if\(!claimed\)/);
+});

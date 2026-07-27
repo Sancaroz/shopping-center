@@ -123,20 +123,23 @@ export async function PATCH(request:Request) {
   const effectiveCarrier=body.shippingCarrier===undefined?existing.shippingCarrier:String(body.shippingCarrier).trim();const effectiveTracking=body.trackingNumber===undefined?existing.trackingNumber:String(body.trackingNumber).trim();
   if(body.status==="shipped"&&(!effectiveCarrier||!effectiveTracking))return Response.json({error:"Kargoya verildi durumundan önce kargo firması ve takip numarası kaydedilmelidir."},{status:409});
   if(body.status==="shipped"){const[checklist]=await db.select().from(fulfillmentChecklists).where(eq(fulfillmentChecklists.orderId,orderId)).limit(1);if(!checklist||![checklist.productChecked,checklist.quantityChecked,checklist.qualityChecked,checklist.packageChecked,checklist.addressChecked].every(Boolean))return Response.json({error:"Kargoya vermeden önce paketleme kontrol listesinin tamamı kaydedilmelidir."},{status:409});}
-  if(needsInventory&&!existing.inventoryApplied){const checks=[] as Array<{kind:"variant"|"product";id:number;quantity:number;stock:number}>;for(const line of lines){if(line.variantId){const[row]=await db.select().from(productVariants).where(and(eq(productVariants.id,line.variantId),eq(productVariants.active,true))).limit(1);if(!row||row.stock<line.quantity)return Response.json({error:`${line.productName} varyantı artık satışta değil veya yeterli stoğu yok.`},{status:409});checks.push({kind:"variant",id:row.id,quantity:line.quantity,stock:row.stock});}else if(line.productId){const[row]=await db.select().from(products).where(eq(products.id,line.productId)).limit(1);if(!row||row.stock<line.quantity)return Response.json({error:`${line.productName} için yeterli stok yok.`},{status:409});checks.push({kind:"product",id:row.id,quantity:line.quantity,stock:row.stock});}else return Response.json({error:`${line.productName} artık katalogda bulunmuyor.`},{status:409});}for(const item of checks){if(item.kind==="variant")await db.update(productVariants).set({stock:item.stock-item.quantity}).where(eq(productVariants.id,item.id));else await db.update(products).set({stock:item.stock-item.quantity,updatedAt:new Date().toISOString()}).where(eq(products.id,item.id));}}
-  if(body.status!==undefined&&nextStatus==="cancelled"&&["active","committed"].includes(existing.reservationState))await releaseOrderReservation(db,orderId,"released",true);
-  const releasePromotion=body.status!==undefined&&nextStatus==="cancelled"&&existing.status!=="cancelled"&&existing.paymentStatus!=="paid"&&Boolean(existing.promotionId);
-  const inventoryApplied=needsInventory?true:nextStatus==="cancelled"?false:existing.inventoryApplied;
+  const inventoryReservation=needsInventory&&!existing.inventoryApplied?await reserveInventory(db,lines.map(line=>({productId:Number(line.productId),variantId:line.variantId,quantity:line.quantity,productName:line.productName}))):null;
+  if(inventoryReservation&&!inventoryReservation.ok)return Response.json({error:inventoryReservation.error},{status:409});
+  const releasePromotion=nextStatus==="cancelled"&&existing.paymentStatus!=="paid"&&Boolean(existing.promotionId);
+  const inventoryApplied=needsInventory?true:existing.inventoryApplied;
   const updates:Partial<typeof orders.$inferInsert>={status:nextStatus,inventoryApplied,updatedAt:new Date().toISOString()};
   if(needsInventory&&existing.reservationState==="active"){updates.reservationState="committed";updates.reservationExpiresAt=null;}
-  if(nextStatus==="cancelled"){updates.reservationState=["active","committed"].includes(existing.reservationState)?"released":existing.reservationState;updates.reservationExpiresAt=null;updates.verificationTokenHash="";updates.verificationExpiresAt=null;}
+  if(nextStatus==="cancelled"){updates.verificationTokenHash="";updates.verificationExpiresAt=null;}
   if(body.shippingCarrier!==undefined)updates.shippingCarrier=String(body.shippingCarrier).trim().slice(0,80);
   if(body.trackingNumber!==undefined)updates.trackingNumber=String(body.trackingNumber).trim().slice(0,160);
   if(body.estimatedDeliveryAt!==undefined){const value=String(body.estimatedDeliveryAt).trim();if(value&&Number.isNaN(new Date(value).getTime()))return Response.json({error:"Tahmini teslim tarihi geçersiz."},{status:400});updates.estimatedDeliveryAt=value?new Date(value).toISOString():null;}
   if(body.internalNote!==undefined)updates.internalNote=String(body.internalNote).trim().slice(0,2000);
   if(body.status==="shipped"&&!existing.shippedAt)updates.shippedAt=new Date().toISOString();
-  const[order]=await db.update(orders).set(updates).where(eq(orders.id,orderId)).returning();
+  const[claimedOrder]=await db.update(orders).set(updates).where(and(eq(orders.id,orderId),eq(orders.status,existing.status),eq(orders.updatedAt,existing.updatedAt))).returning();
+  if(!claimedOrder){if(inventoryReservation?.ok)await inventoryReservation.rollback();return Response.json({error:"Sipariş bu sırada başka bir işlem tarafından güncellendi. Güncel kaydı açıp tekrar deneyin."},{status:409,headers:privateNoStore});}
+  if(nextStatus==="cancelled"&&["active","committed"].includes(existing.reservationState))await releaseOrderReservation(db,orderId,"released",true);
   if(releasePromotion&&existing.promotionId)await releasePromotionClaim(db,{orderId,promotionId:existing.promotionId});
+  const[order]=await db.select().from(orders).where(eq(orders.id,orderId)).limit(1);if(!order)return Response.json({error:"Sipariş güncellemeden sonra bulunamadı."},{status:409,headers:privateNoStore});
   const notificationEvents:Partial<Record<string,NotificationEvent>>={confirmed:"confirmed",shipped:"shipped",cancelled:"cancelled"};
   const notificationEvent=body.status!==undefined&&nextStatus!==existing.status?notificationEvents[nextStatus]:undefined;
   if(notificationEvent)await queueNotification(order,notificationEvent);

@@ -1,4 +1,4 @@
-import {asc,eq} from "drizzle-orm";
+import {and,asc,eq} from "drizzle-orm";
 import {getDb} from "../../../db";
 import {notificationOutbox,orders,shipmentEvents} from "../../../db/schema";
 import {recordAudit} from "../../audit-log";
@@ -41,7 +41,8 @@ export async function POST(request:Request){
   if(isLatest)updates.deliveryStatus=status;
   if(["picked_up","in_transit","out_for_delivery","delivered"].includes(status)){updates.status=status==="delivered"?"completed":"shipped";updates.shippedAt=order.shippedAt??timestamp;}
   if(status==="delivered")updates.deliveredAt=timestamp;
-  await db.update(orders).set(updates).where(eq(orders.id,orderId));
+  const[updatedOrder]=await db.update(orders).set(updates).where(and(eq(orders.id,orderId),eq(orders.status,order.status),eq(orders.updatedAt,order.updatedAt))).returning({id:orders.id});
+  if(!updatedOrder){await db.delete(shipmentEvents).where(eq(shipmentEvents.id,event.id));return Response.json({error:"Sipariş bu sırada başka bir işlem tarafından güncellendi. Güncel kaydı açıp kargo hareketini yeniden ekleyin."},{status:409,headers:{"Cache-Control":"no-store"}});}
   if(event.visibleToCustomer){const en=order.market==="GLOBAL";await db.insert(notificationOutbox).values({orderId,eventKey:`shipment:${event.id}`,eventType:"shipment_update",recipient:order.email,subject:en?`${event.titleEn} · ${order.orderNumber}`:`${event.titleTr} · ${order.orderNumber}`,body:en?`Hello ${order.customerName},\n\n${event.titleEn}${event.location?` · ${event.location}`:""}.${event.detail?`\n${event.detail}`:""}\n\nCarrier: ${order.shippingCarrier}\nTracking number: ${order.trackingNumber}`:`Merhaba ${order.customerName},\n\n${event.titleTr}${event.location?` · ${event.location}`:""}.${event.detail?`\n${event.detail}`:""}\n\nKargo firması: ${order.shippingCarrier}\nTakip numarası: ${order.trackingNumber}`,status:"draft"}).onConflictDoNothing({target:notificationOutbox.eventKey});}
   await recordAudit({user,action:"shipment.event.create",entityType:"order",entityId:orderId,summary:`${order.orderNumber} siparişine ${eventCopy[status].tr} hareketi eklendi.`,after:{status,location:event.location,occurredAt:timestamp,visibleToCustomer:event.visibleToCustomer}});
   return Response.json({event},{status:201});
