@@ -1588,3 +1588,29 @@ test("reserves sensitive governance data and controls for the store owner", asyn
   for(const page of [dataPage,auditPage,paymentsPage,privacyPage,financePage,customersPage,integrationsPage,readinessPage])assert.match(page,/requireOwner/);
   assert.match(operationsPage, /requireChatGPTUser/);
 });
+
+test("keeps owner-only navigation and draft secrets out of lower-privilege responses", async () => {
+  const [adminPage,panel,operationsPage,operationsCenter,settings,newsletter] = await Promise.all([
+    source("app/admin/page.tsx"),
+    source("app/admin/panel.tsx"),
+    source("app/admin/operasyon/page.tsx"),
+    source("app/admin/operasyon/operations-center.tsx"),
+    source("app/api/settings/route.ts"),
+    source("app/api/newsletter/route.ts"),
+  ]);
+  assert.match(adminPage, /isOwner=user\.role==="owner"/);
+  assert.match(adminPage, /<AdminPanel userName=\{user\.displayName\} isOwner=\{isOwner\}/);
+  assert.match(panel, /isOwner\?fetch\("\/api\/newsletter"\):Promise\.resolve\(null\)/);
+  assert.match(panel, /\{isOwner&&<>\s*<section className="admin-card data-export-card"/);
+  assert.match(operationsPage, /isOwner=\{user\.role==="owner"\}/);
+  assert.match(operationsCenter, /\{isOwner&&<>\s*<a href="\/admin\/odemeler"/);
+  assert.match(settings, /draftPrivateKeys=new Set/);
+  assert.match(settings, /values\.legalStatus!=="complete"/);
+  assert.match(settings, /visible\.paymentProviderName=""/);
+  assert.match(settings, /"returnAddress","returnCarrier"/);
+  assert.match(newsletter, /getChatGPTOwner/);
+  assert.match(newsletter, /id:newsletterSubscribers\.id,email:newsletterSubscribers\.email/);
+  assert.doesNotMatch(newsletter, /const\[subscribers,outbox\]=await Promise\.all\(\[db\.select\(\)/);
+  assert.doesNotMatch(newsletter, /newsletterSubscribers\.id\)\),db\.select\(\)\.from\(newsletterOutbox\)/);
+  assert.match(newsletter, /returning\(\{id:newsletterSubscribers\.id/);
+});

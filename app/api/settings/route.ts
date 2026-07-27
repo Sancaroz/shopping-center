@@ -121,12 +121,21 @@ const imageUrlKeys = ["brandLogoUrl", "faviconUrl", "seoImageUrl", "heroImageUrl
 const externalUrlKeys = ["instagramUrl", "pinterestUrl"] as const;
 const longTextKeys = new Set(["shippingPolicyTr", "returnsPolicyTr", "shippingPolicyGlobal", "returnsPolicyGlobal", "privacyPolicy", "privacyPolicyGlobal", "preliminaryInformationTr", "distanceSalesTermsTr"]);
 const booleanKeys = ["showAnnouncement", "showCategories", "showProducts", "showJournal", "showManifesto", "shippingGlobalEnabled"] as const;
-const ownerOnlyKeys=new Set<keyof typeof defaults>(["legalStatus","legalBusinessType","legalName","legalAddress","legalTaxOffice","legalTaxNumber","legalMersisNumber","legalEmail","legalPhone","etbisStatus","preliminaryInformationTr","distanceSalesTermsTr","salesMode","paymentProviderStatus","paymentProviderName","taxDisplayMode"]);
+const ownerOnlyKeys=new Set<keyof typeof defaults>(["legalStatus","legalBusinessType","legalName","legalAddress","legalTaxOffice","legalTaxNumber","legalMersisNumber","legalEmail","legalPhone","returnAddress","returnCarrier","etbisStatus","preliminaryInformationTr","distanceSalesTermsTr","salesMode","paymentProviderStatus","paymentProviderName","taxDisplayMode"]);
+const draftPrivateKeys=new Set<keyof typeof defaults>(["legalBusinessType","legalName","legalAddress","legalTaxOffice","legalTaxNumber","legalMersisNumber","legalEmail","legalPhone","returnAddress","returnCarrier"]);
 const allowedEnums: Partial<Record<keyof typeof defaults, readonly string[]>> = {
   legalStatus: ["draft", "complete"], salesMode: ["order_request", "live"], orderIntakeStatus: ["open", "paused"],
   paymentProviderStatus: ["not_started", "application", "sandbox", "active"], etbisStatus: ["not_started", "in_progress", "complete"], taxDisplayMode: ["pending", "tax_included"],
 };
-export async function GET() { try { const rows = await getDb().select().from(storeSettings); return Response.json({ settings: { ...defaults, ...Object.fromEntries(rows.map(row => [row.key, row.value])) } }); } catch { return Response.json({ settings: defaults }); } }
+function visibleSettings(values:typeof defaults,user:Awaited<ReturnType<typeof getChatGPTUser>>){
+  if(user?.role==="owner")return values;
+  const visible={...values};
+  visible.paymentProviderName="";visible.paymentProviderStatus="not_started";visible.etbisStatus="not_started";
+  if(user?.role==="admin")for(const key of ownerOnlyKeys)delete (visible as Partial<typeof defaults>)[key];
+  else if(values.legalStatus!=="complete")for(const key of draftPrivateKeys)delete (visible as Partial<typeof defaults>)[key];
+  return visible;
+}
+export async function GET() { const user=await getChatGPTUser();try { const rows = await getDb().select().from(storeSettings);const values={...defaults,...Object.fromEntries(rows.map(row => [row.key, row.value]))} as typeof defaults;return Response.json({settings:visibleSettings(values,user)}); } catch { return Response.json({settings:visibleSettings({...defaults},user)}); } }
 export async function PUT(request: Request) {
   const user=await getChatGPTUser();
   if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });

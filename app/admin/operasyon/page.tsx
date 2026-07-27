@@ -6,6 +6,6 @@ import "./operations-center.css";
 export const dynamic="force-dynamic";
 
 export default async function OperationsPage() {
-  await requireChatGPTUser("/admin/operasyon");
-  return <OperationsCenter/>;
+  const user=await requireChatGPTUser("/admin/operasyon");
+  return <OperationsCenter isOwner={user.role==="owner"}/>;
 }
