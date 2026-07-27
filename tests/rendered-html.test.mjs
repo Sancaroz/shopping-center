@@ -1682,3 +1682,15 @@ test("keeps sensitive admin summaries private, uncached and role-filtered", asyn
   assert.match(operations, /user\.role==="owner"\?db\.select\(\{id:newsletterOutbox\.id,status:newsletterOutbox\.status\}\)/);
   assert.match(operations, /\},\{headers:privateNoStore\}\);/);
 });
+
+test("increments rate-limit windows atomically under concurrent requests", async () => {
+  const rateLimit = await source("app/rate-limit.ts");
+  assert.match(rateLimit, /onConflictDoUpdate\(\{/);
+  assert.match(rateLimit, /requestCount:sql`CASE WHEN/);
+  assert.match(rateLimit, /windowStartedAt:sql`CASE WHEN/);
+  assert.match(rateLimit, /requestThrottles\.requestCount\} <= \$\{limit\}/);
+  assert.match(rateLimit, /returning\(\{requestCount:requestThrottles\.requestCount,windowStartedAt:requestThrottles\.windowStartedAt\}\)/);
+  assert.match(rateLimit, /counter\.requestCount<=limit/);
+  assert.doesNotMatch(rateLimit, /db\.select\(\)\.from\(requestThrottles\)/);
+  assert.doesNotMatch(rateLimit, /requestCount:row\.requestCount\+1/);
+});
