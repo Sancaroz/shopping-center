@@ -1178,6 +1178,22 @@ test("serializes every settings editor through an atomic revision claim", async 
   assert.match(operations, /where\(eq\(storeSettings\.key,"__settings_revision"\)\)/);
 });
 
+test("rejects stale product edits, cover changes and archival requests", async () => {
+  const [api,panel,editor] = await Promise.all([
+    source("app/api/products/route.ts"),
+    source("app/admin/panel.tsx"),
+    source("app/admin/urun/[id]/product-editor.tsx"),
+  ]);
+  assert.match(api, /expectedUpdatedAt=String\(body\.expectedUpdatedAt/);
+  assert.match(api, /and\(eq\(products\.id,id\),eq\(products\.updatedAt,expectedUpdatedAt\)\)/);
+  assert.match(api, /searchParams\.get\("expectedUpdatedAt"\)/);
+  assert.match(api, /if\(!product\)return Response\.json\(\{error:"Ürün bu sırada başka bir işlem tarafından güncellendi/);
+  assert.match(panel, /expectedUpdatedAt:item\.updatedAt/);
+  assert.match(panel, /encodeURIComponent\(item\.updatedAt\)/);
+  assert.match(editor, /expectedUpdatedAt:product\.updatedAt/);
+  assert.match(editor, /setProduct\(data\.product\)/);
+});
+
 test("partitions media backups deterministically without exceeding safe limits", async () => {
   const {partitionMediaBackup,mediaBackupSnapshot,MEDIA_ARCHIVE_MAX_BYTES}=await importTypescriptModule("app/media-backup.ts");
   const fortyOne=Array.from({length:41},(_,index)=>({key:`products/${String(index).padStart(2,"0")}.webp`,size:1,uploaded:"2026-01-01T00:00:00.000Z",etag:`e${index}`}));

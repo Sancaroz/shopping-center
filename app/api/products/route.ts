@@ -119,6 +119,7 @@ export async function PATCH(request: Request) {
   if (!id) return Response.json({ error: "Geçersiz ürün" }, { status: 400 });
   const db = getDb();
   const[currentBefore]=await db.select().from(products).where(eq(products.id,id)).limit(1);if(!currentBefore)return Response.json({error:"Ürün bulunamadı."},{status:404});
+  const expectedUpdatedAt=String(body.expectedUpdatedAt??"");if(!expectedUpdatedAt||expectedUpdatedAt!==currentBefore.updatedAt)return Response.json({error:"Ürün bu sırada başka bir işlem tarafından güncellendi. Güncel ürünü açıp değişikliğinizi yeniden uygulayın."},{status:409,headers:{"Cache-Control":"no-store"}});
   if(body.stock!==undefined){const requestedStock=parseCatalogStock(body.stock);if(requestedStock===null)return Response.json({error:"Stok değeri geçersiz."},{status:400});if(requestedStock!==currentBefore.stock)return Response.json({error:"Mevcut ürün stoğu yalnızca Stok Merkezi üzerinden, açıklama ve benzersiz referansla değiştirilebilir."},{status:409});}
   const updates: Partial<typeof products.$inferInsert> = { updatedAt: new Date().toISOString() };
   if (body.nameTr !== undefined){const value=String(body.nameTr).trim();if(value.length>200)return Response.json({error:"Ürün adı 200 karakteri aşamaz."},{status:400});updates.nameTr=value;}
@@ -145,7 +146,7 @@ export async function PATCH(request: Request) {
       issues,
     }, { status: 409 });
   }
-  const [product] = await db.update(products).set(updates).where(eq(products.id, id)).returning().catch(()=>[]);if(!product)return Response.json({error:"Ürün kodu başka bir kayıtta kullanılıyor veya veri geçersiz."},{status:409});
+  let product:ProductRecord|undefined;try{[product]=await db.update(products).set(updates).where(and(eq(products.id,id),eq(products.updatedAt,expectedUpdatedAt))).returning();}catch{return Response.json({error:"Ürün kodu başka bir kayıtta kullanılıyor veya veri geçersiz."},{status:409});}if(!product)return Response.json({error:"Ürün bu sırada başka bir işlem tarafından güncellendi. Güncel ürünü açıp değişikliğinizi yeniden uygulayın."},{status:409,headers:{"Cache-Control":"no-store"}});
   if(product)await recordAudit({user,action:"product.update",entityType:"product",entityId:id,summary:`${product.nameTr} ürünü güncellendi.`,before:currentBefore,after:product});
   return Response.json({ product });
 }
@@ -155,10 +156,11 @@ export async function DELETE(request: Request) {
   if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
   const id = Number(new URL(request.url).searchParams.get("id"));
   if (!id) return Response.json({ error: "Geçersiz ürün" }, { status: 400 });
+  const expectedUpdatedAt=String(new URL(request.url).searchParams.get("expectedUpdatedAt")??"");if(!expectedUpdatedAt)return Response.json({error:"Ürün ekranı güncel değil. Listeyi yenileyip tekrar deneyin."},{status:409,headers:{"Cache-Control":"no-store"}});
   const db = getDb();
   const [before] = await db.select().from(products).where(eq(products.id, id)).limit(1);
   if (!before) return Response.json({ error: "Ürün bulunamadı." }, { status: 404 });
-  const [product] = await db.update(products).set({ active:false, marketTr:false, marketGlobal:false, featured:false, updatedAt:new Date().toISOString() }).where(eq(products.id, id)).returning();
+  const [product] = await db.update(products).set({ active:false, marketTr:false, marketGlobal:false, featured:false, updatedAt:new Date().toISOString() }).where(and(eq(products.id,id),eq(products.updatedAt,expectedUpdatedAt))).returning();if(!product)return Response.json({error:"Ürün bu sırada başka bir işlem tarafından güncellendi. Listeyi yenileyip tekrar deneyin."},{status:409,headers:{"Cache-Control":"no-store"}});
   await recordAudit({ user, action:"product.archive", entityType:"product", entityId:id, summary:`${before.nameTr} ürünü geri alınabilir biçimde arşivlendi.`, before:{ active:before.active, marketTr:before.marketTr, marketGlobal:before.marketGlobal, featured:before.featured }, after:{ active:false, marketTr:false, marketGlobal:false, featured:false } });
   return Response.json({ ok:true, archived:true, product });
 }
