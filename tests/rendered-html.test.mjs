@@ -114,7 +114,7 @@ test("queues order notifications without sending before a provider is connected"
   assert.match(orders, /confirmed:"confirmed",shipped:"shipped",cancelled:"cancelled"/);
   assert.match(orders, /onConflictDoNothing/);
   assert.match(templates, /Takip numarası/);
-  assert.match(notificationsApi, /providerConnected:false/);
+  assert.match(notificationsApi, /providerConnected:integration\.email\.adapterConnected/);
   assert.doesNotMatch(notificationsApi, /sendEmail|fetch\("https:/);
   assert.match(notificationCenter, /Gönderim kapalı/);
 });
@@ -1220,7 +1220,7 @@ test("hardens public contact and newsletter consent workflows", async () => {
   assert.match(unsubscribeApi, /newsletter_unsubscribe/);
   assert.match(unsubscribeApi, /unsubscribeTokenHash:""/);
   assert.match(notificationsApi, /current\.status==="cancelled"/);
-  assert.match(notificationCenter, /Geçersiz bağlantı · yeniden gönderilemez/);
+  assert.match(notificationCenter, /notificationStatusLabel/);
   assert.match(schema, /privacyAcknowledgedAt: text\("privacy_acknowledged_at"\)/);
   assert.match(migration, /ADD `privacy_acknowledged_at`/);
 });
@@ -1362,4 +1362,27 @@ test("keeps successful payment recording behind the legal launch gate", async ()
   assert.match(api, /Şirket, aktif ödeme sağlayıcısı ve canlı satış modu tamamlanmadan/);
   assert.match(center, /successfulPaymentsEnabled/);
   assert.match(center, /disabled=\{kind==="payment"&&!data\.controls\.successfulPaymentsEnabled\}/);
+});
+
+test("locks terminal notifications and audits safe queue management", async () => {
+  const [lifecycle,api,center,auditCenter] = await Promise.all([
+    source("app/notification-lifecycle.ts"),
+    source("app/api/notifications/route.ts"),
+    source("app/admin/bildirimler/notification-center.tsx"),
+    source("app/admin/islem-gecmisi/audit-log-center.tsx"),
+  ]);
+  assert.match(lifecycle, /current === "draft" && next === "dismissed"/);
+  assert.match(lifecycle, /current === "dismissed" && next === "draft"/);
+  assert.match(lifecycle, /current === "failed" && next === "draft" && attempts < 3/);
+  assert.match(lifecycle, /status === "sent"/);
+  assert.match(lifecycle, /status === "cancelled"/);
+  assert.match(lifecycle, /Geçersiz bağlantı · yeniden gönderilemez/);
+  assert.match(api, /readBoundedJson\(request,2_000\)/);
+  assert.match(api, /canManageNotificationStatus\(current\.status,status,current\.attempts\)/);
+  assert.match(api, /notification\.update/);
+  assert.match(api, /üç başarısız denemeden sonra/);
+  assert.match(center, /notificationStatusLabel/);
+  assert.match(center, /Gönderim bağlantısı hazır/);
+  assert.match(auditCenter, /Bildirim kuyruğu güncellemesi/);
+  assert.match(auditCenter, /\["notification","Bildirimler"\]/);
 });
