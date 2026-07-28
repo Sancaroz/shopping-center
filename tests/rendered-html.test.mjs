@@ -1659,6 +1659,27 @@ test("lets market-bound drafts receive stock while archived products stay blocke
   assert.match(replenishments, /where\(and\(eligibleProduct/);
 });
 
+test("uses variant stock consistently across catalog cards, details and product metadata", async () => {
+  const [availability, home, catalog, detail, productPage] = await Promise.all([
+    source("app/catalog-availability.ts"),
+    source("app/page.tsx"),
+    source("app/magaza/page.tsx"),
+    source("app/urun/[slug]/product-detail.tsx"),
+    source("app/urun/[slug]/page.tsx"),
+  ]);
+  assert.match(availability, /active\.reduce\(\(sum, variant\)/);
+  assert.match(availability, /active\.find\(variant => variant\.stock > 0\)/);
+  assert.match(home, /fetch\("\/api\/variants"\)/);
+  assert.match(home, /stock>0&&!own\.length/);
+  assert.match(home, /BEDEN SEÇ/);
+  assert.match(catalog, /sellableStock\(product\.stock,own\)/);
+  assert.match(catalog, /stock>0&&!own\.length/);
+  assert.match(catalog, /SELECT SIZE/);
+  assert.match(detail, /firstAvailableVariant\(own\)/);
+  assert.match(productPage, /sellableStock\(product\.stock,variants\)/);
+  assert.match(productPage, /stock>0\?"InStock":"OutOfStock"/);
+});
+
 test("routes every existing catalog stock change through the audited inventory center", async () => {
   const [productsApi,variantsApi,importApi,panel] = await Promise.all([
     source("app/api/products/route.ts"),

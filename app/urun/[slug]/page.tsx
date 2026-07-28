@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { products } from "../../../db/schema";
+import { products, productVariants } from "../../../db/schema";
+import {availableVariants,sellableStock} from "../../catalog-availability";
 import ProductDetail from "./product-detail";
 import "./product-detail.css";
 
@@ -21,7 +22,8 @@ export async function generateMetadata({params}:{params:Promise<{slug:string}>})
 
 export default async function ProductPage({ params }:{ params:Promise<{slug:string}> }) {
   const {slug}=await params;const product=await findProduct(slug);
-  const offer=product&&product.priceTr>0?{offers:{"@type":"Offer",priceCurrency:"TRY",price:product.priceTr,availability:`https://schema.org/${product.stock>0?"InStock":"OutOfStock"}`,url:`${origin}/urun/${encodeURIComponent(product.slug)}`}}:{};
+  const variants=product?availableVariants(await getDb().select().from(productVariants).where(and(eq(productVariants.productId,product.id),eq(productVariants.active,true)))):[];const stock=product?sellableStock(product.stock,variants):0;
+  const offer=product&&product.priceTr>0?{offers:{"@type":"Offer",priceCurrency:"TRY",price:product.priceTr,availability:`https://schema.org/${stock>0?"InStock":"OutOfStock"}`,url:`${origin}/urun/${encodeURIComponent(product.slug)}`}}:{};
   const structured=product?{"@context":"https://schema.org","@type":"Product",name:product.nameTr,description:product.descriptionTr||undefined,image:product.imageUrl?[product.imageUrl]:undefined,sku:`MYSA-${product.id}`,...offer}:null;
   return <>{structured&&<script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(structured).replaceAll("<","\\u003c")}}/>}<ProductDetail slug={slug}/></>;
 }

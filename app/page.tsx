@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { categories as sampleCategories, products as sampleProducts, type Market } from "./content";
 import {getPreferredMarket,setPreferredMarket} from "./market-preference";
+import {availableVariants,sellableStock} from "./catalog-availability";
 
 type StoreProduct = (typeof sampleProducts)[number] & { id?: number; active?: boolean; featured?:boolean; slug?:string; nameGlobal?:string; descriptionGlobal?:string; categoryId?:number|null; stock?:number };
 type DatabaseProduct = {
@@ -22,6 +23,7 @@ type DatabaseProduct = {
   featured: boolean;
   active: boolean;
 };
+type StoreVariant = { id:number; productId:number; stock:number; active?:boolean };
 type GlobalContent = { nav1LabelGlobal:string; nav2LabelGlobal:string; nav3LabelGlobal:string; nav4LabelGlobal:string; heroEyebrowGlobal:string; heroTitleGlobal:string; heroTitleAccentGlobal:string; heroCopyGlobal:string; heroButtonGlobal:string; introTitleGlobal:string; introCopyGlobal:string; productsEyebrowGlobal:string; productsTitleGlobal:string; manifestoEyebrowGlobal:string; manifestoQuoteGlobal:string; manifestoPrinciple1Global:string; manifestoPrinciple2Global:string; manifestoPrinciple3Global:string; journalEyebrowGlobal:string; journalTitleGlobal:string; journalCopyGlobal:string; journalButtonGlobal:string; footerTaglineGlobal:string; newsletterTitleGlobal:string; newsletterCopyGlobal:string; footerLocationGlobal:string };
 type StoreSettings = { brandName:string; brandSuffix:string; brandLogoUrl?:string; faviconUrl?:string; announcementTr:string; announcementGlobal:string; showAnnouncement?:string; announcementUrlTr?:string; announcementUrlGlobal?:string; nav1Label?:string; nav1Url?:string; nav2Label?:string; nav2Url?:string; nav3Label?:string; nav3Url?:string; nav4Label?:string; nav4Url?:string; heroEyebrow:string; heroTitle:string; heroTitleAccent:string; heroCopy:string; heroButton:string; heroImageUrl:string; introTitle:string; introCopy:string; showCategories:string; showProducts:string; showJournal:string; showManifesto?:string; homepageSectionOrder?:string; manifestoEyebrow?:string; manifestoQuote?:string; manifestoPrinciple1?:string; manifestoPrinciple2?:string; manifestoPrinciple3?:string; journalEyebrow?:string; journalTitle?:string; journalCopy?:string; journalButton?:string; journalImageUrl?:string; footerTagline?:string; footerLocation?:string; newsletterTitle?:string; newsletterCopy?:string; instagramUrl?:string; pinterestUrl?:string } & Partial<GlobalContent>;
 type StoreCategory = { id?:number; name:string; nameGlobal?:string; image:string; alt:string; parentId?:number|null; slug?:string };
@@ -36,6 +38,7 @@ export default function Home() {
   const [cartCount, setCartCount] = useState(0);
   const [notice, setNotice] = useState("");
   const [catalogProducts, setCatalogProducts] = useState<StoreProduct[]>(sampleProducts);
+  const [catalogVariants, setCatalogVariants] = useState<StoreVariant[]>([]);
   const [catalogSource, setCatalogSource] = useState<"sample" | "live">("sample");
   const [settings, setSettings] = useState<StoreSettings>(defaultSettings);
   const [storeCategories, setStoreCategories] = useState<StoreCategory[]>(sampleCategories);
@@ -76,6 +79,13 @@ export default function Home() {
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/variants")
+      .then(response => response.json())
+      .then(data => setCatalogVariants(data.variants ?? []))
+      .catch(() => undefined);
   }, []);
 
   useEffect(() => { fetch("/api/settings").then(response => response.json()).then(data => data.settings && setSettings(data.settings)).catch(() => undefined); }, []);
@@ -186,20 +196,20 @@ export default function Home() {
           </div>
         </div>
         <div className="product-grid">
-          {visibleProducts.map((product) => (
+          {visibleProducts.map((product) => { const own=product.id?availableVariants(catalogVariants.filter(variant=>variant.productId===product.id)):[];const stock=sellableStock(product.stock??0,own);return (
             <article className="product-card" key={product.id ?? product.name}>
               <div className="product-image">
                 {product.slug && <a className="product-detail-link" href={`/urun/${encodeURIComponent(product.slug)}`} aria-label={`${market === "TR" ? product.name : product.nameGlobal || product.name} detaylarını aç`}></a>}
                 <img src={product.image} alt={market === "TR" ? product.alt : product.nameGlobal || product.alt} loading="lazy" decoding="async" />
                 {product.badge && <span>{badgeText(product.badge)}</span>}
-                {catalogSource==="live"&&product.id&&(product.stock??0)>0?<button onClick={() => addToCart(product)} aria-label={`${market === "TR" ? product.name : product.nameGlobal || product.name} ürününü çantaya ekle`}>+</button>:<span className="product-preview-badge">{isGlobal?"PREVIEW":"ÖNİZLEME"}</span>}
+                {catalogSource==="live"&&product.id&&stock>0&&!own.length?<button onClick={() => addToCart(product)} aria-label={`${market === "TR" ? product.name : product.nameGlobal || product.name} ürününü çantaya ekle`}>+</button>:<span className="product-preview-badge">{stock>0&&own.length?(isGlobal?"SELECT SIZE":"BEDEN SEÇ"):(isGlobal?"PREVIEW":"ÖNİZLEME")}</span>}
               </div>
               <div className="product-meta">
                 <div><h3>{product.slug?<a href={`/urun/${encodeURIComponent(product.slug)}`}>{market === "TR" ? product.name : product.nameGlobal || product.name}</a>:market === "TR" ? product.name : product.nameGlobal || product.name}</h3><p>{market === "TR" ? product.description : product.descriptionGlobal || product.description}</p></div>
                 <strong>{(market === "TR" ? product.priceTR : product.priceGlobal)>0?(market === "TR" ? `${product.priceTR.toLocaleString("tr-TR")} TL` : `€${product.priceGlobal}`):(isGlobal?"PRICE COMING SOON":"FİYAT YAKINDA")}</strong>
               </div>
             </article>
-          ))}
+          );})}
         </div>
       </section>}
 
