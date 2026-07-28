@@ -50,16 +50,17 @@ export default function CartPage() {
     return sum + price * item.quantity;
   }, 0), [items, market]);
 
-  async function remove(id: number) {
-    await fetch(`/api/cart?id=${id}`, { method: "DELETE" });
-    setItems(current => current.filter(item => item.id !== id));
+  async function remove(item: CartItem) {
+    const response=await fetch(`/api/cart?id=${item.id}&expectedQuantity=${item.quantity}`, { method: "DELETE" });
+    if(!response.ok){await load();return;}
+    setItems(current => current.filter(line => line.id !== item.id));
   }
 
   async function setQuantity(item:CartItem, quantity:number) {
     const maximum = item.variantStock ?? item.stock;
     const next = Math.max(0, Math.min(quantity, maximum));
-    const response = await fetch("/api/cart", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ id:item.id, quantity:next }) });
-    if (!response.ok) return;
+    const response = await fetch("/api/cart", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ id:item.id, quantity:next, expectedQuantity:item.quantity }) });
+    if (!response.ok) { await load(); return; }
     if (next === 0) setItems(current => current.filter(line => line.id !== item.id));
     else setItems(current => current.map(line => line.id === item.id ? { ...line, quantity:next } : line));
   }
@@ -77,7 +78,7 @@ export default function CartPage() {
           const unit = (market === "TR" ? item.priceTr : item.priceGlobal) + (item.priceAdjustment ?? 0);
           const unavailable=!item.active||item.variantActive===false||(market==="TR"?!item.marketTr:!item.marketGlobal);return <article className={`cart-line ${unavailable?"unavailable":""}`} key={item.id}>
             <a className="cart-image" href={`/urun/${encodeURIComponent(item.slug)}`}><img src={item.imageUrl || "https://images.unsplash.com/photo-1616627547584-bf28cee262db?auto=format&fit=crop&w=600&q=85"} alt={item.name}/></a>
-            <div className="cart-copy"><p>{unavailable?(market==="GLOBAL"?"UNAVAILABLE":"BU PAZARDA YOK"):market==="TR"?"SEÇKİLİ ÜRÜN":"CURATED PRODUCT"}</p><h2><a href={`/urun/${encodeURIComponent(item.slug)}`}>{market==="GLOBAL"?(item.nameEn||item.name):item.name}</a></h2>{item.optionValue && <span>{market==="GLOBAL"?(item.optionNameEn||item.optionName):item.optionName}: {market==="GLOBAL"?(item.optionValueEn||item.optionValue):item.optionValue}</span>}{unavailable&&<span className="cart-unavailable-note">{market==="GLOBAL"?"This product must be removed from your bag.":"Siparişe devam etmek için bu ürünü kaldırın."}</span>}<div className="cart-quantity"><button onClick={() => setQuantity(item, item.quantity - 1)} aria-label={market==="GLOBAL"?"Decrease quantity":"Adedi azalt"}>−</button><span>{item.quantity}</span><button onClick={() => setQuantity(item, item.quantity + 1)} disabled={unavailable||item.quantity >= (item.variantStock ?? item.stock)} aria-label={market==="GLOBAL"?"Increase quantity":"Adedi artır"}>+</button></div><button className="cart-remove" onClick={() => remove(item.id)}>{market==="TR"?"Kaldır":"Remove"}</button></div>
+            <div className="cart-copy"><p>{unavailable?(market==="GLOBAL"?"UNAVAILABLE":"BU PAZARDA YOK"):market==="TR"?"SEÇKİLİ ÜRÜN":"CURATED PRODUCT"}</p><h2><a href={`/urun/${encodeURIComponent(item.slug)}`}>{market==="GLOBAL"?(item.nameEn||item.name):item.name}</a></h2>{item.optionValue && <span>{market==="GLOBAL"?(item.optionNameEn||item.optionName):item.optionName}: {market==="GLOBAL"?(item.optionValueEn||item.optionValue):item.optionValue}</span>}{unavailable&&<span className="cart-unavailable-note">{market==="GLOBAL"?"This product must be removed from your bag.":"Siparişe devam etmek için bu ürünü kaldırın."}</span>}<div className="cart-quantity"><button onClick={() => setQuantity(item, item.quantity - 1)} aria-label={market==="GLOBAL"?"Decrease quantity":"Adedi azalt"}>−</button><span>{item.quantity}</span><button onClick={() => setQuantity(item, item.quantity + 1)} disabled={unavailable||item.quantity >= (item.variantStock ?? item.stock)} aria-label={market==="GLOBAL"?"Increase quantity":"Adedi artır"}>+</button></div><button className="cart-remove" onClick={() => remove(item)}>{market==="TR"?"Kaldır":"Remove"}</button></div>
             <strong>{money(unit * item.quantity)}</strong>
           </article>;
         })}</div>

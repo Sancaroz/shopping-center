@@ -963,7 +963,7 @@ test("creates carts only on valid add-to-cart and cleans expired anonymous carts
   assert.doesNotMatch(cartApi, /async function ensureCart/);
   assert.match(cartApi, /if\(!cart\)return response\(\{items:\[\],market:"TR"\}/);
   assert.ok(cartApi.indexOf("if(!body)return response") < cartApi.indexOf("db.insert(carts)"));
-  assert.ok(cartApi.indexOf("if(!session.cart&&quantity>maximum)") < cartApi.indexOf("db.insert(carts)"));
+  assert.ok(cartApi.indexOf("if(quantity>maximum)") < cartApi.indexOf("db.insert(carts)"));
   assert.match(cartApi, /quantity>100/);
   assert.match(cartApi, /Cache-Control":"no-store/);
   assert.match(backupsApi, /35 \* 24 \* 60 \* 60 \* 1000/);
@@ -2254,4 +2254,25 @@ test("serializes homepage block swaps and rejects stale sourcing profile writes"
   assert.match(inventoryCenter, /expectedUpdatedAt:selected\.updatedAt/);
   assert.match(migration, /UPDATE `homepage_blocks` SET `updated_at`/);
   assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+});
+
+test("serializes cart line changes and prevents duplicate product variants", async () => {
+  const [schema,cartApi,cartPage,migration] = await Promise.all([
+    source("db/schema.ts"),
+    source("app/api/cart/route.ts"),
+    source("app/sepet/page.tsx"),
+    source("drizzle/0054_optimal_pretty_boy.sql"),
+  ]);
+  assert.match(schema, /cart_items_cart_product_variant/);
+  assert.match(schema, /cart_items_cart_product_base/);
+  assert.match(schema, /variantId:[\s\S]*onDelete: "cascade"/);
+  assert.match(cartApi, /quantity:sql`\$\{cartItems\.quantity\} \+ \$\{quantity\}`/);
+  assert.match(cartApi, /lte\(cartItems\.quantity,maximum-quantity\)/);
+  assert.match(cartApi, /onConflictDoNothing\(\)/);
+  assert.match(cartApi, /eq\(cartItems\.quantity,expectedQuantity\)/);
+  assert.match(cartApi, /code:"cart_changed"/);
+  assert.match(cartPage, /expectedQuantity:item\.quantity/);
+  assert.match(cartPage, /expectedQuantity=\$\{item\.quantity\}/);
+  assert.match(migration, /GROUP BY "cart_id", "product_id", "variant_id"/);
+  assert.match(migration, /CREATE UNIQUE INDEX `cart_items_cart_product_base`/);
 });

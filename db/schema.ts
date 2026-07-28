@@ -96,10 +96,13 @@ export const cartItems = sqliteTable("cart_items", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   cartId: integer("cart_id").notNull().references(() => carts.id, { onDelete: "cascade" }),
   productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
-  variantId: integer("variant_id").references(() => productVariants.id, { onDelete: "set null" }),
+  variantId: integer("variant_id").references(() => productVariants.id, { onDelete: "cascade" }),
   quantity: integer("quantity").notNull().default(1),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-});
+}, table => [
+  uniqueIndex("cart_items_cart_product_variant").on(table.cartId,table.productId,table.variantId).where(sql`${table.variantId} IS NOT NULL`),
+  uniqueIndex("cart_items_cart_product_base").on(table.cartId,table.productId).where(sql`${table.variantId} IS NULL`),
+]);
 
 export const orders = sqliteTable("orders", {
   id: integer("id").primaryKey({ autoIncrement: true }),
