@@ -1347,6 +1347,20 @@ test("validates storefront links and preserves audited homepage blocks", async (
   assert.match(auditCenter, /Vitrin bloğu arşivleme/);
 });
 
+test("seeds the women and men peshtemal bathrobe collection as safe drafts", async () => {
+  const migration = await source("drizzle/0056_bornoz_pestemal_collection.sql");
+  assert.match(migration, /'Bornoz & Peştemal'/);
+  assert.match(migration, /'Kadın Bornoz Peştemal'/);
+  assert.match(migration, /'Erkek Bornoz Peştemal'/);
+  assert.match(migration, /'BP-KADIN-' \|\| `size`/);
+  assert.match(migration, /'BP-ERKEK-' \|\| `size`/);
+  assert.match(migration, /SELECT 'S' AS `size` UNION ALL SELECT 'M' UNION ALL SELECT 'L' UNION ALL SELECT 'XL' UNION ALL SELECT 'XXL'/);
+  assert.match(migration, /0, 0, 'EUR', 0, 1, 1, 0, 0, 'factory'/);
+  assert.match(migration, /%100 pamuk/);
+  assert.match(migration, /INSERT INTO `homepage_blocks`/);
+  assert.match(migration, /'\/products\/bornoz-pestemal-pembe\.jpg'/);
+});
+
 test("hardens public contact and newsletter consent workflows", async () => {
   const [security,contactApi,contactPage,supportCenter,newsletterApi,newsletterContract,verifyApi,unsubscribeApi,notificationsApi,notificationCenter,schema,migration] = await Promise.all([
     source("app/public-form-security.ts"),
