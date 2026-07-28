@@ -1604,14 +1604,14 @@ test("requires triage and a resolution note before closing support tickets", asy
   assert.match(center, /Destek kaydı kapalı/);
 });
 
-test("accepts replenishments only for active catalog items with safe confirmation", async () => {
+test("accepts replenishments for sale-bound catalog items with safe confirmation", async () => {
   const [api,center] = await Promise.all([
     source("app/api/replenishments/route.ts"),
     source("app/admin/tedarik/replenishment-center.tsx"),
   ]);
   assert.match(api, /readBoundedJson\(request,5_000\)/);
   assert.match(api, /readBoundedJson\(request,2_000\)/);
-  assert.match(api, /eq\(products\.active,true\)/);
+  assert.match(api, /inventoryEligibleProduct\(\)/);
   assert.match(api, /eq\(productVariants\.active,true\)/);
   assert.match(api, /Beklenen teslim tarihi geçmişte olamaz/);
   assert.match(api, /containsLikelyCardNumber\(note\)/);
@@ -1621,14 +1621,14 @@ test("accepts replenishments only for active catalog items with safe confirmatio
   assert.match(center, /min=\{new Date\(\)\.toISOString\(\)\.slice\(0,10\)\}/);
 });
 
-test("validates manual stock direction, limits, references and active catalog scope", async () => {
+test("validates manual stock direction, limits, references and sale-bound catalog scope", async () => {
   const [api,center] = await Promise.all([
     source("app/api/inventory/route.ts"),
     source("app/admin/stok/inventory-center.tsx"),
   ]);
   assert.match(api, /const MAX_STOCK=1_000_000/);
   assert.match(api, /readBoundedJson\(request,5_000\)/);
-  assert.match(api, /eq\(products\.active,true\)/);
+  assert.match(api, /inventoryEligibleProduct\(\)/);
   assert.match(api, /eq\(productVariants\.active,true\)/);
   assert.match(api, /Tedarik, üretim ve müşteri iadesi stok miktarını artırmalıdır/);
   assert.match(api, /Hasar veya fire kaydı stok miktarını azaltmalıdır/);
@@ -1641,6 +1641,22 @@ test("validates manual stock direction, limits, references and active catalog sc
   assert.match(center, /item\.productId===selectedId&&item\.active/);
   assert.match(center, /minLength=\{10\}/);
   assert.match(center, /Benzersiz belge \/ referans/);
+});
+
+test("lets market-bound drafts receive stock while archived products stay blocked", async () => {
+  const [eligibility, inventory, replenishments] = await Promise.all([
+    source("app/catalog-inventory.ts"),
+    source("app/api/inventory/route.ts"),
+    source("app/api/replenishments/route.ts"),
+  ]);
+  assert.match(eligibility, /eq\(products\.active, true\)/);
+  assert.match(eligibility, /eq\(products\.marketTr, true\)/);
+  assert.match(eligibility, /eq\(products\.marketGlobal, true\)/);
+  assert.match(inventory, /inventoryEligibleProduct\(\)/);
+  assert.match(inventory, /productStillEligible/);
+  assert.match(replenishments, /where\(inventoryEligibleProduct\(\)\)/);
+  assert.match(replenishments, /productStillEligible/);
+  assert.match(replenishments, /where\(and\(eligibleProduct/);
 });
 
 test("routes every existing catalog stock change through the audited inventory center", async () => {
