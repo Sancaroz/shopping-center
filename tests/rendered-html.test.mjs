@@ -1901,7 +1901,7 @@ test("makes duplicate checkout and promotion release idempotent", async () => {
   assert.match(migration, /ADD `creation_state` text DEFAULT 'ready' NOT NULL/);
   assert.match(ordersApi, /creationState:"creating"/);
   assert.match(ordersApi, /set\(\{creationState:"ready"/);
-  assert.match(ordersApi, /if\(!completed\|\|releasedNotifications\.length!==2\)throw new Error\("order finalization failed"\)/);
+  assert.match(ordersApi, /if\(!completed\|\|releasedNotifications\.length!==2\|\|!committedReservation\)throw new Error\("order finalization failed"\)/);
   assert.match(ordersApi, /retry\.creationState!=="ready"/);
   assert.match(ordersApi, /promotionOperationKey=`promotion-claim:/);
   assert.match(ordersApi, /db\.batch\(\[orderInsert,promotionClaim,orderClaim,operationInsert\]\)/);
@@ -1997,7 +1997,7 @@ test("reserves and releases every order line in one guarded inventory transactio
   assert.match(reservations, /CASE WHEN \$\{allApplied\} THEN \$\{operationKey\} ELSE NULL END/);
   assert.match(reservations, /db\.batch\(\[\.\.\.stockUpdates,operationInsert,itemInsert\]\)/);
   assert.match(reservations, /rollbackInventoryOperation/);
-  assert.match(orders, /await reservation\.commit\(\)/);
+  assert.match(orders, /update\(inventoryOperations\)\.set\(\{state:"committed"/);
   assert.doesNotMatch(reservations, /async function restore/);
   assert.match(reservations, /reservation-release:\$\{orderId\}:\$\{state\}/);
   assert.match(reservations, /\.\.\.stockUpdates,\.\.\.movementInserts,operationInsert,\.\.\.promotionWrites,orderUpdate/);
@@ -2103,6 +2103,8 @@ test("leases email deliveries once and safely recovers retries for both queues",
   assert.match(queue, /DELIVERY_LEASE_MS=5\*60_000/);
   assert.match(queue, /claimKey=crypto\.randomUUID\(\)/);
   assert.match(queue, /lt\(notificationOutbox\.attempts,MAX_DELIVERY_ATTEMPTS\)/);
+  assert.match(queue, /eq\(orders\.creationState,"ready"\)/);
+  assert.match(queue, /orderReady\(\)/);
   assert.match(queue, /eq\(notificationOutbox\.status,"sending"\),or\(isNull\(notificationOutbox\.deliveryClaimedAt\),lte\(notificationOutbox\.deliveryClaimedAt,staleBefore\)/);
   assert.match(queue, /eq\(notificationOutbox\.deliveryClaimKey,input\.claimKey\)/);
   assert.match(queue, /CASE WHEN \$\{notificationOutbox\.attempts\}<\$\{MAX_DELIVERY_ATTEMPTS\} THEN 'draft' ELSE 'failed' END/);
@@ -2318,6 +2320,10 @@ test("recovers orphaned stock reservations and persists notifications before fin
   assert.match(ordersApi, /queueNotification\(order,"verification",[\s\S]*,"held"\)/);
   assert.match(ordersApi, /eq\(notificationOutbox\.status,"held"\)/);
   assert.match(ordersApi, /heldVerification,heldReceived/);
+  assert.match(ordersApi, /activeReservation/);
+  assert.match(ordersApi, /draftVerification,draftReceived/);
+  assert.match(ordersApi, /committedReservation/);
+  assert.doesNotMatch(ordersApi, /reservation\.commit\(\)/);
   assert.match(ordersApi, /readyGuard/);
   assert.match(ordersApi, /releasedNotifications\.length!==2/);
   assert.doesNotMatch(ordersApi, /queueNotification\(order,"verification"[\s\S]{0,180}catch\(\(\)=>undefined\)/);

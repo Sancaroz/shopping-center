@@ -51,7 +51,7 @@ export async function reserveInventory(db:Database,lines:Line[]){
     for(const item of reserved){const[current]=item.kind==="variant"?await db.select({stock:productVariants.stock,active:productVariants.active}).from(productVariants).where(and(eq(productVariants.id,item.id),eq(productVariants.productId,item.productId))).limit(1):await db.select({stock:products.stock,active:products.active}).from(products).where(eq(products.id,item.id)).limit(1);if(!current||!current.active||current.stock<item.quantity)return{ok:false as const,error:item.kind==="variant"?`${item.productName} seçeneği artık satışta değil veya yeterli stok bulunmuyor.`:`${item.productName} artık satışta değil veya yeterli stok bulunmuyor.`};}
     return{ok:false as const,error:"Sepet stoğu bu sırada değişti. Güncel miktarlarla tekrar deneyin."};
   }
-  return{ok:true as const,reserved,operationKey,rollback:()=>rollbackInventoryOperation(db,operationKey,reserved),commit:()=>db.update(inventoryOperations).set({state:"committed",updatedAt:new Date().toISOString()}).where(and(eq(inventoryOperations.operationKey,operationKey),eq(inventoryOperations.state,"active")))};
+  return{ok:true as const,reserved,operationKey,rollback:()=>rollbackInventoryOperation(db,operationKey,reserved)};
 }
 
 export async function releaseOrderReservation(db:Database,orderId:number,state="released",includeCommitted=false,options:ReleaseOptions={}){
