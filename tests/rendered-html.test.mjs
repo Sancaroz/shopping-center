@@ -2104,8 +2104,14 @@ test("leases email deliveries once and safely recovers retries for both queues",
   assert.match(queue, /claimKey=crypto\.randomUUID\(\)/);
   assert.match(queue, /lt\(notificationOutbox\.attempts,MAX_DELIVERY_ATTEMPTS\)/);
   assert.match(queue, /eq\(orders\.creationState,"ready"\)/);
-  assert.match(queue, /orderReady\(\)/);
-  assert.match(queue, /eq\(notificationOutbox\.status,"sending"\),or\(isNull\(notificationOutbox\.deliveryClaimedAt\),lte\(notificationOutbox\.deliveryClaimedAt,staleBefore\)/);
+  assert.match(queue, /orderEligible\(\)/);
+  assert.match(queue, /eq\(notificationOutbox\.eventType,"verification"\)/);
+  assert.match(queue, /isNull\(orders\.emailVerifiedAt\)/);
+  assert.match(queue, /gt\(orders\.verificationExpiresAt,nowIso\)/);
+  assert.match(queue, /eq\(notificationOutbox\.eventType,"cancelled"\),eq\(orders\.status,"cancelled"\)/);
+  assert.match(queue, /eq\(notificationOutbox\.eventType,"shipment_update"\)/);
+  assert.match(queue, /set\(\{status:"cancelled"/);
+  assert.match(queue, /staleOrderLease=or\(isNull\(notificationOutbox\.deliveryClaimedAt\),lte\(notificationOutbox\.deliveryClaimedAt,staleBefore\)\)/);
   assert.match(queue, /eq\(notificationOutbox\.deliveryClaimKey,input\.claimKey\)/);
   assert.match(queue, /CASE WHEN \$\{notificationOutbox\.attempts\}<\$\{MAX_DELIVERY_ATTEMPTS\} THEN 'draft' ELSE 'failed' END/);
   assert.match(queue, /providerMessageId/);
