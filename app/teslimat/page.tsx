@@ -18,6 +18,7 @@ export default function CheckoutPage() {
   const [message,setMessage] = useState("");
   const [result,setResult] = useState<Result|null>(null);
   const [requestKey]=useState(()=>crypto.randomUUID());
+  const [cartRevision,setCartRevision]=useState<string|null>(null);
   const [brand,setBrand]=useState({brandName:"MYSA",brandSuffix:"OBJETS"});
   const [intakeOpen,setIntakeOpen]=useState(true);
   const [country,setCountry]=useState("Türkiye");
@@ -26,7 +27,8 @@ export default function CheckoutPage() {
   const [promoCode,setPromoCode]=useState("");const[discount,setDiscount]=useState(0);const[promoMessage,setPromoMessage]=useState("");const[promoBusy,setPromoBusy]=useState(false);
   const [shippingSettings,setShippingSettings]=useState({shippingTr:99,freeShippingTr:1500,shippingGlobal:15,freeShippingGlobal:150,shippingGlobalEnabled:"false",shippingGlobalCountries:"",taxDisplayMode:"pending"});
 
-  useEffect(() => { fetch("/api/cart").then(response => response.json()).then(data => { const rows=data.items??[];const next=rows.length?(data.market === "GLOBAL" ? "GLOBAL" : "TR"):getPreferredMarket();setItems(rows);setMarket(next);setPreferredMarket(next); }).catch(() => setMessage("Çantanız yüklenemedi.")); }, []);
+  const loadCart=()=>fetch("/api/cart").then(response => response.json()).then(data => { const rows=data.items??[];const next=rows.length?(data.market === "GLOBAL" ? "GLOBAL" : "TR"):getPreferredMarket();setItems(rows);setCartRevision(typeof data.revision==="string"?data.revision:null);setMarket(next);setPreferredMarket(next); });
+  useEffect(() => { loadCart().catch(() => setMessage("Çantanız yüklenemedi.")); }, []);
   useEffect(()=>{fetch("/api/settings").then(response=>response.json()).then(data=>{const s=data.settings??{};setBrand({brandName:s.brandName??"MYSA",brandSuffix:s.brandSuffix??"OBJETS"});setIntakeOpen(s.orderIntakeStatus!=="paused");setShippingSettings({shippingTr:Number(s.shippingTr??99),freeShippingTr:Number(s.freeShippingTr??1500),shippingGlobal:Number(s.shippingGlobal??15),freeShippingGlobal:Number(s.freeShippingGlobal??150),shippingGlobalEnabled:String(s.shippingGlobalEnabled??"false"),shippingGlobalCountries:String(s.shippingGlobalCountries??""),taxDisplayMode:String(s.taxDisplayMode??"pending")});}).catch(()=>undefined);},[]);
   useEffect(()=>{setCountry(market==="TR"?"Türkiye":"");setPromoCode("");setDiscount(0);setPromoMessage("");},[market]);
   const total = useMemo(() => items.reduce((sum,item) => sum + ((market === "TR" ? item.priceTr : item.priceGlobal) + Number(item.priceAdjustment ?? 0)) * item.quantity, 0), [items,market]);
@@ -37,9 +39,10 @@ export default function CheckoutPage() {
 
   async function submit(event:FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage("");
-    const values=Object.fromEntries(new FormData(event.currentTarget));const response = await fetch("/api/orders", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({...values,requestKey,promoCode:discount>0?promoCode:"",billingType,billingSameAsDelivery,privacyConsent:values.privacyConsent==="on",termsConsent:values.termsConsent==="on"}) });
+    const values=Object.fromEntries(new FormData(event.currentTarget));const response = await fetch("/api/orders", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({...values,requestKey,cartRevision,promoCode:discount>0?promoCode:"",billingType,billingSameAsDelivery,privacyConsent:values.privacyConsent==="on",termsConsent:values.termsConsent==="on"}) });
     const data = await response.json();
     if (response.ok) { setResult(data); setItems([]); window.scrollTo({ top:0, behavior:"smooth" }); }
+    else if(data.code==="cart_changed"){await loadCart().catch(()=>undefined);setDiscount(0);setMessage(market==="GLOBAL"?"Your bag changed. We refreshed the order summary; please review it and submit again.":"Çantanız değişti. Sipariş özeti yenilendi; kontrol edip tekrar gönderin.");}
     else setMessage(data.error ?? (market==="GLOBAL"?"Your order request could not be created.":"Sipariş talebi oluşturulamadı."));
     setBusy(false);
   }

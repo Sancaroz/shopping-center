@@ -485,7 +485,7 @@ test("captures immutable billing data without issuing a premature invoice", asyn
   assert.match(invoice, /Bu ekran mali belge üretmez/);
   assert.match(invoice, /Sipariş anındaki satıcı şirket bilgileri/);
   assert.doesNotMatch(tracking, /billingTaxNumber|sellerSnapshotJson/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
 });
 
 test("manages mixed sourcing and records auditable inventory movements", async () => {
@@ -518,7 +518,7 @@ test("manages mixed sourcing and records auditable inventory movements", async (
   assert.match(reservations, /reservation_release/);
   assert.match(readiness, /Stok ve tedarik/);
   assert.match(backup, /"inventoryMovements"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
   assert.match(exportApi, /inventoryMovementRows/);
   assert.match(adminPage, /\/admin\/stok/);
   assert.match(productsApi, /yalnızca Stok Merkezi üzerinden/);
@@ -549,7 +549,7 @@ test("snapshots order costs and reports finance estimates without false accounti
   assert.match(center, /Global ürün maliyetleri avro bazında tanımlanmadığı/);
   assert.match(readiness, /Kârlılık kontrolü/);
   assert.match(adminPage, /\/admin\/finans/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
 });
 
 test("applies server-authoritative promotions with safe limits and inactive defaults", async () => {
@@ -588,7 +588,7 @@ test("applies server-authoritative promotions with safe limits and inactive defa
   assert.match(center, /Yeni kampanyalar daima pasif oluşturulur/);
   assert.match(finance, /order\.subtotal-order\.discountAmount/);
   assert.match(backup, /"promotionRedemptions"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
   assert.match(exportApi, /promotionRedemptionRows/);
   assert.match(trackingApi, /discountAmount: order\.discountAmount/);
   assert.match(trackingPage, /İNDİRİM/);
@@ -633,7 +633,7 @@ test("requires an audited fulfillment checklist before shipment", async () => {
   assert.match(component, /Kalite kontrolü/);
   assert.match(component, /Adres ve etiket/);
   assert.match(backup, /"fulfillmentChecklists"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
   assert.match(exportApi, /fulfillmentChecklistRows/);
   assert.match(operations, /packingIncomplete/);
 });
@@ -659,7 +659,7 @@ test("tracks replenishments without sending suppliers and receives stock once", 
   assert.match(inventory, /\/admin\/tedarik/);
   assert.match(operations, /overdueReplenishments/);
   assert.match(backup, /"replenishments"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
   assert.match(exportApi, /replenishmentRows/);
 });
 
@@ -686,7 +686,7 @@ test("runs authenticated auditable support tickets with safe order matching", as
   assert.match(operations, /message-urgent/);
   assert.match(panel, /\/admin\/destek/);
   assert.match(backup, /Destek-sipariş/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
   assert.match(auditCenter, /Destek kaydı güncellemesi/);
   assert.match(auditCenter, /contact_message","Destek/);
 });
@@ -723,7 +723,7 @@ test("reconciles immutable payment and refund records without collecting card da
   assert.match(orderDetail, /Ödeme defteri/);
   assert.match(auditCenter, /Ödeme işlemi kaydı/);
   assert.match(backup, /"paymentTransactions"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
   assert.match(exportApi, /paymentTransactionRows/);
 });
 
@@ -757,7 +757,7 @@ test("tracks privacy rights requests without automatic deletion or identity docu
   assert.match(panel, /\/admin\/veri-talepleri/);
   assert.match(auditCenter, /Veri talebi güncellemesi/);
   assert.match(backup, /"privacyRequests"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
   assert.match(exportApi, /privacyRequestRows/);
 });
 
@@ -800,7 +800,7 @@ test("requires newsletter verification and supports one-click unsubscribe", asyn
   assert.match(operations, /draftNewsletter/);
   assert.match(auditCenter, /Bülten aboneliği durdurma/);
   assert.match(backup, /"newsletterOutbox"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
   assert.match(exportApi, /newsletterOutboxRows/);
   assert.match(migration, /SET `status` = 'pending_verification'/);
   assert.match(notificationsApi, /newsletterOutbox/);
@@ -848,7 +848,7 @@ test("protects every admin surface with an owner-managed email allowlist", async
   assert.match(auditCenter, /Yönetici erişimi güncellemesi/);
   assert.match(readiness, /Yönetim erişimi/);
   assert.match(backup, /"adminUsers"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
   assert.match(exportApi, /adminUserRows/);
   assert.match(migration, /CREATE TABLE `admin_users`/);
   assert.match(ownerMigration, /CREATE UNIQUE INDEX `admin_users_single_owner`/);
@@ -947,7 +947,7 @@ test("archives variants while preserving inventory history and blocking new sale
   assert.match(panel, /Stok hareketleri ve sipariş geçmişi korunacak/);
   assert.match(editor, /Satışta kullanılabilir/);
   assert.match(replenishments, /eq\(productVariants\.active,true\)/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
   assert.match(migration, /ADD `active` integer DEFAULT true NOT NULL/);
   assert.match(auditCenter, /Varyant arşivleme/);
 });
@@ -961,7 +961,7 @@ test("creates carts only on valid add-to-cart and cleans expired anonymous carts
   ]);
   assert.match(cartApi, /async function lookupCart/);
   assert.doesNotMatch(cartApi, /async function ensureCart/);
-  assert.match(cartApi, /if\(!cart\)return response\(\{items:\[\],market:"TR"\}/);
+  assert.match(cartApi, /if\(!cart\)return response\(\{items:\[\],market:"TR",revision:null\}/);
   assert.ok(cartApi.indexOf("if(!body)return response") < cartApi.indexOf("db.insert(carts)"));
   assert.ok(cartApi.indexOf("if(quantity>maximum)") < cartApi.indexOf("db.insert(carts)"));
   assert.match(cartApi, /quantity>100/);
@@ -1002,7 +1002,7 @@ test("stores an immutable hashed snapshot of the terms accepted with each order"
   assert.match(evidence, /SÖZLEŞME KANITI/);
   assert.match(evidence, /SHA-256/);
   assert.doesNotMatch(tracking, /termsSnapshotJson|termsSnapshotHash/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
   assert.match(migration, /ADD `terms_snapshot_json`/);
   assert.match(migration, /ADD `terms_snapshot_hash`/);
 });
@@ -2006,7 +2006,7 @@ test("reserves and releases every order line in one guarded inventory transactio
   assert.match(orders, /cancellationReleasesInventory/);
   assert.match(verification, /expectedUpdatedAt:expired\.updatedAt/);
   assert.match(backup, /"inventoryOperations"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
   assert.match(exportApi, /inventoryOperations:inventoryOperationRows/);
 });
 
@@ -2035,7 +2035,7 @@ test("stores only replay-safe payment webhook metadata until a provider adapter 
   assert.match(statusApi, /limit\(100\)/);
   assert.match(center, /Ham ödeme içeriği saklanmaz/);
   assert.match(backup, /"paymentWebhookReceipts"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
   assert.match(exportApi, /paymentWebhookReceipts:paymentWebhookReceiptRows/);
 });
 
@@ -2074,14 +2074,14 @@ test("recovers stale checkout creation without losing stock, promotion usage or 
   assert.match(ordersApi, /promotionClaimState:promotionResult\.promotion\?"pending":"none"/);
   assert.match(ordersApi, /Date\.now\(\)-2\*60_000/);
   assert.match(ordersApi, /recoverStaleCreatingOrder\(db,duplicate,staleCutoff\)/);
-  const readyIndex=ordersApi.indexOf('set({creationState:"ready"');const cartCleanupIndex=ordersApi.indexOf("try{await db.delete(cartItems)",readyIndex);assert.ok(readyIndex>=0&&cartCleanupIndex>readyIndex);
+  const readyIndex=ordersApi.indexOf('set({creationState:"ready"');const cartCleanupIndex=ordersApi.indexOf("const exactDeletes=priced.map",readyIndex);assert.ok(readyIndex>=0&&cartCleanupIndex>readyIndex);
   assert.match(recovery, /inArray\(orders\.creationState,\["creating","recovering"\]\)/);
   assert.match(recovery, /rollbackInventoryOperation\(db,claimed\.inventoryOperationKey\)/);
   assert.match(recovery, /releasePromotionClaim\(db,\{orderId:claimed\.id,promotionId:claimed\.promotionId\}\)/);
   assert.match(recovery, /db\.delete\(orders\)/);
   assert.match(promotions, /promotionClaimState:"released"/);
   assert.match(backup, /"inventoryOperationItems"/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
   assert.match(exportApi, /inventoryOperationItems:inventoryOperationItemRows/);
 });
 
@@ -2114,7 +2114,7 @@ test("leases email deliveries once and safely recovers retries for both queues",
   assert.match(api, /eq\(table\.updatedAt,current\.updatedAt\)/);
   assert.match(api, /başka bir işlem tarafından güncellendi/);
   assert.match(center, /tarihinde yeniden denenecek/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
 });
 
 test("derives a stable opaque provider idempotency key for every email event", async () => {
@@ -2152,7 +2152,7 @@ test("proves backup uniqueness, metadata integrity and product-variant ownership
   const {backupTableNames,buildBackupEnvelope,verifyBackupEnvelope,BACKUP_SCHEMA_VERSION}=await importTypescriptModule("app/backup-format.ts");
   const empty=()=>Object.fromEntries(backupTableNames.map(name=>[name,[]]));
   const clean=await buildBackupEnvelope(empty());const cleanReport=await verifyBackupEnvelope(clean);
-  assert.equal(BACKUP_SCHEMA_VERSION,22);assert.equal(cleanReport.valid,true);assert.deepEqual(clean.excludedTables,["requestThrottles"]);
+  assert.equal(BACKUP_SCHEMA_VERSION,23);assert.equal(cleanReport.valid,true);assert.deepEqual(clean.excludedTables,["requestThrottles"]);
 
   const duplicateData=empty();duplicateData.products=[{id:1,slug:"one"},{id:1,slug:"two"}];
   const duplicateReport=await verifyBackupEnvelope(await buildBackupEnvelope(duplicateData));
@@ -2212,7 +2212,7 @@ test("rejects stale variant and gallery mutations after inventory or editor chan
   assert.equal((reservations.match(/update\(productVariants\)\.set\(\{stock:[^\n]*updatedAt:new Date\(\)\.toISOString\(\)/g)??[]).length,3);
   assert.match(migration, /UPDATE `product_images` SET `updated_at`/);
   assert.match(migration, /UPDATE `product_variants` SET `updated_at`/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
 });
 
 test("rejects stale promotion and replenishment actions before changing limits or stock", async () => {
@@ -2253,7 +2253,7 @@ test("serializes homepage block swaps and rejects stale sourcing profile writes"
   assert.match(inventoryApi, /eq\(products\.updatedAt,expectedUpdatedAt\)/);
   assert.match(inventoryCenter, /expectedUpdatedAt:selected\.updatedAt/);
   assert.match(migration, /UPDATE `homepage_blocks` SET `updated_at`/);
-  assert.match(backup, /BACKUP_SCHEMA_VERSION = 22/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
 });
 
 test("serializes cart line changes and prevents duplicate product variants", async () => {
@@ -2275,4 +2275,28 @@ test("serializes cart line changes and prevents duplicate product variants", asy
   assert.match(cartPage, /expectedQuantity=\$\{item\.quantity\}/);
   assert.match(migration, /GROUP BY "cart_id", "product_id", "variant_id"/);
   assert.match(migration, /CREATE UNIQUE INDEX `cart_items_cart_product_base`/);
+});
+
+test("rejects stale checkout summaries and preserves cart changes made during order creation", async () => {
+  const [schema,cartApi,checkout,ordersApi,migration,backup] = await Promise.all([
+    source("db/schema.ts"),
+    source("app/api/cart/route.ts"),
+    source("app/teslimat/page.tsx"),
+    source("app/api/orders/route.ts"),
+    source("drizzle/0055_tense_sharon_ventura.sql"),
+    source("app/backup-format.ts"),
+  ]);
+  assert.match(schema, /revision: text\("revision"\)\.notNull\(\)\.default\(""\)/);
+  assert.match(cartApi, /revision:cart\.revision/);
+  assert.match(cartApi, /revision:crypto\.randomUUID\(\)/);
+  assert.match(checkout, /setCartRevision\(typeof data\.revision==="string"\?data\.revision:null\)/);
+  assert.match(checkout, /requestKey,cartRevision,promoCode/);
+  assert.match(checkout, /data\.code==="cart_changed"/);
+  assert.match(ordersApi, /cart\.revision!==cartRevision/);
+  assert.match(ordersApi, /currentCart\.revision!==cartRevision/);
+  assert.match(ordersApi, /const exactDeletes=priced\.map/);
+  assert.match(ordersApi, /gt\(cartItems\.quantity,line\.quantity\)/);
+  assert.doesNotMatch(ordersApi, /duplicateCart[\s\S]*delete\(cartItems\)/);
+  assert.match(migration, /randomblob\(16\)/);
+  assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
 });
