@@ -1,5 +1,5 @@
 export const BACKUP_FORMAT = "mysa-store-backup";
-export const BACKUP_SCHEMA_VERSION = 21;
+export const BACKUP_SCHEMA_VERSION = 22;
 export const BACKUP_EXCLUDED_TABLES = ["requestThrottles"] as const;
 
 export const backupTableNames = [

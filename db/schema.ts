@@ -465,4 +465,5 @@ export const homepageBlocks = sqliteTable("homepage_blocks", {
   imagePosition: text("image_position").notNull().default("left"), sortOrder: integer("sort_order").notNull().default(0),
   marketTr: integer("market_tr", { mode: "boolean" }).notNull().default(true), marketGlobal: integer("market_global", { mode: "boolean" }).notNull().default(true),
   active: integer("active", { mode: "boolean" }).notNull().default(true), createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull(),
 });

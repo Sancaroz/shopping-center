@@ -15,14 +15,15 @@ export async function GET(){
 
 export async function PATCH(request:Request){
   const user=await getChatGPTUser();if(!user)return Response.json({error:"Yetkisiz erişim"},{status:401});
-  const parsed=await readBoundedJson(request,5_000);if(parsed.error)return parsed.error;const body=parsed.body!;const productId=Number(body.productId);
+  const parsed=await readBoundedJson(request,5_000);if(parsed.error)return parsed.error;const body=parsed.body!;const productId=Number(body.productId);const expectedUpdatedAt=String(body.expectedUpdatedAt??"");
   if(!Number.isInteger(productId)||productId<1)return Response.json({error:"Geçersiz ürün."},{status:400});
+  if(!expectedUpdatedAt)return Response.json({error:"Tedarik profili ekranı güncel değil. Sayfayı yenileyip tekrar deneyin."},{status:409,headers:{"Cache-Control":"no-store"}});
   const sourcingType=String(body.sourcingType??"");if(!["factory","handmade"].includes(sourcingType))return Response.json({error:"Üretim türü fabrika veya el işçiliği olmalıdır."},{status:400});
   const unitCost=Number(body.unitCost);const leadTimeDays=Number(body.leadTimeDays);const reorderPoint=Number(body.reorderPoint);const supplierName=String(body.supplierName??"").trim();const supplierContact=String(body.supplierContact??"").trim();const supplierSku=String(body.supplierSku??"").trim();
   if(!Number.isFinite(unitCost)||unitCost<0||unitCost>1_000_000_000||!Number.isInteger(leadTimeDays)||leadTimeDays<0||leadTimeDays>365||!Number.isInteger(reorderPoint)||reorderPoint<0||reorderPoint>MAX_STOCK)return Response.json({error:"Maliyet, termin ve kritik stok değerlerini kontrol edin."},{status:400});if(supplierName.length>160||supplierContact.length>240||supplierSku.length>100)return Response.json({error:"Tedarik profili alanlarından biri izin verilen uzunluğu aşıyor."},{status:400});
-  const db=getDb();const[product]=await db.update(products).set({sourcingType,supplierName,supplierContact,supplierSku,unitCost,leadTimeDays,reorderPoint,updatedAt:new Date().toISOString()}).where(and(eq(products.id,productId),eq(products.active,true))).returning();
-  if(!product)return Response.json({error:"Ürün bulunamadı."},{status:404});
-  await recordAudit({user,action:"inventory.profile.update",entityType:"product",entityId:productId,summary:`${product.nameTr} tedarik bilgileri güncellendi.`,after:{sourcingType,supplierName:product.supplierName,unitCost,leadTimeDays,reorderPoint}});
+  const db=getDb();const[before]=await db.select().from(products).where(eq(products.id,productId)).limit(1);if(!before)return Response.json({error:"Ürün bulunamadı."},{status:404});if(before.updatedAt!==expectedUpdatedAt)return Response.json({error:"Ürün veya stoğu bu sırada güncellendi. Sayfayı yenileyip tedarik profilini yeniden uygulayın."},{status:409,headers:{"Cache-Control":"no-store"}});const[product]=await db.update(products).set({sourcingType,supplierName,supplierContact,supplierSku,unitCost,leadTimeDays,reorderPoint,updatedAt:new Date().toISOString()}).where(and(eq(products.id,productId),eq(products.active,true),eq(products.updatedAt,expectedUpdatedAt))).returning();
+  if(!product)return Response.json({error:"Ürün veya stoğu bu sırada güncellendi. Sayfayı yenileyip tedarik profilini yeniden uygulayın."},{status:409,headers:{"Cache-Control":"no-store"}});
+  await recordAudit({user,action:"inventory.profile.update",entityType:"product",entityId:productId,summary:`${product.nameTr} tedarik bilgileri güncellendi.`,before:{sourcingType:before.sourcingType,supplierName:before.supplierName,unitCost:before.unitCost,leadTimeDays:before.leadTimeDays,reorderPoint:before.reorderPoint},after:{sourcingType,supplierName:product.supplierName,unitCost,leadTimeDays,reorderPoint}});
   return Response.json({product});
 }
 

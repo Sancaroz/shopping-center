@@ -19,6 +19,7 @@ type Block = {
   marketTr: boolean;
   marketGlobal: boolean;
   active: boolean;
+  updatedAt: string;
 };
 
 type BlockFieldsProps = { block?: Block };
@@ -88,7 +89,7 @@ export default function BlocksEditor() {
     try {
       const form = new FormData(event.currentTarget);
       const imageUrl = await resolveImage(form);
-      const response = await fetch("/api/homepage-blocks", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editing.id, ...formBody(form, imageUrl) }) });
+      const response = await fetch("/api/homepage-blocks", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editing.id, expectedUpdatedAt: editing.updatedAt, ...formBody(form, imageUrl) }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Değişiklikler kaydedilemedi.");
       setEditing(null); await load(); setMessage("Blok güncellendi.");
@@ -96,31 +97,31 @@ export default function BlocksEditor() {
     finally { setBusy(false); }
   }
 
-  async function patch(id: number, data: Record<string, unknown>, reload = true) {
-    const response = await fetch("/api/homepage-blocks", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...data }) });
+  async function patch(block: Block, data: Record<string, unknown>) {
+    const response = await fetch("/api/homepage-blocks", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: block.id, expectedUpdatedAt: block.updatedAt, ...data }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "İşlem tamamlanamadı.");
-    if (reload) await load();
+    await load();
   }
 
   async function move(index: number, direction: -1 | 1) {
     const target = index + direction; if (target < 0 || target >= blocks.length) return;
-    try { await Promise.all([patch(blocks[index].id, { sortOrder: blocks[target].sortOrder }, false), patch(blocks[target].id, { sortOrder: blocks[index].sortOrder }, false)]); await load(); }
-    catch { setMessage("Sıralama değiştirilemedi."); }
+    try { const first=blocks[index];const second=blocks[target];const response=await fetch("/api/homepage-blocks",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({swap:[{id:first.id,sortOrder:second.sortOrder,expectedUpdatedAt:first.updatedAt},{id:second.id,sortOrder:first.sortOrder,expectedUpdatedAt:second.updatedAt}]})});const data=await response.json();if(!response.ok)throw new Error(data.error||"Sıralama değiştirilemedi.");await load();setMessage("Blok sırası güncellendi."); }
+    catch (error) { setMessage(error instanceof Error?error.message:"Sıralama değiştirilemedi.");await load(); }
   }
 
-  async function remove(id: number) {
+  async function remove(block: Block) {
     if (!confirm("Bu özel blok arşivlensin mi? İçerik ve işlem geçmişi korunacaktır.")) return;
-    const response = await fetch(`/api/homepage-blocks?id=${id}`, { method: "DELETE" });
+    const response = await fetch(`/api/homepage-blocks?id=${block.id}&expectedUpdatedAt=${encodeURIComponent(block.updatedAt)}`, { method: "DELETE" });
     const data = await response.json();
     if (!response.ok) { setMessage(data.error || "Blok arşivlenemedi."); return; }
-    if (editing?.id === id) setEditing(null); await load(); setMessage("Blok arşivlendi; içerik geçmişi korundu.");
+    if (editing?.id === block.id) setEditing(null); await load(); setMessage("Blok arşivlendi; içerik geçmişi korundu.");
   }
 
   return <main className="admin-shell">
     <header className="admin-header"><div><p>MODÜLER VİTRİN</p><h1>Özel içerik blokları</h1></div><div><a href="/">Ana sayfayı gör ↗</a><a href="/admin">Panele dön ↗</a></div></header>
     {editing && <section className="admin-card block-create block-edit"><div className="list-title"><div><p className="section-kicker">DÜZENLENİYOR</p><h2>{editing.titleTr}</h2></div><button type="button" onClick={() => setEditing(null)}>Kapat ×</button></div><form key={editing.id} className="admin-form" onSubmit={save}><BlockFields block={editing}/><div className="block-form-actions"><button type="submit" disabled={busy}>{busy ? "Kaydediliyor…" : "Değişiklikleri kaydet"}</button><button type="button" onClick={() => setEditing(null)}>Vazgeç</button></div></form></section>}
     <section className="admin-card block-create"><h2>Yeni blok ekle</h2><form className="admin-form" onSubmit={add}><BlockFields/><button disabled={busy}>{busy ? "Ekleniyor…" : "Bloğu ekle"}</button></form>{message && <p className="admin-message">{message}</p>}</section>
-    <section className="admin-card block-list"><div className="list-title"><h2>Eklenen bloklar</h2><span>{blocks.length} blok</span></div>{blocks.map((block, index) => <article key={block.id} className={editing?.id === block.id ? "editing" : ""}><img src={block.imageUrl} alt=""/><span><b>{block.titleTr}</b><small>{block.titleEn || "İngilizce başlık yok"} · {block.marketTr?"TR ":""}{block.marketGlobal?"GLOBAL ":""}{!block.marketTr&&!block.marketGlobal?"Pazarsız ":""}· {block.active ? "Yayında" : "Gizli"}</small></span><div><button onClick={() => move(index, -1)} disabled={index === 0} aria-label="Yukarı taşı">↑</button><button onClick={() => move(index, 1)} disabled={index === blocks.length - 1} aria-label="Aşağı taşı">↓</button><button onClick={() => { setEditing(block); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Düzenle</button><button onClick={() => patch(block.id, { active: !block.active })}>{block.active ? "Gizle" : "Yayınla"}</button>{block.active&&<button onClick={() => remove(block.id)}>Arşivle</button>}</div></article>)}</section>
+    <section className="admin-card block-list"><div className="list-title"><h2>Eklenen bloklar</h2><span>{blocks.length} blok</span></div>{blocks.map((block, index) => <article key={block.id} className={editing?.id === block.id ? "editing" : ""}><img src={block.imageUrl} alt=""/><span><b>{block.titleTr}</b><small>{block.titleEn || "İngilizce başlık yok"} · {block.marketTr?"TR ":""}{block.marketGlobal?"GLOBAL ":""}{!block.marketTr&&!block.marketGlobal?"Pazarsız ":""}· {block.active ? "Yayında" : "Gizli"}</small></span><div><button onClick={() => move(index, -1)} disabled={index === 0} aria-label="Yukarı taşı">↑</button><button onClick={() => move(index, 1)} disabled={index === blocks.length - 1} aria-label="Aşağı taşı">↓</button><button onClick={() => { setEditing(block); window.scrollTo({ top: 0, behavior: "smooth" }); }}>Düzenle</button><button onClick={() => patch(block, { active: !block.active })}>{block.active ? "Gizle" : "Yayınla"}</button>{block.active&&<button onClick={() => remove(block)}>Arşivle</button>}</div></article>)}</section>
   </main>;
 }

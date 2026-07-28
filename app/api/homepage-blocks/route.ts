@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { homepageBlocks } from "../../../db/schema";
 import { recordAudit } from "../../audit-log";
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     buttonUrl: text(body.buttonUrl ?? "/magaza"), imageUrl: text(body.imageUrl),
     imagePosition: body.imagePosition === "right" ? "right" : "left",
     sortOrder: rows.length, marketTr: body.marketTr ?? true, marketGlobal: body.marketGlobal ?? true,
-    active: true, createdAt: "",
+    active: true, createdAt: "", updatedAt: "",
   } satisfies typeof homepageBlocks.$inferSelect;
   const error = validateBlock(candidate);
   if (error) return Response.json({ error }, { status: 400 });
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     eyebrowTr: candidate.eyebrowTr, eyebrowEn: candidate.eyebrowEn, titleTr: candidate.titleTr, titleEn: candidate.titleEn,
     copyTr: candidate.copyTr, copyEn: candidate.copyEn, buttonTr: candidate.buttonTr, buttonEn: candidate.buttonEn,
     buttonUrl: candidate.buttonUrl, imageUrl: candidate.imageUrl, imagePosition: candidate.imagePosition, sortOrder: candidate.sortOrder,
-    marketTr: candidate.marketTr, marketGlobal: candidate.marketGlobal, active: candidate.active,
+    marketTr: candidate.marketTr, marketGlobal: candidate.marketGlobal, active: candidate.active, updatedAt: new Date().toISOString(),
   }).returning();
   await recordAudit({ user, action: "homepage_block.create", entityType: "homepage_block", entityId: block.id, summary: `Vitrin bloğu oluşturuldu: ${block.titleTr}`, after: block });
   return Response.json({ block }, { status: 201 });
@@ -77,14 +77,29 @@ export async function PATCH(request: Request) {
   if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   if (!body) return Response.json({ error: "Geçersiz istek." }, { status: 400 });
+  const db = getDb();
+  if (Array.isArray(body.swap)) {
+    const swap = body.swap as Array<Record<string, unknown>>;
+    if (swap.length !== 2) return Response.json({ error: "Blok sıralama isteği geçersiz." }, { status: 400 });
+    const [first, second] = swap.map(item => ({ id: Number(item.id), sortOrder: Number(item.sortOrder), expectedUpdatedAt: String(item.expectedUpdatedAt ?? "") }));
+    if ([first, second].some(item => !Number.isInteger(item.id) || item.id < 1 || !Number.isInteger(item.sortOrder) || item.sortOrder < 0 || item.sortOrder > 100 || !item.expectedUpdatedAt) || first.id === second.id) return Response.json({ error: "Blok sıralama isteği geçersiz veya ekran güncel değil." }, { status: 400 });
+    const now = new Date().toISOString();
+    const versionsMatch = sql<boolean>`EXISTS (SELECT 1 FROM homepage_blocks AS first_block WHERE first_block.id = ${first.id} AND first_block.updated_at = ${first.expectedUpdatedAt}) AND EXISTS (SELECT 1 FROM homepage_blocks AS second_block WHERE second_block.id = ${second.id} AND second_block.updated_at = ${second.expectedUpdatedAt})`;
+    const changed = await db.update(homepageBlocks).set({ sortOrder: sql<number>`CASE WHEN ${homepageBlocks.id} = ${first.id} THEN ${first.sortOrder} ELSE ${second.sortOrder} END`, updatedAt: now }).where(and(inArray(homepageBlocks.id, [first.id, second.id]), versionsMatch)).returning();
+    if (changed.length !== 2) return Response.json({ error: "Vitrin blokları bu sırada başka bir ekrandan güncellendi. Sayfayı yenileyip tekrar deneyin." }, { status: 409, headers: { "Cache-Control": "no-store" } });
+    await recordAudit({ user, action: "homepage_block.reorder", entityType: "homepage_block", summary: "İki vitrin bloğunun sırası değiştirildi.", after: { order: swap.map(item => item.id) } });
+    return Response.json({ ok: true, blocks: changed });
+  }
   const id = Number(body.id);
   if (!Number.isInteger(id) || id <= 0) return Response.json({ error: "Geçersiz blok." }, { status: 400 });
   if ([body.marketTr, body.marketGlobal, body.active].some(invalidBoolean)) return Response.json({ error: "Durum seçimi geçersiz." }, { status: 400 });
   if (body.imagePosition !== undefined && body.imagePosition !== "left" && body.imagePosition !== "right") return Response.json({ error: "Görsel konumu geçersiz." }, { status: 400 });
 
-  const db = getDb();
+  const expectedUpdatedAt = String(body.expectedUpdatedAt ?? "");
+  if (!expectedUpdatedAt) return Response.json({ error: "Vitrin bloğu ekranı güncel değil. Sayfayı yenileyip tekrar deneyin." }, { status: 409, headers: { "Cache-Control": "no-store" } });
   const [before] = await db.select().from(homepageBlocks).where(eq(homepageBlocks.id, id)).limit(1);
   if (!before) return Response.json({ error: "Blok bulunamadı." }, { status: 404 });
+  if (before.updatedAt !== expectedUpdatedAt) return Response.json({ error: "Vitrin bloğu bu sırada başka bir ekrandan güncellendi. Sayfayı yenileyip tekrar deneyin." }, { status: 409, headers: { "Cache-Control": "no-store" } });
   const updates: Partial<typeof homepageBlocks.$inferInsert> = {};
   for (const key of ["eyebrowTr", "eyebrowEn", "titleTr", "titleEn", "copyTr", "copyEn", "buttonTr", "buttonEn", "buttonUrl", "imageUrl"] as const) {
     if (body[key] !== undefined) updates[key] = text(body[key]);
@@ -101,7 +116,9 @@ export async function PATCH(request: Request) {
     const rows = await db.select().from(homepageBlocks);
     if (rows.filter(block => block.active).length >= MAX_BLOCKS) return Response.json({ error: `En fazla ${MAX_BLOCKS} etkin vitrin bloğu yayınlanabilir.` }, { status: 409 });
   }
-  const [block] = await db.update(homepageBlocks).set(updates).where(eq(homepageBlocks.id, id)).returning();
+  updates.updatedAt = new Date().toISOString();
+  const [block] = await db.update(homepageBlocks).set(updates).where(and(eq(homepageBlocks.id, id), eq(homepageBlocks.updatedAt, expectedUpdatedAt))).returning();
+  if (!block) return Response.json({ error: "Vitrin bloğu bu sırada başka bir ekrandan güncellendi. Sayfayı yenileyip tekrar deneyin." }, { status: 409, headers: { "Cache-Control": "no-store" } });
   await recordAudit({ user, action: "homepage_block.update", entityType: "homepage_block", entityId: id, summary: `Vitrin bloğu güncellendi: ${block.titleTr}`, before, after: block });
   return Response.json({ block });
 }
@@ -109,12 +126,15 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "Yetkisiz erişim" }, { status: 401 });
-  const id = Number(new URL(request.url).searchParams.get("id"));
+  const url = new URL(request.url); const id = Number(url.searchParams.get("id")); const expectedUpdatedAt = String(url.searchParams.get("expectedUpdatedAt") ?? "");
   if (!Number.isInteger(id) || id <= 0) return Response.json({ error: "Geçersiz blok." }, { status: 400 });
+  if (!expectedUpdatedAt) return Response.json({ error: "Vitrin bloğu ekranı güncel değil. Sayfayı yenileyip tekrar deneyin." }, { status: 409, headers: { "Cache-Control": "no-store" } });
   const db = getDb();
   const [before] = await db.select().from(homepageBlocks).where(eq(homepageBlocks.id, id)).limit(1);
   if (!before) return Response.json({ error: "Blok bulunamadı." }, { status: 404 });
-  const [block] = await db.update(homepageBlocks).set({ active: false }).where(eq(homepageBlocks.id, id)).returning();
+  if (before.updatedAt !== expectedUpdatedAt) return Response.json({ error: "Vitrin bloğu bu sırada başka bir ekrandan güncellendi. Sayfayı yenileyip tekrar deneyin." }, { status: 409, headers: { "Cache-Control": "no-store" } });
+  const [block] = await db.update(homepageBlocks).set({ active: false, updatedAt: new Date().toISOString() }).where(and(eq(homepageBlocks.id, id), eq(homepageBlocks.updatedAt, expectedUpdatedAt))).returning();
+  if (!block) return Response.json({ error: "Vitrin bloğu bu sırada başka bir ekrandan güncellendi. Sayfayı yenileyip tekrar deneyin." }, { status: 409, headers: { "Cache-Control": "no-store" } });
   await recordAudit({ user, action: "homepage_block.archive", entityType: "homepage_block", entityId: id, summary: `Vitrin bloğu arşivlendi: ${before.titleTr}`, before, after: block });
   return Response.json({ ok: true, block });
 }
