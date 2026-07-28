@@ -112,7 +112,7 @@ test("queues order notifications without sending before a provider is connected"
     source("app/api/notifications/route.ts"),
     source("app/admin/bildirimler/notification-center.tsx"),
   ]);
-  assert.match(orders, /queueNotification\(order,"received"\)/);
+  assert.match(orders, /queueNotification\(order,"received"/);
   assert.match(orders, /confirmed:"confirmed",shipped:"shipped",cancelled:"cancelled"/);
   assert.match(orders, /onConflictDoNothing/);
   assert.match(templates, /Takip numarası/);
@@ -1901,7 +1901,7 @@ test("makes duplicate checkout and promotion release idempotent", async () => {
   assert.match(migration, /ADD `creation_state` text DEFAULT 'ready' NOT NULL/);
   assert.match(ordersApi, /creationState:"creating"/);
   assert.match(ordersApi, /set\(\{creationState:"ready"/);
-  assert.match(ordersApi, /if\(!completed\)throw new Error\("order finalization failed"\)/);
+  assert.match(ordersApi, /if\(!completed\|\|releasedNotifications\.length!==2\)throw new Error\("order finalization failed"\)/);
   assert.match(ordersApi, /retry\.creationState!=="ready"/);
   assert.match(ordersApi, /promotionOperationKey=`promotion-claim:/);
   assert.match(ordersApi, /db\.batch\(\[orderInsert,promotionClaim,orderClaim,operationInsert\]\)/);
@@ -2299,4 +2299,26 @@ test("rejects stale checkout summaries and preserves cart changes made during or
   assert.doesNotMatch(ordersApi, /duplicateCart[\s\S]*delete\(cartItems\)/);
   assert.match(migration, /randomblob\(16\)/);
   assert.match(backup, /BACKUP_SCHEMA_VERSION = 23/);
+});
+
+test("recovers orphaned stock reservations and persists notifications before finalizing orders", async () => {
+  const [reservations,ordersApi] = await Promise.all([
+    source("app/inventory-reservations.ts"),
+    source("app/api/orders/route.ts"),
+  ]);
+  assert.match(reservations, /Date\.now\(\)-15\*60_000/);
+  assert.match(reservations, /eq\(inventoryOperations\.kind,"reservation"\)/);
+  assert.match(reservations, /eq\(inventoryOperations\.state,"active"\)/);
+  assert.match(reservations, /notExists\(db\.select\(\{id:orders\.id\}\)\.from\(orders\)\.where\(eq\(orders\.inventoryOperationKey,inventoryOperations\.operationKey\)\)\)/);
+  assert.match(reservations, /rollbackInventoryOperation\(db,operation\.operationKey\)/);
+  const verificationIndex=ordersApi.indexOf('await queueNotification(order,"verification"');
+  const receivedIndex=ordersApi.indexOf('await queueNotification(order,"received"');
+  const readyIndex=ordersApi.indexOf('set({creationState:"ready"');
+  assert.ok(verificationIndex>=0&&receivedIndex>verificationIndex&&readyIndex>receivedIndex);
+  assert.match(ordersApi, /queueNotification\(order,"verification",[\s\S]*,"held"\)/);
+  assert.match(ordersApi, /eq\(notificationOutbox\.status,"held"\)/);
+  assert.match(ordersApi, /heldVerification,heldReceived/);
+  assert.match(ordersApi, /readyGuard/);
+  assert.match(ordersApi, /releasedNotifications\.length!==2/);
+  assert.doesNotMatch(ordersApi, /queueNotification\(order,"verification"[\s\S]{0,180}catch\(\(\)=>undefined\)/);
 });
