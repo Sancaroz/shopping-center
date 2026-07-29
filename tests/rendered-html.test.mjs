@@ -431,7 +431,7 @@ test("uses one-time hashed email verification before order approval", async () =
   assert.match(readiness, /E-posta doğrulama/);
   assert.match(readiness, /adapterConnected/);
   assert.match(detail, /Doğrulama bekliyor/);
-  assert.match(detail, /data\.error/);
+  assert.match(detail, /data\?\.error/);
   assert.match(migration, /verification_token_hash/);
 });
 
@@ -2415,6 +2415,16 @@ test("recovers critical forms from timeouts, connection failures and invalid ser
   assert.match(helper,/AbortController/);assert.match(helper,/setTimeout\(\(\)=>controller\.abort\(\),timeoutMs\)/);assert.match(helper,/Sunucudan geçersiz bir yanıt/);assert.match(helper,/Bağlantı kurulamadı/);assert.match(helper,/finally\{clearTimeout\(timeout\);\}/);
   for(const client of [checkout,tracking,contact,privacy,newsletter,settings,inventory,readiness,operations])assert.match(client,/requestJson/);
   for(const form of [checkout,tracking,contact,privacy,newsletter,inventory,readiness,operations])assert.match(form,/finally\{set(?:Busy|PromoBusy|Refreshing)\(false\);\}/);
+});
+
+test("keeps launch-day admin workflows recoverable and prevents duplicate submissions", async () => {
+  const [payments,replenishments,team,packing,shipments,order]=await Promise.all([
+    source("app/admin/odemeler/payment-center.tsx"),source("app/admin/tedarik/replenishment-center.tsx"),source("app/admin/ekip/team-center.tsx"),source("app/admin/siparis/[id]/packing-checklist.tsx"),source("app/admin/siparis/[id]/shipment-manager.tsx"),source("app/admin/siparis/[id]/order-detail.tsx"),
+  ]);
+  for(const client of [payments,replenishments,team,packing,shipments,order]){assert.match(client,/requestJson/);assert.match(client,/finally\{setBusy\(false\);\}/);}
+  assert.match(payments,/30_000/);assert.match(replenishments,/30_000/);assert.match(order,/30_000/);
+  assert.match(order,/disabled=\{busy\|\|allowedOrderStatusTargets/);assert.match(order,/button disabled=\{busy\}/);
+  assert.match(shipments,/Tarih bilgisini ve bağlantınızı kontrol edip tekrar deneyin/);
 });
 
 test("rejects stale checkout summaries and preserves cart changes made during order creation", async () => {

@@ -1,18 +1,20 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import {requestJson} from "../../client-request";
 
 type Member = { id:number; email:string; displayName:string; role:string; active:boolean; createdAt:string };
+type TeamPayload={members?:Member[];message?:string;error?:string};
 
 export default function TeamCenter({ currentEmail }: { currentEmail:string }) {
   const [members,setMembers]=useState<Member[]>([]);
   const [message,setMessage]=useState("");
   const [busy,setBusy]=useState(false);
-  const load=useCallback(async()=>{const response=await fetch("/api/admin-users");const result=await response.json();if(response.ok)setMembers(result.members??[]);else setMessage(result.error??"Ekip yüklenemedi.");},[]);
+  const load=useCallback(async()=>{const{response,data:result,error}=await requestJson<TeamPayload>("/api/admin-users");if(response?.ok)setMembers(result?.members??[]);else setMessage(result?.error??error??"Ekip yüklenemedi. Lütfen tekrar deneyin.");},[]);
   useEffect(()=>{void load();},[load]);
 
-  async function add(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setMessage("");const form=new FormData(event.currentTarget);const response=await fetch("/api/admin-users",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:form.get("email"),displayName:form.get("displayName")})});const result=await response.json();setMessage(response.ok?result.message:result.error??"Yönetici eklenemedi.");if(response.ok){event.currentTarget.reset();await load();}setBusy(false);}
-  async function toggle(member:Member){setBusy(true);setMessage("");const response=await fetch("/api/admin-users",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:member.id,active:!member.active})});const result=await response.json();setMessage(response.ok?result.message:result.error??"Erişim güncellenemedi.");if(response.ok)await load();setBusy(false);}
+  async function add(event:FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setMessage("");const element=event.currentTarget;try{const form=new FormData(element);const{response,data:result,error}=await requestJson<TeamPayload>("/api/admin-users",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:form.get("email"),displayName:form.get("displayName")})});setMessage(response?.ok?result?.message??"Yönetici eklendi.":result?.error??error??"Yönetici eklenemedi. Lütfen tekrar deneyin.");if(response?.ok){element.reset();await load();}}finally{setBusy(false);}}
+  async function toggle(member:Member){setBusy(true);setMessage("");try{const{response,data:result,error}=await requestJson<TeamPayload>("/api/admin-users",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:member.id,active:!member.active})});setMessage(response?.ok?result?.message??"Erişim güncellendi.":result?.error??error??"Erişim güncellenemedi. Lütfen tekrar deneyin.");if(response?.ok)await load();}finally{setBusy(false);}}
 
   return <main className="admin-shell team-shell">
     <header className="admin-header"><div><p>ERİŞİM GÜVENLİĞİ</p><h1>Yönetim ekibi</h1></div><div><a href="/admin">Panele dön ↗</a><a href="/admin/islem-gecmisi">İşlem geçmişi ↗</a></div></header>
