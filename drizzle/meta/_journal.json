@@ -407,6 +407,13 @@
       "when": 1785326462048,
       "tag": "0057_seed_store_owner",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "6",
+      "when": 1785331456502,
+      "tag": "0058_assign_verified_store_owner",
+      "breakpoints": true
     }
   ]
 }
