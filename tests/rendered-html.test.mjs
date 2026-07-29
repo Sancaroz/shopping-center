@@ -819,7 +819,7 @@ test("requires newsletter verification and supports one-click unsubscribe", asyn
 });
 
 test("protects every admin surface with an owner-managed email allowlist", async () => {
-  const [schema,auth,api,page,center,denied,panel,operations,auditCenter,readiness,backup,exportApi,migration,dataSafety,ownerMigration] = await Promise.all([
+  const [schema,auth,api,page,center,denied,panel,operations,auditCenter,readiness,backup,exportApi,migration,dataSafety,ownerMigration,ownerRecovery] = await Promise.all([
     source("db/schema.ts"),
     source("app/chatgpt-auth.ts"),
     source("app/api/admin-users/route.ts"),
@@ -835,6 +835,7 @@ test("protects every admin surface with an owner-managed email allowlist", async
     source("drizzle/0035_nifty_mauler.sql"),
     source("app/admin/veri-guvenligi/data-safety-center.tsx"),
     source("drizzle/0040_vengeful_vargas.sql"),
+    source("drizzle/0057_seed_store_owner.sql"),
   ]);
   assert.match(schema, /adminUsers/);
   assert.match(schema, /email: text\("email"\)\.notNull\(\)\.unique\(\)/);
@@ -863,6 +864,10 @@ test("protects every admin surface with an owner-managed email allowlist", async
   assert.match(exportApi, /adminUserRows/);
   assert.match(migration, /CREATE TABLE `admin_users`/);
   assert.match(ownerMigration, /CREATE UNIQUE INDEX `admin_users_single_owner`/);
+  assert.match(ownerRecovery, /'robologai@gmail\.com', 'robologai', 'owner'/);
+  assert.match(ownerRecovery, /WHERE `role` = 'owner' AND `email` <> 'robologai@gmail\.com'/);
+  assert.match(ownerRecovery, /ON CONFLICT \(`email`\) DO UPDATE SET/);
+  assert.match(ownerRecovery, /`active` = 1/);
   assert.match(dataSafety, /Yönetim kullanıcıları/);
 });
 

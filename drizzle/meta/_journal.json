@@ -400,6 +400,13 @@
       "when": 1785259128145,
       "tag": "0056_bornoz_pestemal_collection",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "6",
+      "when": 1785326462048,
+      "tag": "0057_seed_store_owner",
+      "breakpoints": true
     }
   ]
 }
