@@ -2076,11 +2076,12 @@ test("receives replenishment stock and its ledger entry atomically", async () =>
 });
 
 test("writes manual stock and its movement atomically with an idempotency key", async () => {
-  const [schema,inventory,replenishments,migration] = await Promise.all([
+  const [schema,inventory,replenishments,migration,center] = await Promise.all([
     source("db/schema.ts"),
     source("app/api/inventory/route.ts"),
     source("app/api/replenishments/route.ts"),
     source("drizzle/0045_strange_krista_starr.sql"),
+    source("app/admin/stok/inventory-center.tsx"),
   ]);
   assert.match(schema, /lastStockOperationKey: text\("last_stock_operation_key"\)/);
   assert.match(schema, /operationKey: text\("operation_key"\)/);
@@ -2089,7 +2090,14 @@ test("writes manual stock and its movement atomically with an idempotency key", 
   assert.match(inventory, /const operationKey=`manual:/);
   assert.match(inventory, /lastStockOperationKey:operationKey/);
   assert.match(inventory, /db\.insert\(inventoryMovements\)\.select\(db\.select/);
+  assert.match(inventory, /db\.select\(\{id:sql<number\|null>`NULL`,operationKey:/);
+  assert.match(inventory, /orderId:sql<number\|null>`NULL`/);
+  assert.match(inventory, /createdAt:sql<string>`CURRENT_TIMESTAMP`/);
   assert.match(inventory, /const results=await db\.batch\(\[stockUpdate,movementInsert\]\)/);
+  assert.match(center, /finally\{setBusy\(false\);\}/);
+  assert.match(center, /response\.json\(\)\.catch\(\(\)=>null\)/);
+  assert.match(replenishments, /db\.select\(\{id:sql<number\|null>`NULL`,operationKey:/);
+  assert.match(replenishments, /createdAt:sql<string>`CURRENT_TIMESTAMP`/);
   assert.doesNotMatch(inventory, /miktar önceki değerine geri alındı/);
   assert.match(replenishments, /const operationKey=`replenishment:/);
   assert.match(replenishments, /lte\(productVariants\.stock,MAX_STOCK-before\.quantity\)/);
