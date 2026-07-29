@@ -1680,6 +1680,27 @@ test("uses variant stock consistently across catalog cards, details and product 
   assert.match(productPage, /stock>0\?"InStock":"OutOfStock"/);
 });
 
+test("requires size-level inventory for products that have active variants", async () => {
+  const [inventory, replenishments, inventoryCenter, replenishmentCenter] = await Promise.all([
+    source("app/api/inventory/route.ts"),
+    source("app/api/replenishments/route.ts"),
+    source("app/admin/stok/inventory-center.tsx"),
+    source("app/admin/tedarik/replenishment-center.tsx"),
+  ]);
+  assert.match(inventory, /variantId===null&&\(await activeVariantLookup\.limit\(1\)\)\.length/);
+  assert.match(inventory, /stok, ana ürüne değil ilgili seçeneğe kaydedilmelidir/);
+  assert.match(inventory, /const noActiveVariants=notExists\(activeVariantLookup\)/);
+  assert.equal((inventory.match(/eligibleProduct,noActiveVariants/g)??[]).length, 2);
+  assert.match(replenishments, /tedarik kaydı ilgili seçeneğe bağlanmalıdır/);
+  assert.match(replenishments, /const noActiveVariants=notExists/);
+  assert.equal((replenishments.match(/eligibleProduct,noActiveVariants/g)??[]).length, 2);
+  assert.match(inventoryCenter, /const workableProducts=products\.filter\(inventoryEligible\)/);
+  assert.match(inventoryCenter, /item\.active\?"":" · TASLAK"/);
+  assert.match(inventoryCenter, /required=\{selectedVariants\.length>0\}/);
+  assert.match(inventoryCenter, /Beden \/ seçenek seçin/);
+  assert.match(replenishmentCenter, /required=\{selectedVariants\.length>0\}/);
+});
+
 test("routes every existing catalog stock change through the audited inventory center", async () => {
   const [productsApi,variantsApi,importApi,panel] = await Promise.all([
     source("app/api/products/route.ts"),
