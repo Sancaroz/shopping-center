@@ -2427,6 +2427,17 @@ test("keeps launch-day admin workflows recoverable and prevents duplicate submis
   assert.match(shipments,/Tarih bilgisini ve bağlantınızı kontrol edip tekrar deneyin/);
 });
 
+test("keeps customer-care, campaign, media and backup operations recoverable", async () => {
+  const [promotions,returns,support,media,backups]=await Promise.all([
+    source("app/admin/kampanyalar/promotion-center.tsx"),source("app/admin/iade-talepleri/return-request-center.tsx"),source("app/admin/destek/support-center.tsx"),source("app/admin/medya/media-library.tsx"),source("app/admin/veri-guvenligi/data-safety-center.tsx"),
+  ]);
+  for(const client of [promotions,returns,support,media,backups])assert.match(client,/requestJson/);
+  for(const client of [promotions,returns,support,media,backups])assert.match(client,/finally\{setBusy\(false\)/);
+  assert.match(promotions,/Tarih bilgilerini ve bağlantınızı kontrol edip tekrar deneyin/);
+  assert.match(media,/URL\.revokeObjectURL\(objectUrl\)/);assert.match(media,/Tarayıcı pano iznini kontrol edin/);
+  assert.match(backups,/file\.size > 10 \* 1024 \* 1024/);assert.match(backups,/response\?\.status===422/);
+});
+
 test("rejects stale checkout summaries and preserves cart changes made during order creation", async () => {
   const [schema,cartApi,checkout,ordersApi,migration,backup] = await Promise.all([
     source("db/schema.ts"),

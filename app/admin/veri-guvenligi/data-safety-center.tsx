@@ -1,9 +1,11 @@
 "use client";
 
 import { ChangeEvent, useState } from "react";
+import {requestJson} from "../../client-request";
 
 type HistoryItem = { id: number; action: string; summary: string; actorName: string; createdAt: string };
 type Verification = { valid: boolean; errors: string[]; counts: Record<string, number>; checksum?: string; exportedAt?: string; schemaVersion?: number };
+type BackupPayload=Partial<Verification>&{history?:HistoryItem[];message?:string;error?:string};
 
 const tableLabels: Record<string, string> = {
   settings: "Mağaza ayarları",
@@ -43,40 +45,29 @@ export default function DataSafetyCenter({ initialHistory }: { initialHistory: H
   const [busy, setBusy] = useState(false);
 
   const loadHistory = async () => {
-    const response = await fetch("/api/backups");
-    const result = await response.json();
-    if (response.ok) setHistory(result.history ?? []);
+    const{response,data,error}=await requestJson<BackupPayload>("/api/backups");
+    if(response?.ok)setHistory(data?.history??[]);else setMessage(data?.error??error??"Yedek geçmişi alınamadı. Lütfen tekrar deneyin.");
   };
 
   const verify = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    setBusy(true);
-    setMessage("");
-    setReport(null);
     if (file.size > 10 * 1024 * 1024) {
       setMessage("Dosya 10 MB sınırını aşıyor.");
-      setBusy(false);
+      event.target.value = "";
       return;
     }
-    const response = await fetch("/api/backups", { method: "POST", headers: { "Content-Type": "application/json" }, body: await file.text() });
-    const result = await response.json();
-    if (response.status === 422) setReport(result);
-    else if (!response.ok) setMessage(result.error ?? "Yedek doğrulanamadı.");
-    else setReport(result);
-    setBusy(false);
-    event.target.value = "";
-    void loadHistory();
+    const input=event.target;setBusy(true);setMessage("");setReport(null);
+    try{const{response,data,error}=await requestJson<BackupPayload>("/api/backups",{method:"POST",headers:{"Content-Type":"application/json"},body:await file.text()},30_000);if((response?.ok||response?.status===422)&&data&&typeof data.valid==="boolean")setReport(data as Verification);else setMessage(data?.error??error??"Yedek doğrulanamadı. Lütfen tekrar deneyin.");}
+    catch{setMessage("Yedek dosyası okunamadı. Dosyayı kontrol edip tekrar deneyin.");}
+    finally{setBusy(false);input.value="";void loadHistory();}
   };
 
   const cleanup = async () => {
     setBusy(true);
     setMessage("");
-    const response = await fetch("/api/backups", { method: "DELETE" });
-    const result = await response.json();
-    setMessage(response.ok ? result.message : result.error ?? "Temizlik tamamlanamadı.");
-    setBusy(false);
-    void loadHistory();
+    try{const{response,data,error}=await requestJson<BackupPayload>("/api/backups",{method:"DELETE"});setMessage(response?.ok?data?.message??"Temizlik tamamlandı.":data?.error??error??"Temizlik tamamlanamadı. Lütfen tekrar deneyin.");}
+    finally{setBusy(false);void loadHistory();}
   };
 
   return <main className="admin-shell data-safety-shell">

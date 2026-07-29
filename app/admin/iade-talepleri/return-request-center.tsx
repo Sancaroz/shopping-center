@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { allowedReturnRequestStatusTargets, isTerminalReturnRequestStatus, returnRequestStatusLabels } from "../../return-lifecycle";
+import {requestJson} from "../../client-request";
 
 type RequestItem={id:number;requestNumber:string;orderId:number;orderNumber:string;requestType:string;reason:string;details:string;privacyAcknowledgedAt:string;status:string;adminNote:string;createdAt:string;customerName:string;email:string;orderStatus:string;total:number;market:string};
+type ReturnPayload={requests?:RequestItem[];error?:string};
 const typeLabels:Record<string,string>={cancellation:"İptal",return:"İade",exchange:"Değişim"};
 const statusLabels:Record<string,string>=returnRequestStatusLabels;
 
 function RequestCard({item,onSaved}:{item:RequestItem;onSaved:()=>Promise<void>}) {
   const [status,setStatus]=useState(item.status);const[note,setNote]=useState(item.adminNote);const[busy,setBusy]=useState(false);const[message,setMessage]=useState("");
-  async function save(){setBusy(true);const response=await fetch("/api/return-requests",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:item.id,status,adminNote:note})});const data=await response.json();setMessage(response.ok?"Talep güncellendi.":data.error??"Güncellenemedi.");if(response.ok)await onSaved();setBusy(false);}
+  async function save(){setBusy(true);try{const{response,data,error}=await requestJson<ReturnPayload>("/api/return-requests",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:item.id,status,adminNote:note})});setMessage(response?.ok?"Talep güncellendi.":data?.error??error??"Talep güncellenemedi. Lütfen tekrar deneyin.");if(response?.ok)await onSaved();}finally{setBusy(false);}}
   const terminal=isTerminalReturnRequestStatus(item.status);const statusTargets=allowedReturnRequestStatusTargets(item.status);
   return <article className={`admin-card return-request-card status-${item.status}`}>
     <header><div><span>{typeLabels[item.requestType]??item.requestType} · {statusLabels[item.status]??item.status}</span><h2>{item.requestNumber}</h2><a href={`/admin/siparis/${item.orderId}`}>{item.orderNumber} →</a></div><time>{new Date(item.createdAt).toLocaleString("tr-TR")}</time></header>
@@ -20,7 +22,7 @@ function RequestCard({item,onSaved}:{item:RequestItem;onSaved:()=>Promise<void>}
 
 export default function ReturnRequestCenter() {
   const [items,setItems]=useState<RequestItem[]>([]);const[filter,setFilter]=useState("open");const[message,setMessage]=useState("Yükleniyor…");
-  const load=async()=>{const response=await fetch("/api/return-requests");const data=await response.json();if(response.ok){setItems(data.requests??[]);setMessage("");}else setMessage(data.error??"Talepler yüklenemedi.");};
+  const load=async()=>{const{response,data,error}=await requestJson<ReturnPayload>("/api/return-requests");if(response?.ok){setItems(data?.requests??[]);setMessage("");}else setMessage(data?.error??error??"Talepler yüklenemedi. Lütfen tekrar deneyin.");};
   useEffect(()=>{void load();},[]);
   const visible=items.filter(item=>filter==="all"||(filter==="open"?["new","reviewing","approved"].includes(item.status):item.status===filter));
   return <main className="admin-shell return-admin-shell"><header className="admin-header"><div><p>SATIŞ SONRASI</p><h1>İade ve iptal talepleri</h1></div><div><a href="/admin">Panele dön ↗</a><a href="/iade-talebi">Müşteri formu ↗</a></div></header><section className="return-admin-summary"><article><b>{items.filter(item=>item.status==="new").length}</b><span>Yeni</span></article><article><b>{items.filter(item=>item.status==="reviewing").length}</b><span>İnceleniyor</span></article><article><b>{items.filter(item=>item.status==="approved").length}</b><span>Onaylanan</span></article><article><b>{items.filter(item=>item.status==="completed").length}</b><span>Tamamlanan</span></article></section><nav className="return-filters">{[["open","Açık talepler"],["new","Yeni"],["reviewing","İnceleniyor"],["approved","Onaylandı"],["completed","Tamamlandı"],["rejected","Reddedildi"],["all","Tümü"]].map(([value,label])=><button className={filter===value?"active":""} onClick={()=>setFilter(value)} key={value}>{label}</button>)}</nav>{message&&<p className="admin-message">{message}</p>}<section className="return-request-list">{visible.length?visible.map(item=><RequestCard key={item.id} item={item} onSaved={load}/>):<div className="admin-card empty">Bu durumda talep bulunmuyor.</div>}</section></main>;
