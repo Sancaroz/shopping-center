@@ -160,7 +160,7 @@ test("provides an authenticated daily operations priority view", async () => {
   assert.match(summaryApi, /hours\(order\.createdAt\)>=24/);
   assert.match(summaryApi, /hours\(order\.updatedAt\)>=48/);
   assert.match(summaryApi, /draftNotifications/);
-  assert.match(summaryApi, /activeProductIds/);
+  assert.match(summaryApi, /stockAlertItems\(productRows,variantRows\)/);
   assert.match(operationsPage, /Bugün ilgilenilecekler/);
   assert.match(operationsPage, /Verileri yenile/);
 });
@@ -1699,6 +1699,26 @@ test("requires size-level inventory for products that have active variants", asy
   assert.match(inventoryCenter, /required=\{selectedVariants\.length>0\}/);
   assert.match(inventoryCenter, /Beden \/ seçenek seçin/);
   assert.match(replenishmentCenter, /required=\{selectedVariants\.length>0\}/);
+});
+
+test("uses one active-variant-aware threshold for every admin stock alarm", async () => {
+  const [alerts, operations, panel, inventoryCenter, operationsCenter] = await Promise.all([
+    source("app/stock-alerts.ts"),
+    source("app/api/operations-summary/route.ts"),
+    source("app/admin/panel.tsx"),
+    source("app/admin/stok/inventory-center.tsx"),
+    source("app/admin/operasyon/operations-center.tsx"),
+  ]);
+  assert.match(alerts, /products\.filter\(product=>product\.active\)/);
+  assert.match(alerts, /variant\.productId===product\.id&&variant\.active/);
+  assert.match(alerts, /Math\.max\(0,product\.reorderPoint\)/);
+  assert.match(alerts, /variant\.stock<=threshold/);
+  assert.match(alerts, /product\.stock<=threshold/);
+  assert.match(operations, /stockAlertItems\(productRows,variantRows\)/);
+  assert.match(panel, /stockAlertItems\(items,variants\)/);
+  assert.match(panel, /lowStockProductIds\.has\(item\.id\)/);
+  assert.match(inventoryCenter, /stockAlertItems\(products,variants\)\.length/);
+  assert.match(operationsCenter, /Tanımlı eşik/);
 });
 
 test("routes every existing catalog stock change through the audited inventory center", async () => {

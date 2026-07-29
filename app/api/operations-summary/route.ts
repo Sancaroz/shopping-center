@@ -2,6 +2,7 @@ import { desc } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { contactMessages, fulfillmentChecklists, newsletterOutbox, notificationOutbox, orders, paymentTransactions, privacyRequests, products, productVariants, replenishments, returnRequests } from "../../../db/schema";
 import { getChatGPTUser } from "../../chatgpt-auth";
+import {stockAlertItems} from "../../stock-alerts";
 
 export const dynamic="force-dynamic";
 const privateNoStore={"Cache-Control":"private, no-store, max-age=0"};
@@ -32,12 +33,7 @@ export async function GET() {
   const packingReady=new Set(checklistRows.filter(item=>item.productChecked&&item.quantityChecked&&item.qualityChecked&&item.packageChecked&&item.addressChecked).map(item=>item.orderId));
   const packingIncomplete=activeOrders.filter(order=>["confirmed","preparing"].includes(order.status)&&!packingReady.has(order.id));
   const overdueReplenishments=replenishmentRows.filter(item=>item.status==="ordered"&&item.expectedAt&&new Date(item.expectedAt).getTime()<now);
-  const productNames=new Map(productRows.map(product=>[product.id,product.nameTr]));
-  const activeProductIds=new Set(productRows.filter(product=>product.active).map(product=>product.id));
-  const lowStock=[
-    ...productRows.filter(product=>product.active&&!variantRows.some(variant=>variant.productId===product.id)&&product.stock<=5).map(product=>({key:`product-${product.id}`,name:product.nameTr,stock:product.stock,href:`/admin/urun/${product.id}`})),
-    ...variantRows.filter(variant=>activeProductIds.has(variant.productId)&&variant.stock<=5).map(variant=>({key:`variant-${variant.id}`,name:`${productNames.get(variant.productId)??"Ürün"} · ${variant.optionName}: ${variant.optionValue}`,stock:variant.stock,href:`/admin/varyant/${variant.id}`})),
-  ];
+  const lowStock=stockAlertItems(productRows,variantRows).map(item=>({...item,name:item.variantId?`${item.name} · ${item.detail}`:item.name,href:item.variantId?`/admin/varyant/${item.variantId}`:`/admin/urun/${item.productId}`}));
   const alerts:Alert[]=[
     ...activeOrders.filter(order=>order.status==="new"&&hours(order.createdAt)>=24).map(order=>({key:`order-new-${order.id}`,level:"urgent" as const,title:`${order.orderNumber} hâlâ onay bekliyor`,detail:`${Math.floor(hours(order.createdAt))} saattir yeni durumda.`,href:`/admin/siparis/${order.id}`,createdAt:order.createdAt})),
     ...activeOrders.filter(order=>order.status==="preparing"&&hours(order.updatedAt)>=48).map(order=>({key:`order-preparing-${order.id}`,level:"warning" as const,title:`${order.orderNumber} hazırlıkta bekliyor`,detail:`${Math.floor(hours(order.updatedAt))} saattir güncellenmedi.`,href:`/admin/siparis/${order.id}`,createdAt:order.updatedAt})),
@@ -56,7 +52,7 @@ export async function GET() {
     generatedAt:new Date().toISOString(),
     metrics:{activeOrders:activeOrders.length,newOrders:activeOrders.filter(order=>order.status==="new").length,preparingOrders:activeOrders.filter(order=>order.status==="preparing").length,packingIncomplete:packingIncomplete.length,overdueReplenishments:overdueReplenishments.length,shippingExceptions:activeOrders.filter(order=>order.deliveryStatus==="exception").length,staleShipments:activeOrders.filter(order=>order.status==="shipped"&&hours(order.lastShipmentEventAt??order.shippedAt??order.updatedAt)>=72).length,lowStock:lowStock.length,outOfStock:lowStock.filter(item=>item.stock===0).length,openReturns:openReturns.length,newReturns:openReturns.filter(item=>item.status==="new").length,openMessages:openMessages.length,newMessages:openMessages.filter(item=>item.status==="new").length,draftNotifications:draftNotifications.length+draftNewsletter.length},
     alerts:alerts.slice(0,30),
-    lowStock:lowStock.sort((a,b)=>a.stock-b.stock).slice(0,20),
+    lowStock:lowStock.slice(0,20),
     recentOrders:activeOrders.slice(0,12).map(order=>({id:order.id,orderNumber:order.orderNumber,status:order.status,customerName:order.customerName,total:order.total,market:order.market,createdAt:order.createdAt})),
   },{headers:privateNoStore});
 }
