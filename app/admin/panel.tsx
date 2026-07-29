@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import {fetchSettings,updateSettings} from "./settings-client";
 import {stockAlertItems} from "../stock-alerts";
+import {sellableStock} from "../catalog-availability";
 import "./orders.css";
 import "./contact-inbox.css";
 import "./policy-editor.css";
@@ -69,7 +70,7 @@ export default function AdminPanel({userName,isOwner}:{userName:string;isOwner:b
   const publicationIncomplete=items.filter(item=>publicationIssues(item).length>0);
   const lowStock=stockAlertItems(items,variants).map(item=>({key:item.key,name:item.name,detail:item.detail,stock:item.stock,threshold:item.threshold,href:item.variantId?`/admin/varyant/${item.variantId}`:`/admin/urun/${item.productId}`}));const lowStockProductIds=new Set(stockAlertItems(items,variants).map(item=>item.productId));
   const filteredItems=items.filter(item=>{const query=productQuery.trim().toLocaleLowerCase("tr-TR");const matchesQuery=!query||item.nameTr.toLocaleLowerCase("tr-TR").includes(query)||item.nameEn.toLocaleLowerCase("tr-TR").includes(query)||item.slug.toLocaleLowerCase("tr-TR").includes(query);const matchesCategory=productCategory==="all"||item.categoryId===Number(productCategory);const matchesFilter=productFilter==="all"||(productFilter==="tr-only"&&item.marketTr&&!item.marketGlobal)||(productFilter==="global-only"&&!item.marketTr&&item.marketGlobal)||(productFilter==="both"&&item.marketTr&&item.marketGlobal)||(productFilter==="unassigned"&&!item.marketTr&&!item.marketGlobal)||(productFilter==="global-incomplete"&&item.marketGlobal&&globalIssues(item).length>0)||(productFilter==="launch-incomplete"&&publicationIssues(item).length>0)||(productFilter==="active"&&item.active)||(productFilter==="draft"&&!item.active)||(productFilter==="featured"&&item.featured)||(productFilter==="low"&&lowStockProductIds.has(item.id))||(productFilter==="no-image"&&!item.imageUrl);return matchesQuery&&matchesCategory&&matchesFilter;});
-  const visibleProductItems=filteredItems.slice(0,productLimit);const allVisibleProductsSelected=visibleProductItems.length>0&&visibleProductItems.every(item=>selectedProductIds.includes(item.id));
+  const visibleProductItems=filteredItems.slice(0,productLimit).map(item=>({...item,stock:sellableStock(item.stock,variants.filter(variant=>variant.productId===item.id))}));const allVisibleProductsSelected=visibleProductItems.length>0&&visibleProductItems.every(item=>selectedProductIds.includes(item.id));
   const rootCategories=categoryItems.filter(category=>!category.parentId);const orderedCategoryItems=[...rootCategories.flatMap(root=>[root,...categoryItems.filter(category=>category.parentId===root.id)]),...categoryItems.filter(category=>category.parentId&&!categoryItems.some(parent=>parent.id===category.parentId))];const globalCategoryIncomplete=orderedCategoryItems.filter(category=>category.active&&!category.nameEn.trim());
   const confirmedOrders=orders.filter(order=>["confirmed","preparing","shipped","completed"].includes(order.status));
   const trDemand=confirmedOrders.filter(order=>order.market==="TR").reduce((sum,order)=>sum+order.total,0);

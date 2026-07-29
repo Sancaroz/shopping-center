@@ -18,6 +18,17 @@ test("ships storefront metadata and crawler controls", async () => {
   assert.match(sitemap, /\/urun\//);
 });
 
+test("shows aggregate active variant stock throughout admin product selectors", async () => {
+  const [panel,inventoryCenter,replenishmentCenter] = await Promise.all([
+    source("app/admin/panel.tsx"),
+    source("app/admin/stok/inventory-center.tsx"),
+    source("app/admin/tedarik/replenishment-center.tsx"),
+  ]);
+  assert.match(panel, /sellableStock\(item\.stock,variants\.filter\(variant=>variant\.productId===item\.id\)\)/);
+  assert.match(inventoryCenter, /sellableStock\(item\.stock,variants\.filter\(variant=>variant\.productId===item\.id\)\)/);
+  assert.match(replenishmentCenter, /stok \{displayedStock\(product\)\}/);
+});
+
 test("protects checkout from duplicate and zero-price orders", async () => {
   const [orders, cart, checkout, migration] = await Promise.all([
     source("app/api/orders/route.ts"),
