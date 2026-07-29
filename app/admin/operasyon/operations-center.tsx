@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {requestJson} from "../../client-request";
 
 type Metrics={activeOrders:number;newOrders:number;preparingOrders:number;packingIncomplete:number;lowStock:number;outOfStock:number;openReturns:number;newReturns:number;openMessages:number;newMessages:number;draftNotifications:number};
 type Alert={key:string;level:"urgent"|"warning"|"info";title:string;detail:string;href:string};
@@ -11,7 +12,7 @@ const orderLabels:Record<string,string>={new:"Yeni",confirmed:"Onaylandı",prepa
 
 export default function OperationsCenter({isOwner}:{isOwner:boolean}) {
   const[data,setData]=useState<Summary|null>(null);const[message,setMessage]=useState("Yükleniyor…");const[refreshing,setRefreshing]=useState(false);
-  const load=async()=>{setRefreshing(true);const response=await fetch("/api/operations-summary");const result=await response.json();if(response.ok){setData(result);setMessage("");}else setMessage(result.error??"Operasyon özeti yüklenemedi.");setRefreshing(false);};
+  const load=async()=>{setRefreshing(true);try{const{response,data:result,error}=await requestJson<Summary&{error?:string}>("/api/operations-summary");if(response?.ok&&result){setData(result);setMessage("");}else setMessage(result?.error??error??"Operasyon özeti yüklenemedi. Lütfen tekrar deneyin.");}finally{setRefreshing(false);}};
   useEffect(()=>{void load();},[]);
   return <main className="admin-shell operations-shell"><header className="admin-header"><div><p>GÜNLÜK YÖNETİM</p><h1>Operasyon merkezi</h1></div><div><button className="operations-refresh" onClick={load} disabled={refreshing}>{refreshing?"Yenileniyor…":"Verileri yenile"}</button><a href="/admin">Panele dön ↗</a></div></header>
     {!data?<section className="admin-card operations-loading">{message}</section>:<>

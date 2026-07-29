@@ -7,6 +7,7 @@ import "./billing.css";
 import "./promotions.css";
 import {getPreferredMarket,setPreferredMarket} from "../market-preference";
 import {globalCountries,shippingQuote} from "../shipping-rules";
+import {requestJson} from "../client-request";
 
 type Line = { id:number; quantity:number; name:string; nameEn:string; optionValue:string|null; optionValueEn:string|null; priceTr:number; priceGlobal:number; priceAdjustment:number|null };
 type Result = { orderNumber:string; subtotal:number; discountAmount:number; shippingAmount:number; total:number; market:"TR"|"GLOBAL" };
@@ -27,7 +28,7 @@ export default function CheckoutPage() {
   const [promoCode,setPromoCode]=useState("");const[discount,setDiscount]=useState(0);const[promoMessage,setPromoMessage]=useState("");const[promoBusy,setPromoBusy]=useState(false);
   const [shippingSettings,setShippingSettings]=useState({shippingTr:99,freeShippingTr:1500,shippingGlobal:15,freeShippingGlobal:150,shippingGlobalEnabled:"false",shippingGlobalCountries:"",taxDisplayMode:"pending"});
 
-  const loadCart=()=>fetch("/api/cart").then(response => response.json()).then(data => { const rows=data.items??[];const next=rows.length?(data.market === "GLOBAL" ? "GLOBAL" : "TR"):getPreferredMarket();setItems(rows);setCartRevision(typeof data.revision==="string"?data.revision:null);setMarket(next);setPreferredMarket(next); });
+  const loadCart=async()=>{const{response,data,error}=await requestJson<{items?:Line[];market?:string;revision?:unknown}>("/api/cart");if(!response?.ok||!data)throw new Error(error??"Çantanız yüklenemedi.");const rows=data.items??[];const next=rows.length?(data.market === "GLOBAL" ? "GLOBAL" : "TR"):getPreferredMarket();setItems(rows);setCartRevision(typeof data.revision==="string"?data.revision:null);setMarket(next);setPreferredMarket(next);};
   useEffect(() => { loadCart().catch(() => setMessage("Çantanız yüklenemedi.")); }, []);
   useEffect(()=>{fetch("/api/settings").then(response=>response.json()).then(data=>{const s=data.settings??{};setBrand({brandName:s.brandName??"MYSA",brandSuffix:s.brandSuffix??"OBJETS"});setIntakeOpen(s.orderIntakeStatus!=="paused");setShippingSettings({shippingTr:Number(s.shippingTr??99),freeShippingTr:Number(s.freeShippingTr??1500),shippingGlobal:Number(s.shippingGlobal??15),freeShippingGlobal:Number(s.freeShippingGlobal??150),shippingGlobalEnabled:String(s.shippingGlobalEnabled??"false"),shippingGlobalCountries:String(s.shippingGlobalCountries??""),taxDisplayMode:String(s.taxDisplayMode??"pending")});}).catch(()=>undefined);},[]);
   useEffect(()=>{setCountry(market==="TR"?"Türkiye":"");setPromoCode("");setDiscount(0);setPromoMessage("");},[market]);
@@ -35,16 +36,14 @@ export default function CheckoutPage() {
   const money = (value:number) => market === "TR" ? `${value.toLocaleString("tr-TR")} TL` : `€${value.toLocaleString("en-US")}`;
   const discountedSubtotal=Math.max(0,total-discount);const countries=globalCountries(shippingSettings);const quote=shippingQuote({market,country,subtotal:discountedSubtotal,settings:shippingSettings});const shipping=quote.ok?quote.shippingAmount:0;const grandTotal=quote.ok?quote.total:discountedSubtotal;
 
-  async function applyPromotion(){if(!promoCode.trim())return;setPromoBusy(true);setPromoMessage("");const response=await fetch("/api/promotions/validate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code:promoCode})});const data=await response.json();if(response.ok){setPromoCode(data.code);setDiscount(data.discountAmount);setPromoMessage(market==="GLOBAL"?"Discount applied.":"İndirim uygulandı.");}else{setDiscount(0);setPromoMessage(data.error??(market==="GLOBAL"?"Code could not be applied.":"Kod uygulanamadı."));}setPromoBusy(false);}
+  async function applyPromotion(){if(!promoCode.trim())return;setPromoBusy(true);setPromoMessage("");try{const{response,data,error}=await requestJson<{code?:string;discountAmount?:number;error?:string}>("/api/promotions/validate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code:promoCode})});if(response?.ok&&data?.code&&typeof data.discountAmount==="number"){setPromoCode(data.code);setDiscount(data.discountAmount);setPromoMessage(market==="GLOBAL"?"Discount applied.":"İndirim uygulandı.");}else{setDiscount(0);setPromoMessage(data?.error??error??(market==="GLOBAL"?"Code could not be applied.":"Kod uygulanamadı."));}}finally{setPromoBusy(false);}}
 
   async function submit(event:FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setMessage("");
-    const values=Object.fromEntries(new FormData(event.currentTarget));const response = await fetch("/api/orders", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({...values,requestKey,cartRevision,promoCode:discount>0?promoCode:"",billingType,billingSameAsDelivery,privacyConsent:values.privacyConsent==="on",termsConsent:values.termsConsent==="on"}) });
-    const data = await response.json();
-    if (response.ok) { setResult(data); setItems([]); window.scrollTo({ top:0, behavior:"smooth" }); }
-    else if(data.code==="cart_changed"){await loadCart().catch(()=>undefined);setDiscount(0);setMessage(market==="GLOBAL"?"Your bag changed. We refreshed the order summary; please review it and submit again.":"Çantanız değişti. Sipariş özeti yenilendi; kontrol edip tekrar gönderin.");}
-    else setMessage(data.error ?? (market==="GLOBAL"?"Your order request could not be created.":"Sipariş talebi oluşturulamadı."));
-    setBusy(false);
+    try{const values=Object.fromEntries(new FormData(event.currentTarget));const{response,data,error}=await requestJson<Result&{code?:string;error?:string}>("/api/orders",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...values,requestKey,cartRevision,promoCode:discount>0?promoCode:"",billingType,billingSameAsDelivery,privacyConsent:values.privacyConsent==="on",termsConsent:values.termsConsent==="on"})},30_000);
+    if (response?.ok&&data) { setResult(data); setItems([]); window.scrollTo({ top:0, behavior:"smooth" }); }
+    else if(data?.code==="cart_changed"){await loadCart().catch(()=>undefined);setDiscount(0);setMessage(market==="GLOBAL"?"Your bag changed. We refreshed the order summary; please review it and submit again.":"Çantanız değişti. Sipariş özeti yenilendi; kontrol edip tekrar gönderin.");}
+    else setMessage(data?.error??error??(market==="GLOBAL"?"Your order request could not be created. Please try again.":"Sipariş talebi oluşturulamadı. Lütfen tekrar deneyin."));}finally{setBusy(false);}
   }
 
   if (result) return <main className="checkout-page"><header className="checkout-header"><a className="checkout-brand" href="/">{brand.brandName} <span>{brand.brandSuffix}</span></a></header><section className="order-success"><p>{market==="GLOBAL"?"ORDER REQUEST RECEIVED":"SİPARİŞ TALEBİ ALINDI"}</p><h1>{market==="GLOBAL"?"Thank you.":"Teşekkür ederiz."}</h1><div><span>{market==="GLOBAL"?"Your order number":"Sipariş numaranız"}</span><strong>{result.orderNumber}</strong></div><p>{market==="GLOBAL"?"Your request has been securely saved. No payment has been collected; we will contact you with the next steps.":"Talebiniz güvenli biçimde kaydedildi. Henüz ödeme alınmadı; ödeme altyapısı bağlandığında bu akış güncellenecek."}</p><nav><a href={`/siparis-takip?order=${encodeURIComponent(result.orderNumber)}`}>{market==="GLOBAL"?"Track order":"Siparişi takip et"} →</a><a href="/">{market==="GLOBAL"?"Return to shop":"Mağazaya dön"}</a></nav></section></main>;

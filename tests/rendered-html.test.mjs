@@ -2095,7 +2095,7 @@ test("writes manual stock and its movement atomically with an idempotency key", 
   assert.match(inventory, /createdAt:sql<string>`CURRENT_TIMESTAMP`/);
   assert.match(inventory, /const results=await db\.batch\(\[stockUpdate,movementInsert\]\)/);
   assert.match(center, /finally\{setBusy\(false\);\}/);
-  assert.match(center, /response\.json\(\)\.catch\(\(\)=>null\)/);
+  assert.match(center, /requestJson<InventoryPayload>/);
   assert.match(replenishments, /db\.select\(\{id:sql<number\|null>`NULL`,operationKey:/);
   assert.match(replenishments, /createdAt:sql<string>`CURRENT_TIMESTAMP`/);
   assert.doesNotMatch(inventory, /miktar önceki değerine geri alındı/);
@@ -2400,10 +2400,21 @@ test("serializes cart line changes and prevents duplicate product variants", asy
   assert.match(cartApi, /onConflictDoNothing\(\)/);
   assert.match(cartApi, /eq\(cartItems\.quantity,expectedQuantity\)/);
   assert.match(cartApi, /code:"cart_changed"/);
+  assert.match(cartApi, /leftJoin\(productVariants,and\(eq\(cartItems\.variantId,productVariants\.id\),eq\(productVariants\.productId,products\.id\)\)\)/);
+  assert.match(cartApi, /eq\(productVariants\.productId,item\.productId\)/);
   assert.match(cartPage, /expectedQuantity:item\.quantity/);
   assert.match(cartPage, /expectedQuantity=\$\{item\.quantity\}/);
   assert.match(migration, /GROUP BY "cart_id", "product_id", "variant_id"/);
   assert.match(migration, /CREATE UNIQUE INDEX `cart_items_cart_product_base`/);
+});
+
+test("recovers critical forms from timeouts, connection failures and invalid server responses", async () => {
+  const [helper,checkout,tracking,contact,privacy,newsletter,settings,inventory,readiness,operations]=await Promise.all([
+    source("app/client-request.ts"),source("app/teslimat/page.tsx"),source("app/siparis-takip/page.tsx"),source("app/iletisim/page.tsx"),source("app/veri-talebi/page.tsx"),source("app/bulten-tercihi/page.tsx"),source("app/admin/settings-client.ts"),source("app/admin/stok/inventory-center.tsx"),source("app/admin/yayina-hazirlik/launch-readiness.tsx"),source("app/admin/operasyon/operations-center.tsx"),
+  ]);
+  assert.match(helper,/AbortController/);assert.match(helper,/setTimeout\(\(\)=>controller\.abort\(\),timeoutMs\)/);assert.match(helper,/Sunucudan geçersiz bir yanıt/);assert.match(helper,/Bağlantı kurulamadı/);assert.match(helper,/finally\{clearTimeout\(timeout\);\}/);
+  for(const client of [checkout,tracking,contact,privacy,newsletter,settings,inventory,readiness,operations])assert.match(client,/requestJson/);
+  for(const form of [checkout,tracking,contact,privacy,newsletter,inventory,readiness,operations])assert.match(form,/finally\{set(?:Busy|PromoBusy|Refreshing)\(false\);\}/);
 });
 
 test("rejects stale checkout summaries and preserves cart changes made during order creation", async () => {
@@ -2420,7 +2431,7 @@ test("rejects stale checkout summaries and preserves cart changes made during or
   assert.match(cartApi, /revision:crypto\.randomUUID\(\)/);
   assert.match(checkout, /setCartRevision\(typeof data\.revision==="string"\?data\.revision:null\)/);
   assert.match(checkout, /requestKey,cartRevision,promoCode/);
-  assert.match(checkout, /data\.code==="cart_changed"/);
+  assert.match(checkout, /data\?\.code==="cart_changed"/);
   assert.match(ordersApi, /cart\.revision!==cartRevision/);
   assert.match(ordersApi, /currentCart\.revision!==cartRevision/);
   assert.match(ordersApi, /const exactDeletes=priced\.map/);

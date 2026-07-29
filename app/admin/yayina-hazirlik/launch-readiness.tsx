@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import {fetchSettings,updateSettings} from "../settings-client";
+import {requestJson} from "../../client-request";
 
 type Check={key:string;label:string;ready:boolean;detail:string};
 type Health={key:string;level:"healthy"|"warning"|"paused"|"info";label:string;detail:string};
@@ -15,33 +16,30 @@ export default function LaunchReadiness() {
   const [message,setMessage]=useState("Yükleniyor…");
   const [busy,setBusy]=useState(false);
   const load=async()=>{
-    const [readinessResponse,settingsResult]=await Promise.all([fetch("/api/launch-readiness"),fetchSettings()]);
-    const readinessData=await readinessResponse.json();const{response:settingsResponse,data:settingsData}=settingsResult;
-    if(readinessResponse.ok)setReadiness(readinessData);
+    const [readinessResult,settingsResult]=await Promise.all([requestJson<Readiness&{error?:string}>("/api/launch-readiness"),fetchSettings()]);
+    const{response:readinessResponse,data:readinessData,error:readinessError}=readinessResult;const{response:settingsResponse,data:settingsData}=settingsResult;
+    if(readinessResponse?.ok&&readinessData)setReadiness(readinessData);
     if(settingsResponse.ok)setSettings({
       salesMode:settingsData.settings.salesMode??"order_request",
       paymentProviderStatus:settingsData.settings.paymentProviderStatus??"not_started",
       paymentProviderName:settingsData.settings.paymentProviderName??"",
     });
-    setMessage("");
+    setMessage(readinessResponse?.ok&&settingsResponse.ok?"":readinessData?.error??settingsData.error??readinessError??"Yayına hazırlık bilgileri alınamadı. Lütfen tekrar deneyin.");
   };
   useEffect(()=>{void load();},[]);
   async function save(event:FormEvent<HTMLFormElement>){
     event.preventDefault();setBusy(true);setMessage("");
-    const{response,data}=await updateSettings(settings);
+    try{const{response,data}=await updateSettings(settings);
     setMessage(response.ok?"Satış modu ayarları güncellendi.":data.error??"Ayarlar güncellenemedi.");
-    if(response.ok)await load();
-    setBusy(false);
+    if(response.ok)await load();}finally{setBusy(false);}
   }
   async function runOperation(action:"pause_intake"|"resume_intake"|"safe_mode"){
     const warnings={pause_intake:"Sipariş talebi alımını durdurmak istediğinize emin misiniz?",safe_mode:"Mağazayı ödeme alınmayan güvenli sipariş-talebi moduna geçirmek istediğinize emin misiniz?"};
     if(warnings[action]&&!window.confirm(warnings[action]))return;
     setBusy(true);setMessage("");
-    const response=await fetch("/api/launch-operations",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action})});
-    const data=await response.json();
-    setMessage(response.ok?data.message:data.error??"Operasyon işlemi tamamlanamadı.");
-    if(response.ok)await load();
-    setBusy(false);
+    try{const{response,data,error}=await requestJson<{message?:string;error?:string}>("/api/launch-operations",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({action})});
+    setMessage(response?.ok?data?.message??"İşlem tamamlandı.":data?.error??error??"Operasyon işlemi tamamlanamadı. Lütfen tekrar deneyin.");
+    if(response?.ok)await load();}finally{setBusy(false);}
   }
   return <main className="admin-shell launch-shell">
     <header className="admin-header"><div><p>SATIŞA GEÇİŞ</p><h1>Yayına hazırlık merkezi</h1></div><div><a href="/admin">Panele dön ↗</a><a href="/admin/entegrasyonlar">Entegrasyonlar ↗</a><a href="/">Mağazayı gör ↗</a></div></header>
