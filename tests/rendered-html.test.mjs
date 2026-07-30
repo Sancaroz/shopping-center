@@ -2468,6 +2468,16 @@ test("keeps launch operations recoverable when status requests fail", async () =
   assert.match(integrations,/disabled=\{refreshing\}/);assert.match(payments,/disabled=\{refreshing\|\|busy\}/);assert.match(readiness,/disabled=\{refreshing\|\|busy\}/);
 });
 
+test("keeps customer finance audit and privacy administration recoverable", async () => {
+  const [customers,finance,audit,privacy]=await Promise.all([
+    source("app/admin/musteriler/customer-center.tsx"),source("app/admin/finans/finance-center.tsx"),source("app/admin/islem-gecmisi/audit-log-center.tsx"),source("app/admin/veri-talepleri/privacy-request-center.tsx"),
+  ]);
+  for(const center of [customers,finance,audit,privacy]){assert.match(center,/requestJson/);assert.match(center,/finally\{setRefreshing\(false\);\}/);assert.match(center,/Tekrar dene/);}
+  assert.match(audit,/loaded&&<div className="admin-card empty"/);assert.match(privacy,/loaded&&visible\.length===0/);
+  assert.match(privacy,/requestJson<PrivacyPayload>\("\/api\/privacy-requests",\{method:"PATCH"/);assert.match(privacy,/30_000/);assert.match(privacy,/finally\{setBusy\(false\);\}/);
+  assert.match(privacy,/disabled=\{busy\|\|terminal\}/);
+});
+
 test("rejects stale checkout summaries and preserves cart changes made during order creation", async () => {
   const [schema,cartApi,checkout,ordersApi,migration,backup] = await Promise.all([
     source("db/schema.ts"),
