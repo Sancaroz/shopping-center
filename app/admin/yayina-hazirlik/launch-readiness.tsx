@@ -15,8 +15,9 @@ export default function LaunchReadiness() {
   const [settings,setSettings]=useState<Settings>({salesMode:"order_request",paymentProviderStatus:"not_started",paymentProviderName:""});
   const [message,setMessage]=useState("Yükleniyor…");
   const [busy,setBusy]=useState(false);
+  const [refreshing,setRefreshing]=useState(false);
   const load=async()=>{
-    const [readinessResult,settingsResult]=await Promise.all([requestJson<Readiness&{error?:string}>("/api/launch-readiness"),fetchSettings()]);
+    setRefreshing(true);try{const [readinessResult,settingsResult]=await Promise.all([requestJson<Readiness&{error?:string}>("/api/launch-readiness"),fetchSettings()]);
     const{response:readinessResponse,data:readinessData,error:readinessError}=readinessResult;const{response:settingsResponse,data:settingsData}=settingsResult;
     if(readinessResponse?.ok&&readinessData)setReadiness(readinessData);
     if(settingsResponse.ok)setSettings({
@@ -24,7 +25,7 @@ export default function LaunchReadiness() {
       paymentProviderStatus:settingsData.settings.paymentProviderStatus??"not_started",
       paymentProviderName:settingsData.settings.paymentProviderName??"",
     });
-    setMessage(readinessResponse?.ok&&settingsResponse.ok?"":readinessData?.error??settingsData.error??readinessError??"Yayına hazırlık bilgileri alınamadı. Lütfen tekrar deneyin.");
+    setMessage(readinessResponse?.ok&&settingsResponse.ok?"":readinessData?.error??settingsData.error??readinessError??"Yayına hazırlık bilgileri alınamadı. Lütfen tekrar deneyin.");}finally{setRefreshing(false);}
   };
   useEffect(()=>{void load();},[]);
   async function save(event:FormEvent<HTMLFormElement>){
@@ -42,8 +43,8 @@ export default function LaunchReadiness() {
     if(response?.ok)await load();}finally{setBusy(false);}
   }
   return <main className="admin-shell launch-shell">
-    <header className="admin-header"><div><p>SATIŞA GEÇİŞ</p><h1>Yayına hazırlık merkezi</h1></div><div><a href="/admin">Panele dön ↗</a><a href="/admin/entegrasyonlar">Entegrasyonlar ↗</a><a href="/">Mağazayı gör ↗</a></div></header>
-    {!readiness?<section className="admin-card launch-loading">{message}</section>:<>
+    <header className="admin-header"><div><p>SATIŞA GEÇİŞ</p><h1>Yayına hazırlık merkezi</h1></div><div><button onClick={load} disabled={refreshing||busy}>{refreshing?"Yenileniyor…":"Durumu yenile"}</button><a href="/admin">Panele dön ↗</a><a href="/admin/entegrasyonlar">Entegrasyonlar ↗</a><a href="/">Mağazayı gör ↗</a></div></header>
+    {!readiness?<section className="admin-card launch-loading"><p>{message}</p><button onClick={load} disabled={refreshing}>{refreshing?"Yenileniyor…":"Tekrar dene"}</button></section>:<>
       <section className={`launch-score ${readiness.readyForLive?"ready":"waiting"}`}><div><p>GENEL DURUM</p><h2>{readiness.readyCount} / {readiness.total}</h2></div><div><strong>{readiness.readyForLive?"Canlı satışa hazır":"Hazırlık devam ediyor"}</strong><span>{readiness.salesMode==="live"?"Canlı satış modu":"Güvenli sipariş-talebi modu"}</span></div></section>
       <section className="admin-card launch-operations"><div className="list-title"><div><p className="section-kicker">SİSTEM SAĞLIĞI</p><h2>Açılış günü görünümü</h2></div><span>{new Date(readiness.operations.generatedAt).toLocaleTimeString("tr-TR")} itibarıyla</span></div><div className="launch-health-grid">{readiness.operations.health.map(item=><article className={item.level} key={item.key}><i>{item.level==="healthy"?"✓":item.level==="paused"?"×":item.level==="warning"?"!":"•"}</i><div><b>{item.label}</b><p>{item.detail}</p></div></article>)}</div><div className="launch-metrics"><span><b>{readiness.operations.metrics.newOrders24h}</b>Son 24 saat sipariş</span><span><b>{readiness.operations.metrics.activeOrders}</b>Aktif sipariş</span><span className={readiness.operations.metrics.staleOrders?"warning":""}><b>{readiness.operations.metrics.staleOrders}</b>Geciken sipariş</span><span className={readiness.operations.metrics.staleReturns?"warning":""}><b>{readiness.operations.metrics.staleReturns}</b>Geciken iade</span><span><b>{readiness.operations.metrics.draftNotifications}</b>Bildirim taslağı</span></div></section>
       <section className="launch-response-grid"><article className="admin-card emergency-card"><p className="section-kicker">ACİL DURUM KONTROLÜ</p><h2>Sipariş güvenlik anahtarı</h2><p>Siparişlerde teknik veya operasyonel bir sorun görürseniz yeni talep alımını anında durdurun. Mevcut kayıtlar ve sepetler silinmez.</p><div>{readiness.operations.orderIntakeStatus==="open"?<button className="danger" onClick={()=>runOperation("pause_intake")} disabled={busy}>Sipariş alımını durdur</button>:<button className="resume" onClick={()=>runOperation("resume_intake")} disabled={busy}>Sipariş alımını yeniden aç</button>}<button onClick={()=>runOperation("safe_mode")} disabled={busy}>Güvenli sipariş moduna dön</button></div><small>Her müdahale yönetim işlem geçmişine kaydedilir.</small></article><article className="admin-card runbook-card"><p className="section-kicker">SORUN ANINDA</p><h2>4 adımlık müdahale planı</h2><ol><li><b>Talep alımını durdurun</b><span>Yeni sipariş oluşmasını geçici olarak engelleyin.</span></li><li><b>Operasyon merkezini kontrol edin</b><a href="/admin/operasyon">Geciken sipariş ve stok uyarılarını aç →</a></li><li><b>Veri ve görsel yedeği alın</b><a href="/admin/veri-guvenligi">Yedekleme merkezine git →</a></li><li><b>İşlem geçmişini inceleyin</b><a href="/admin/islem-gecmisi">Son yönetim değişikliklerini aç →</a></li></ol></article></section>

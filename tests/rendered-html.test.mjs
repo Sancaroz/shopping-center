@@ -2459,6 +2459,15 @@ test("keeps brand and storefront settings recoverable during saves and uploads",
   assert.match(brand,/!response\?\.ok\|\|!data\?\.imageUrl/);assert.match(seo,/Paylaşım görseli yüklenemedi\. Lütfen tekrar deneyin/);
 });
 
+test("keeps launch operations recoverable when status requests fail", async () => {
+  const [shipping,integrations,payments,readiness]=await Promise.all([
+    source("app/admin/teslimat-ayarlari/shipping-settings.tsx"),source("app/admin/entegrasyonlar/integration-center.tsx"),source("app/admin/odemeler/payment-center.tsx"),source("app/admin/yayina-hazirlik/launch-readiness.tsx"),
+  ]);
+  assert.match(shipping,/finally\{setBusy\(false\);\}/);assert.match(shipping,/Teslimat kuralları kaydedilemedi\. Lütfen tekrar deneyin/);
+  for(const center of [integrations,payments,readiness]){assert.match(center,/requestJson/);assert.match(center,/finally\{setRefreshing\(false\);\}/);assert.match(center,/Tekrar dene/);}
+  assert.match(integrations,/disabled=\{refreshing\}/);assert.match(payments,/disabled=\{refreshing\|\|busy\}/);assert.match(readiness,/disabled=\{refreshing\|\|busy\}/);
+});
+
 test("rejects stale checkout summaries and preserves cart changes made during order creation", async () => {
   const [schema,cartApi,checkout,ordersApi,migration,backup] = await Promise.all([
     source("db/schema.ts"),
