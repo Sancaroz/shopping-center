@@ -2449,6 +2449,16 @@ test("keeps catalog and homepage editing recoverable during uploads and concurre
   assert.match(blocks,/disabled=\{busy\|\|index === 0\}/);assert.match(blocks,/load\(\)\.catch/);
 });
 
+test("keeps brand and storefront settings recoverable during saves and uploads", async () => {
+  const [brand,seo,navigation,footer,global,manifesto,announcement]=await Promise.all([
+    source("app/admin/marka/brand-editor.tsx"),source("app/admin/seo/seo-editor.tsx"),source("app/admin/navigasyon/navigation-editor.tsx"),source("app/admin/footer/footer-editor.tsx"),source("app/admin/global/global-editor.tsx"),source("app/admin/manifesto/manifesto-editor.tsx"),source("app/admin/duyuru/announcement-editor.tsx"),
+  ]);
+  for(const editor of [brand,seo,navigation,footer,global,manifesto,announcement])assert.match(editor,/finally\{setBusy\(false\);?\}/);
+  for(const editor of [navigation,footer,global,manifesto,announcement])assert.match(editor,/catch\{setMessage\(/);
+  for(const editor of [brand,seo]){assert.match(editor,/requestJson<UploadPayload>/);assert.match(editor,/30_000/);}
+  assert.match(brand,/!response\?\.ok\|\|!data\?\.imageUrl/);assert.match(seo,/Paylaşım görseli yüklenemedi\. Lütfen tekrar deneyin/);
+});
+
 test("rejects stale checkout summaries and preserves cart changes made during order creation", async () => {
   const [schema,cartApi,checkout,ordersApi,migration,backup] = await Promise.all([
     source("db/schema.ts"),
