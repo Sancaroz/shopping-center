@@ -1326,7 +1326,7 @@ test("scopes product-gallery changes to one product and protects live covers", a
   assert.match(editor, /images\.length\+files\.length>20/);
   assert.match(editor, /JSON\.stringify\(\{productId:id,order:/);
   assert.match(editor, /JSON\.stringify\(\{id:image\.id,productId:id,expectedUpdatedAt:image\.updatedAt,altText\}\)/);
-  assert.match(editor, /fetch\("\/api\/media-library",\{method:"DELETE"/);
+  assert.match(editor, /requestJson<ProductPayload>\("\/api\/media-library",\{method:"DELETE"/);
   assert.match(auditCenter, /Galeri görseli ekleme/);
   assert.match(auditCenter, /Galeri açıklaması güncelleme/);
   assert.match(auditCenter, /Galeri sıralama/);
@@ -1362,7 +1362,7 @@ test("validates storefront links and preserves audited homepage blocks", async (
   assert.match(blocksApi, /action: "homepage_block\.archive"/);
   assert.doesNotMatch(blocksApi, /delete\(homepageBlocks\)/);
   assert.match(blocksEditor, /İçerik ve işlem geçmişi korunacaktır/);
-  assert.match(blocksEditor, /data\.error \|\| "Blok eklenemedi/);
+  assert.match(blocksEditor, /data\?\.error\?\?error\?\?"Blok eklenemedi/);
   assert.match(navigationEditor, /data\.error\?\?"Menü kaydedilemedi/);
   assert.match(announcementEditor, /data\.error\?\?"Duyuru ayarları kaydedilemedi/);
   assert.match(auditCenter, /Vitrin bloğu arşivleme/);
@@ -2376,7 +2376,7 @@ test("serializes homepage block swaps and rejects stale sourcing profile writes"
   assert.match(blocksApi, /CASE WHEN \$\{homepageBlocks\.id\}/);
   assert.match(blocksApi, /changed\.length !== 2/);
   assert.match(blocksApi, /eq\(homepageBlocks\.updatedAt, expectedUpdatedAt\)/);
-  assert.match(blocksEditor, /expectedUpdatedAt: editing\.updatedAt/);
+  assert.match(blocksEditor, /expectedUpdatedAt:\s*editing\.updatedAt/);
   assert.match(blocksEditor, /expectedUpdatedAt:first\.updatedAt/);
   assert.match(blocksEditor, /encodeURIComponent\(block\.updatedAt\)/);
   assert.match(inventoryApi, /eq\(products\.updatedAt,expectedUpdatedAt\)/);
@@ -2436,6 +2436,17 @@ test("keeps customer-care, campaign, media and backup operations recoverable", a
   assert.match(promotions,/Tarih bilgilerini ve bağlantınızı kontrol edip tekrar deneyin/);
   assert.match(media,/URL\.revokeObjectURL\(objectUrl\)/);assert.match(media,/Tarayıcı pano iznini kontrol edin/);
   assert.match(backups,/file\.size > 10 \* 1024 \* 1024/);assert.match(backups,/response\?\.status===422/);
+});
+
+test("keeps catalog and homepage editing recoverable during uploads and concurrent actions", async () => {
+  const [product,variant,category,blocks]=await Promise.all([
+    source("app/admin/urun/[id]/product-editor.tsx"),source("app/admin/varyant/[id]/variant-editor.tsx"),source("app/admin/kategori/[id]/category-editor.tsx"),source("app/admin/bloklar/blocks-editor.tsx"),
+  ]);
+  for(const editor of [product,variant,category,blocks])assert.match(editor,/requestJson/);
+  for(const editor of [product,variant,category,blocks])assert.match(editor,/finally\{setBusy\(false\);\}/);
+  assert.match(product,/disabled=\{busy\|\|index===0\}/);assert.match(product,/disabled=\{busy\}>Kapak yap/);assert.match(product,/30_000/);
+  assert.match(category,/expectedUpdatedAt:category\.updatedAt/);assert.match(variant,/expectedUpdatedAt:variant\.updatedAt/);
+  assert.match(blocks,/disabled=\{busy\|\|index === 0\}/);assert.match(blocks,/load\(\)\.catch/);
 });
 
 test("rejects stale checkout summaries and preserves cart changes made during order creation", async () => {
