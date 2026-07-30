@@ -2478,6 +2478,16 @@ test("keeps customer finance audit and privacy administration recoverable", asyn
   assert.match(privacy,/disabled=\{busy\|\|terminal\}/);
 });
 
+test("finishes hardening the remaining catalog communication and import screens", async () => {
+  const [panel,quality,notifications,importer]=await Promise.all([
+    source("app/admin/panel.tsx"),source("app/admin/katalog-kalitesi/catalog-quality-center.tsx"),source("app/admin/bildirimler/notification-center.tsx"),source("app/admin/toplu-urun/product-importer.tsx"),
+  ]);
+  assert.match(panel,/async function fetch\(input:RequestInfo\|URL/);assert.match(panel,/AbortController/);assert.match(panel,/finally\{clearTimeout\(timeout\);\}/);assert.match(panel,/Yönetim verilerinin bir bölümü yüklenemedi/);
+  for(const center of [quality,notifications]){assert.match(center,/requestJson/);assert.match(center,/finally\{setRefreshing\(false\);\}/);assert.match(center,/Tekrar dene/);}
+  assert.match(notifications,/finally\{setBusy\(false\);\}/);assert.match(notifications,/loaded&&items\.length===0/);assert.match(notifications,/disabled=\{busy\|\|refreshing\}/);
+  assert.match(importer,/requestJson<Report>/);assert.match(importer,/60_000/);assert.match(importer,/finally\{setBusy\(false\);\}/);assert.match(importer,/required disabled=\{busy\}/);
+});
+
 test("rejects stale checkout summaries and preserves cart changes made during order creation", async () => {
   const [schema,cartApi,checkout,ordersApi,migration,backup] = await Promise.all([
     source("db/schema.ts"),
