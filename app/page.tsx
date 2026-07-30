@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { categories as sampleCategories, products as sampleProducts, type Market } from "./content";
 import {getPreferredMarket,setPreferredMarket} from "./market-preference";
 import {availableVariants,sellableStock} from "./catalog-availability";
+import {requestJson} from "./client-request";
 
 type StoreProduct = (typeof sampleProducts)[number] & { id?: number; active?: boolean; featured?:boolean; slug?:string; nameGlobal?:string; descriptionGlobal?:string; categoryId?:number|null; stock?:number };
 type DatabaseProduct = {
@@ -45,6 +46,8 @@ export default function Home() {
   const [newsletterEmail,setNewsletterEmail]=useState("");
   const [newsletterMessage,setNewsletterMessage]=useState("");
   const[homepageBlocks,setHomepageBlocks]=useState<HomepageBlock[]>([]);
+  const[addingProductId,setAddingProductId]=useState<number|null>(null);
+  const[newsletterBusy,setNewsletterBusy]=useState(false);
 
   useEffect(()=>{setMarket(getPreferredMarket());},[]);
 
@@ -112,14 +115,12 @@ export default function Home() {
 
   const addToCart = async (product: StoreProduct) => {
     if (!product.id || catalogSource !== "live") { setNotice(market==="GLOBAL"?"Catalog is being prepared.":"Ürün kataloğu hazırlanıyor."); return; }
-    const response = await fetch("/api/cart", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ productId:product.id, quantity:1, market }) });
-    if (!response.ok) { const data=await response.json();setNotice(data.error??(market==="GLOBAL"?"Product could not be added":"Ürün eklenemedi")); return; }
-    setCartCount((count) => count + 1);
-    setNotice(market === "TR" ? `${product.name} çantanıza eklendi` : `${product.nameGlobal || product.name} added to your bag`);
-    window.setTimeout(() => setNotice(""), 2200);
+    if(addingProductId!==null)return;setAddingProductId(product.id);try{const{response,data,error}=await requestJson<{error?:string}>("/api/cart",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({productId:product.id,quantity:1,market})});
+    if(!response?.ok){setNotice(data?.error??error??(market==="GLOBAL"?"Product could not be added. Please try again.":"Ürün eklenemedi. Lütfen tekrar deneyin."));return;}
+    setCartCount(count=>count+1);setNotice(market==="TR"?`${product.name} çantanıza eklendi`:`${product.nameGlobal||product.name} added to your bag`);window.setTimeout(()=>setNotice(""),2200);}finally{setAddingProductId(null);}
   };
 
-  const subscribe=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();setNewsletterMessage("");const form=new FormData(event.currentTarget);const response=await fetch("/api/newsletter",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:newsletterEmail,market,consent:true,company:form.get("company")})});const data=await response.json();if(response.ok){setNewsletterEmail("");setNewsletterMessage(data.alreadyActive?(market==="TR"?"Bu adres zaten doğrulanmış abone.":"This address is already subscribed."):(market==="TR"?"Doğrulama bağlantınız hazırlandı; e-posta gönderimi etkinleştiğinde iletilecek.":"Your verification link is queued and will be sent when email delivery is enabled."));}else setNewsletterMessage(data.error??"Kayıt tamamlanamadı.");};
+  const subscribe=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();if(newsletterBusy)return;setNewsletterBusy(true);setNewsletterMessage("");try{const form=new FormData(event.currentTarget);const{response,data,error}=await requestJson<{alreadyActive?:boolean;error?:string}>("/api/newsletter",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:newsletterEmail,market,consent:true,company:form.get("company")})});if(response?.ok){setNewsletterEmail("");setNewsletterMessage(data?.alreadyActive?(market==="TR"?"Bu adres zaten doğrulanmış abone.":"This address is already subscribed."):(market==="TR"?"Doğrulama bağlantınız hazırlandı; e-posta gönderimi etkinleştiğinde iletilecek.":"Your verification link is queued and will be sent when email delivery is enabled."));}else setNewsletterMessage(data?.error??error??(market==="TR"?"Kayıt tamamlanamadı. Lütfen tekrar deneyin.":"Subscription could not be completed. Please try again."));}finally{setNewsletterBusy(false);}};
   const isGlobal=market==="GLOBAL";
   const globalText=(key:keyof GlobalContent,fallback:string)=>isGlobal?(settings[key]||fallback):fallback;
   const badgeText=(badge:string)=>!isGlobal?badge:({"YENİ":"NEW","ÇOK SEVİLEN":"BESTSELLER","YAKINDA":"COMING SOON"}[badge]||badge);

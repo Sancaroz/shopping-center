@@ -2488,6 +2488,18 @@ test("finishes hardening the remaining catalog communication and import screens"
   assert.match(importer,/requestJson<Report>/);assert.match(importer,/60_000/);assert.match(importer,/finally\{setBusy\(false\);\}/);assert.match(importer,/required disabled=\{busy\}/);
 });
 
+test("keeps storefront cart and after-sales actions recoverable and single-flight", async () => {
+  const [home,catalog,detail,cart,returns]=await Promise.all([
+    source("app/page.tsx"),source("app/magaza/page.tsx"),source("app/urun/[slug]/product-detail.tsx"),source("app/sepet/page.tsx"),source("app/iade-talebi/page.tsx"),
+  ]);
+  for(const page of [home,catalog,detail,cart,returns])assert.match(page,/requestJson/);
+  assert.match(home,/if\(addingProductId!==null\)return/);assert.match(home,/if\(newsletterBusy\)return/);assert.match(home,/finally\{setNewsletterBusy\(false\);\}/);
+  assert.match(catalog,/if\(addingId!==null\)return/);assert.match(catalog,/finally\{setAddingId\(null\);\}/);
+  assert.match(detail,/\|\|busy\)return/);assert.match(detail,/finally\{setBusy\(false\);\}/);
+  assert.match(cart,/if\(busyLineId!==null\)return/);assert.match(cart,/finally\{setBusyLineId\(null\);\}/);assert.match(cart,/finally\{setLoading\(false\);\}/);
+  assert.match(returns,/30_000/);assert.match(returns,/finally\{setBusy\(false\);\}/);
+});
+
 test("rejects stale checkout summaries and preserves cart changes made during order creation", async () => {
   const [schema,cartApi,checkout,ordersApi,migration,backup] = await Promise.all([
     source("db/schema.ts"),

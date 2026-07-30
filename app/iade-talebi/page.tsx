@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import "./iade-talebi.css";
 import { getPreferredMarket } from "../market-preference";
+import {requestJson} from "../client-request";
 
 export default function ReturnRequestPage() {
   const [market,setMarket]=useState<"TR"|"GLOBAL">("TR");
@@ -16,10 +17,8 @@ export default function ReturnRequestPage() {
   async function submit(event:FormEvent<HTMLFormElement>){
     event.preventDefault();setBusy(true);setMessage("");setRequestNumber("");
     if(!requestKey.current)requestKey.current=crypto.randomUUID();const values=Object.fromEntries(new FormData(event.currentTarget));
-    const response=await fetch("/api/return-requests",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...values,requestKey:requestKey.current,privacyAcknowledged:values.privacyAcknowledged==="on"})});
-    const data=await response.json();
-    if(response.ok){setRequestNumber(data.requestNumber);requestKey.current="";event.currentTarget.reset();}else setMessage(data.error??(en?"Request could not be created.":"Talep oluşturulamadı."));
-    setBusy(false);
+    try{const{response,data,error}=await requestJson<{requestNumber?:string;error?:string}>("/api/return-requests",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...values,requestKey:requestKey.current,privacyAcknowledged:values.privacyAcknowledged==="on"})},30_000);
+    if(response?.ok&&data?.requestNumber){setRequestNumber(data.requestNumber);requestKey.current="";event.currentTarget.reset();}else setMessage(data?.error??error??(en?"Request could not be created. Please try again.":"Talep oluşturulamadı. Lütfen tekrar deneyin."));}finally{setBusy(false);}
   }
   return <main className="return-page">
     <header><a className="return-brand" href="/">{brand.brandName} <span>{brand.brandSuffix}</span></a><nav><a href="/siparis-takip">{en?"Track order":"Sipariş takibi"}</a><a href="/iletisim">{en?"Contact":"İletişim"}</a></nav></header>

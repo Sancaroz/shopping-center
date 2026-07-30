@@ -5,6 +5,7 @@ import "./sepet.css";
 import "./cart-controls.css";
 import {getPreferredMarket,setPreferredMarket} from "../market-preference";
 import {shippingQuote} from "../shipping-rules";
+import {requestJson} from "../client-request";
 
 type CartItem = {
   id: number;
@@ -34,13 +35,9 @@ export default function CartPage() {
   const [loading, setLoading] = useState(true);
   const [brand,setBrand]=useState({brandName:"MYSA",brandSuffix:"OBJETS"});
   const [shippingSettings,setShippingSettings]=useState({shippingTr:99,freeShippingTr:1500,shippingGlobal:15,freeShippingGlobal:150});
+  const [busyLineId,setBusyLineId]=useState<number|null>(null);
 
-  const load = () => fetch("/api/cart").then(response => response.json()).then(data => {
-    const rows=data.items??[];const next=rows.length?(data.market === "GLOBAL" ? "GLOBAL" : "TR"):getPreferredMarket();
-    setItems(rows);
-    setMarket(next);setPreferredMarket(next);
-    setLoading(false);
-  }).catch(() => setLoading(false));
+  const load=async()=>{setLoading(true);try{const{response,data}=await requestJson<{items?:CartItem[];market?:string}>("/api/cart");if(response?.ok&&data){const rows=data.items??[];const next=rows.length?(data.market==="GLOBAL"?"GLOBAL":"TR"):getPreferredMarket();setItems(rows);setMarket(next);setPreferredMarket(next);}}finally{setLoading(false);}};
 
   useEffect(() => { load(); }, []);
   useEffect(()=>{fetch("/api/settings").then(response=>response.json()).then(data=>{const s=data.settings??{};setBrand({brandName:s.brandName??"MYSA",brandSuffix:s.brandSuffix??"OBJETS"});setShippingSettings({shippingTr:Number(s.shippingTr??99),freeShippingTr:Number(s.freeShippingTr??1500),shippingGlobal:Number(s.shippingGlobal??15),freeShippingGlobal:Number(s.freeShippingGlobal??150)});}).catch(()=>undefined);},[]);
@@ -51,18 +48,14 @@ export default function CartPage() {
   }, 0), [items, market]);
 
   async function remove(item: CartItem) {
-    const response=await fetch(`/api/cart?id=${item.id}&expectedQuantity=${item.quantity}`, { method: "DELETE" });
-    if(!response.ok){await load();return;}
-    setItems(current => current.filter(line => line.id !== item.id));
+    if(busyLineId!==null)return;setBusyLineId(item.id);try{const{response}=await requestJson<{error?:string}>(`/api/cart?id=${item.id}&expectedQuantity=${item.quantity}`,{method:"DELETE"});if(!response?.ok){await load();return;}setItems(current=>current.filter(line=>line.id!==item.id));}finally{setBusyLineId(null);}
   }
 
   async function setQuantity(item:CartItem, quantity:number) {
+    if(busyLineId!==null)return;
     const maximum = item.variantStock ?? item.stock;
     const next = Math.max(0, Math.min(quantity, maximum));
-    const response = await fetch("/api/cart", { method:"PATCH", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ id:item.id, quantity:next, expectedQuantity:item.quantity }) });
-    if (!response.ok) { await load(); return; }
-    if (next === 0) setItems(current => current.filter(line => line.id !== item.id));
-    else setItems(current => current.map(line => line.id === item.id ? { ...line, quantity:next } : line));
+    setBusyLineId(item.id);try{const{response}=await requestJson<{error?:string}>("/api/cart",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:item.id,quantity:next,expectedQuantity:item.quantity})});if(!response?.ok){await load();return;}if(next===0)setItems(current=>current.filter(line=>line.id!==item.id));else setItems(current=>current.map(line=>line.id===item.id?{...line,quantity:next}:line));}finally{setBusyLineId(null);}
   }
 
   const money = (value: number) => market === "TR" ? `${value.toLocaleString("tr-TR")} TL` : `€${value.toLocaleString("en-US")}`;

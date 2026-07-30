@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import "./magaza.css";
 import {getPreferredMarket,setPreferredMarket} from "../market-preference";
 import {availableVariants,sellableStock} from "../catalog-availability";
+import {requestJson} from "../client-request";
 
 type Market = "TR"|"GLOBAL";
 type Product = { id:number; nameTr:string; nameEn:string; descriptionTr:string; descriptionEn:string; slug:string; imageUrl:string; priceTr:number; priceGlobal:number; stock:number; categoryId:number|null; marketTr:boolean; marketGlobal:boolean; active:boolean };
@@ -23,6 +24,7 @@ export default function CatalogPage() {
   const [cartCount,setCartCount] = useState(0);
   const [notice,setNotice] = useState("");
   const [loading,setLoading] = useState(true);
+  const [addingId,setAddingId] = useState<number|null>(null);
 
   useEffect(()=>{
     const preferred=getPreferredMarket();setMarket(preferred);setPreferredMarket(preferred);
@@ -41,7 +43,7 @@ export default function CatalogPage() {
   },[products,categories,market,category,query,sort]);
 
   const productName=(product:Product)=>market==="GLOBAL"?(product.nameEn||product.nameTr):product.nameTr;const productDescription=(product:Product)=>market==="GLOBAL"?(product.descriptionEn||product.descriptionTr):product.descriptionTr;const categoryName=(item:Category)=>market==="GLOBAL"?(item.nameEn||item.nameTr):item.nameTr;
-  async function addToCart(product:Product){const response=await fetch("/api/cart",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({productId:product.id,quantity:1,market})});const data=await response.json();if(response.ok){setCartCount(count=>count+1);setNotice(market==="GLOBAL"?`${productName(product)} added to your bag`:`${productName(product)} çantanıza eklendi`);window.setTimeout(()=>setNotice(""),2200);}else setNotice(data.error??(market==="GLOBAL"?"Product could not be added":"Ürün eklenemedi"));}
+  async function addToCart(product:Product){if(addingId!==null)return;setAddingId(product.id);try{const{response,data,error}=await requestJson<{error?:string}>("/api/cart",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({productId:product.id,quantity:1,market})});if(response?.ok){setCartCount(count=>count+1);setNotice(market==="GLOBAL"?`${productName(product)} added to your bag`:`${productName(product)} çantanıza eklendi`);window.setTimeout(()=>setNotice(""),2200);}else setNotice(data?.error??error??(market==="GLOBAL"?"Product could not be added. Please try again.":"Ürün eklenemedi. Lütfen tekrar deneyin."));}finally{setAddingId(null);}}
   const money=(product:Product)=>{const price=market==="TR"?product.priceTr:product.priceGlobal;return price>0?(market==="TR"?`${price.toLocaleString("tr-TR")} TL`:`€${price.toLocaleString("en-US")}`):(market==="TR"?"FİYAT YAKINDA":"PRICE COMING SOON");};
   const marketProducts=useMemo(()=>products.filter(product=>market==="TR"?product.marketTr:product.marketGlobal),[products,market]);
   const availableCategoryIds=useMemo(()=>{const ids=new Set(marketProducts.map(product=>product.categoryId).filter((id):id is number=>id!==null));categories.forEach(item=>{if(item.parentId&&ids.has(item.id))ids.add(item.parentId);});return ids;},[marketProducts,categories]);
